@@ -411,11 +411,14 @@
       </div>
     </div>
 
-  <!-- Include the JavaScript file -->
+  <!-- Include the JavaScript files -->
   <script>
     // Pass server-side variables to client-side JavaScript
     const USER_EMAIL = '<%= typeof userEmail !== "undefined" ? userEmail : "" %>';
   </script>
+  <!-- Navigation fix (loads first to ensure tabs work) -->
+  <script src="/js/navigation-fix.js"></script>
+  <!-- Main application JavaScript -->
   <script src="/js/app.js"></script>
 </body>
 </html>
