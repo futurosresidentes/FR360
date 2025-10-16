@@ -192,11 +192,101 @@
     }
 
     // === Helpers globales para promesas y reintentos (usados en todo el panel) ===
+
+    // Simular google.script.run para compatibilidad con código legado
+    window.google = window.google || {};
+    window.google.script = {
+      run: new Proxy({}, {
+        get: function(target, prop) {
+          if (prop === 'withSuccessHandler') {
+            let successHandler = null;
+            let failureHandler = null;
+
+            const handlerObj = {
+              withSuccessHandler: function(handler) {
+                successHandler = handler;
+                return handlerObj;
+              },
+              withFailureHandler: function(handler) {
+                failureHandler = handler;
+                return handlerObj;
+              }
+            };
+
+            // Crear proxy para capturar cualquier llamada a función
+            return function(handler) {
+              successHandler = handler;
+              const proxy = new Proxy(handlerObj, {
+                get: function(target, fnName) {
+                  if (fnName === 'withFailureHandler' || fnName === 'withSuccessHandler') {
+                    return target[fnName];
+                  }
+                  // Esta es la función real que se está llamando
+                  return function(...args) {
+                    fetch(`/api/${fnName}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ args: args })
+                    })
+                    .then(res => {
+                      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                      return res.json();
+                    })
+                    .then(data => {
+                      const result = data.result !== undefined ? data.result : data;
+                      if (successHandler) successHandler(result);
+                    })
+                    .catch(err => {
+                      if (failureHandler) failureHandler(err);
+                      else console.error('Error en llamada API:', err);
+                    });
+                  };
+                }
+              });
+              return proxy;
+            };
+          }
+
+          // Llamadas directas sin handlers (ej: google.script.run.functionName())
+          return function(...args) {
+            return fetch(`/api/${prop}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ args: args })
+            })
+            .then(res => {
+              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+              return res.json();
+            })
+            .then(data => data.result !== undefined ? data.result : data);
+          };
+        }
+      })
+    };
+
     function gs(name, ...args) {
         return new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)[name](...args);
+          fetch(`/api/${name}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ args: args })
+          })
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data.success === false) {
+              reject(new Error(data.error || 'Error desconocido'));
+            } else {
+              resolve(data.result !== undefined ? data.result : data);
+            }
+          })
+          .catch(reject);
         });
     }
     
