@@ -29,14 +29,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Configurar trust proxy para Render
+app.set('trust proxy', 1);
+
 // Configurar sesiones (DEBE ir antes de Passport)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'fr360-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
+  proxy: true, // Trust the reverse proxy
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+    secure: true, // Always use secure cookies in Render (HTTPS)
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    sameSite: 'lax'
   }
 }));
 
