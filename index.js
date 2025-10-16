@@ -1,50 +1,308 @@
-// index.js
-require('dotenv').config(); // lee .env
+// index.js - FR360 Commercial Management Panel
+require('dotenv').config();
 const express = require('express');
-const axios = require('axios');
+const session = require('express-session');
 const cors = require('cors');
 const morgan = require('morgan');
+const path = require('path');
+
+// Importar servicios
+const strapiService = require('./services/strapiService');
+const fr360Service = require('./services/fr360Service');
+const frappService = require('./services/frappService');
+const callbellService = require('./services/callbellService');
+const oldMembershipService = require('./services/oldMembershipService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- Middlewares
 app.use(morgan('dev'));
-app.use(cors()); // si luego quieres restringir, lo ajustamos
-app.use(express.static('public')); // sirve /public
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+// Configurar sesiones
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'fr360-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
 
 // --- Motor de vistas (EJS)
 app.set('view engine', 'ejs');
-app.set('views', './views');
+app.set('views', path.join(__dirname, 'views'));
 
-// --- Ruta principal (equivale a doGet())
+// --- Ruta principal
 app.get('/', (req, res) => {
-  // Render de la vista 'home' dentro del 'layout'
-  res.render('home', { title: 'FR360' }, (err, html) => {
-    if (err) return res.status(500).send(err.message);
-    // inyectar en layout
-    app.render('layout', { title: 'FR360', body: html }, (err2, finalHtml) => {
-      if (err2) return res.status(500).send(err2.message);
-      res.send(finalHtml);
-    });
+  const userEmail = req.session?.userEmail || 'sin-login@example.com';
+  res.render('home', {
+    title: 'FR360 - Panel Comercial',
+    userEmail: userEmail
   });
 });
 
-// --- Ejemplo de "UrlFetchApp.fetch" con axios
-app.get('/api/externa', async (req, res) => {
-  try {
-    // Ejemplo: usa variable de entorno como base URL
-    const base = process.env.API_BASE_URL || 'https://api.publicapis.org';
-    const url = `${base}/entries`; // endpoint de prueba público
+// === API ENDPOINTS ===
 
-    const r = await axios.get(url, { timeout: 15000 });
-    res.json({ ok: true, count: r.data?.count ?? r.data?.length ?? null });
-  } catch (err) {
-    console.error('Error /api/externa:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+// Obtener datos de ciudadano por UID
+app.get('/api/citizen/:uid', async (req, res) => {
+  try {
+    const data = await fr360Service.getCitizen(req.params.uid);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error getting citizen:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
+// Obtener productos (nombres)
+app.get('/api/products', async (req, res) => {
+  try {
+    const products = await strapiService.getProducts({ mode: 'names' });
+    res.json({ success: true, data: products });
+  } catch (error) {
+    console.error('Error getting products:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener catálogo completo de productos
+app.get('/api/products/catalog', async (req, res) => {
+  try {
+    const catalog = await strapiService.getProducts({ mode: 'catalog' });
+    res.json({ success: true, data: catalog });
+  } catch (error) {
+    console.error('Error getting catalog:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener descripción de un producto
+app.get('/api/products/description/:productName', async (req, res) => {
+  try {
+    const description = await strapiService.getProducts({
+      mode: 'description',
+      productName: req.params.productName
+    });
+    res.json({ success: true, data: description });
+  } catch (error) {
+    console.error('Error getting product description:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Crear link de pago
+app.post('/api/payment-link', async (req, res) => {
+  try {
+    const result = await fr360Service.createPaymentLink(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error creating payment link:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Guardar link de pago en base de datos
+app.post('/api/payment-link/save', async (req, res) => {
+  try {
+    const result = await fr360Service.savePaymentLinkToDatabase(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error saving payment link:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener ventas por UID
+app.get('/api/ventas/:uid', async (req, res) => {
+  try {
+    const ventas = await strapiService.fetchVentas(req.params.uid);
+    res.json({ success: true, data: ventas });
+  } catch (error) {
+    console.error('Error getting ventas:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener acuerdos por UID
+app.get('/api/acuerdos/:uid', async (req, res) => {
+  try {
+    const acuerdos = await strapiService.fetchAcuerdos(req.params.uid);
+    res.json({ success: true, data: acuerdos });
+  } catch (error) {
+    console.error('Error getting acuerdos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Consultar acuerdo por número
+app.get('/api/acuerdo/:nroAcuerdo', async (req, res) => {
+  try {
+    const acuerdo = await strapiService.consultarAcuerdo(req.params.nroAcuerdo);
+    res.json(acuerdo);
+  } catch (error) {
+    console.error('Error consulting acuerdo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener membresías (FRAPP)
+app.get('/api/membresias/:uid', async (req, res) => {
+  try {
+    const membresias = await frappService.fetchMembresiasFRAPP(req.params.uid);
+    res.json({ success: true, data: membresias });
+  } catch (error) {
+    console.error('Error getting membresias:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener membresías antiguas (WordPress)
+app.get('/api/membresias/old/:uid', async (req, res) => {
+  try {
+    const membresias = await oldMembershipService.traerMembresiasServer(req.params.uid);
+    res.json({ success: true, data: membresias });
+  } catch (error) {
+    console.error('Error getting old membresias:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Registrar membresía
+app.post('/api/membresias', async (req, res) => {
+  try {
+    const result = await frappService.registerMembFRAPP(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('Error registering membership:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Actualizar membresía
+app.put('/api/membresias/:membershipId', async (req, res) => {
+  try {
+    const { changedById, reason, changes } = req.body;
+    const result = await frappService.updateMembershipFRAPP(
+      req.params.membershipId,
+      changedById,
+      reason,
+      changes
+    );
+    res.json(result);
+  } catch (error) {
+    console.error('Error updating membership:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener planes de membresía activos
+app.get('/api/membership-plans', async (req, res) => {
+  try {
+    const plans = await frappService.getActiveMembershipPlans();
+    res.json({ success: true, data: plans });
+  } catch (error) {
+    console.error('Error getting membership plans:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener links de pago por UID
+app.get('/api/links/:uid', async (req, res) => {
+  try {
+    const links = await fr360Service.getLinksByIdentityDocument(req.params.uid);
+    res.json({ success: true, data: links });
+  } catch (error) {
+    console.error('Error getting payment links:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener CRM por UID
+app.get('/api/crm/:uid', async (req, res) => {
+  try {
+    const crm = await strapiService.fetchCrmStrapiOnly(req.params.uid);
+    res.json({ success: true, data: crm });
+  } catch (error) {
+    console.error('Error getting CRM:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener CRM por email
+app.get('/api/crm/email/:email', async (req, res) => {
+  try {
+    const crm = await strapiService.fetchCrmByEmail(req.params.email);
+    res.json({ success: true, data: crm });
+  } catch (error) {
+    console.error('Error getting CRM by email:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Enviar mensaje de WhatsApp
+app.post('/api/whatsapp/send', async (req, res) => {
+  try {
+    const { phoneNumber, product, linkURL } = req.body;
+    const result = await callbellService.sendWhatsAppMessage(phoneNumber, product, linkURL);
+    res.json(result);
+  } catch (error) {
+    console.error('Error sending WhatsApp:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Verificar estado de mensaje WhatsApp
+app.get('/api/whatsapp/status/:uuid', async (req, res) => {
+  try {
+    const status = await callbellService.checkMessageStatus(req.params.uuid);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    console.error('Error checking message status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Manejo de errores 404
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+    path: req.path
+  });
+});
+
+// Manejo de errores global
+app.use((err, req, res, next) => {
+  console.error('Error global:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: err.message
+  });
+});
+
+// Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
+  console.log(`
+╔════════════════════════════════════════╗
+║   🚀 FR360 Server Running             ║
+║                                        ║
+║   Port: ${PORT.toString().padEnd(31)}║
+║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(23)}║
+║   URL: http://localhost:${PORT.toString().padEnd(17)}║
+╚════════════════════════════════════════╝
+  `);
 });
