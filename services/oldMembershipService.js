@@ -1,8 +1,14 @@
 const axios = require('axios');
 
 // Old WordPress platform configuration
-const WP_BASE_URL = process.env.OLD_MEMB_BASE_URL || process.env.WP_BASE_URL || 'https://app.cursofuturosresidentes.com';
-const WP_AUTH_TOKEN = process.env.OLD_MEMB_AUTH || process.env.WP_AUTH_TOKEN;
+const WP_BASE_URL = process.env.OLD_MEMB_BASE_URL;
+const WP_AUTH_TOKEN = process.env.OLD_MEMB_AUTH;
+
+// Validate required environment variables
+if (!WP_BASE_URL || !WP_AUTH_TOKEN) {
+  console.error('❌ Missing required WordPress environment variables');
+  console.error('Required: OLD_MEMB_BASE_URL, OLD_MEMB_AUTH');
+}
 
 /**
  * Calculate months between two dates
@@ -37,51 +43,84 @@ function formatDDMMYYYY(s) {
 /**
  * Fetch memberships from old WordPress platform
  * @param {string} uid - User ID
- * @returns {Promise<string>} HTML table with memberships or error message
+ * @returns {Promise<Object>} Object with user info and memberships, or error info
  */
 async function traerMembresiasServer(uid) {
   try {
     const url = `${WP_BASE_URL}/wp-json/almus/v1/user?user_id=${encodeURIComponent(uid)}&type=login`;
 
+    console.log('🔍 WordPress request:', {
+      url,
+      hasToken: !!WP_AUTH_TOKEN,
+      tokenLength: WP_AUTH_TOKEN?.length
+    });
+
     const response = await axios.get(url, {
       headers: {
-        'AUTH': WP_AUTH_TOKEN
-      }
+        'AUTH': WP_AUTH_TOKEN,
+        'User-Agent': 'FR360-NodeJS/1.0',
+        'Accept': '*/*'
+      },
+      validateStatus: function (status) {
+        return status < 500; // No throw on 4xx errors
+      },
+      timeout: 15000,
+      maxRedirects: 5
     });
 
-    if (response.status !== 200) return '';
-
-    const data = response.data.memberships || [];
-    if (!data.length) return '';
-
-    let html = '<table><thead><tr>'
-      + '<th>Id</th><th>Membresía</th><th>Fecha inicio</th>'
-      + '<th>Fecha fin</th><th>Estado</th><th class="actions-header">Acciones</th></tr></thead><tbody>';
-
-    data.forEach(m => {
-      let role = (m.roles || '').replace(/elite/gi, 'Élite');
-      let months = calcularMeses(m.start_date, m.expiry_date);
-
-      if (months != null) {
-        const color = m.status === 'active' ? '#fff' : '#999';
-        role += ` <span style="color:${color}">(${months} ${months === 1 ? 'mes' : 'meses'})</span>`;
-      }
-
-      const highlightClass = m.status === 'active' ? ' class="highlight"' : '';
-
-      html += `<tr${highlightClass}>`
-        + `<td>${m.id || ''}</td>`
-        + `<td>${role}</td>`
-        + `<td>${formatDDMMYYYY(m.start_date)}</td>`
-        + `<td>${formatDDMMYYYY(m.expiry_date)}</td>`
-        + `<td>${m.status || ''}</td>`
-        + `</tr>`;
+    console.log('📡 WordPress response:', {
+      status: response.status,
+      hasData: !!response.data,
+      dataKeys: response.data ? Object.keys(response.data) : []
     });
 
-    return html + '</tbody></table>';
+    if (response.status !== 200) {
+      console.log('⚠️ WordPress returned non-200:', response.status, response.data);
+
+      // Si es 401, el servicio puede estar deprecado o el token expiró
+      if (response.status === 401) {
+        console.log('ℹ️ WordPress service unavailable (401 - auth expired)');
+        return {
+          error: true,
+          message: '<p style="color:#666;font-style:italic;">Servicio de membresías antiguas no disponible</p>'
+        };
+      }
+
+      return { error: true, message: '' };
+    }
+
+    const apiData = response.data;
+    const memberships = apiData.memberships || [];
+
+    // Retornar objeto completo con info del usuario y membresías
+    return {
+      user: {
+        first_name: apiData.first_name || '',
+        last_name: apiData.last_name || '',
+        user_email: apiData.user_email || '',
+        user_login: apiData.user_login || uid,
+        roles: apiData.roles || ''
+      },
+      memberships: memberships
+    };
+
   } catch (error) {
     console.log('❌ Error fetching WordPress memberships:', error.message);
-    return `<p style="color:red">Error interno: ${error.message}</p>`;
+
+    // Si es error de red o timeout, mostrar mensaje amigable
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('ℹ️ WordPress service unavailable (network error)');
+      return {
+        error: true,
+        message: '<p style="color:#666;font-style:italic;">Servicio de membresías antiguas no disponible</p>'
+      };
+    }
+
+    // Para otros errores, mostrar genérico
+    return {
+      error: true,
+      message: '<p style="color:#666;font-style:italic;">Error al consultar membresías antiguas</p>'
+    };
   }
 }
 

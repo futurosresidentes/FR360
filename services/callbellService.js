@@ -1,8 +1,15 @@
 const axios = require('axios');
 
 // Callbell API configuration
-const CALLBELL_BASE_URL = process.env.CALLBELL_BASE_URL || 'https://api.callbell.eu/v1';
-const CALLBELL_TOKEN = process.env.CALLBELL_API_KEY || process.env.CALLBELL_TOKEN;
+const CALLBELL_BASE_URL = process.env.CALLBELL_BASE_URL;
+const CALLBELL_TOKEN = process.env.CALLBELL_API_KEY;
+const CALLBELL_TEMPLATE_UUID = process.env.CALLBELL_TEMPLATE_UUID;
+
+// Validate required environment variables
+if (!CALLBELL_BASE_URL || !CALLBELL_TOKEN || !CALLBELL_TEMPLATE_UUID) {
+  console.error('❌ Missing required Callbell environment variables');
+  console.error('Required: CALLBELL_BASE_URL, CALLBELL_API_KEY, CALLBELL_TEMPLATE_UUID');
+}
 
 /**
  * Normalize Colombian phone number to international format
@@ -129,7 +136,7 @@ async function sendWhatsAppMessage(phoneNumber, product, linkURL) {
       product,
       linkURL
     ],
-    template_uuid: '5a748dfd0de3452580a497a12f1dd919',
+    template_uuid: CALLBELL_TEMPLATE_UUID,
     optin_contact: true
   };
 

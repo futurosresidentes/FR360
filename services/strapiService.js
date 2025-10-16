@@ -1,8 +1,14 @@
 const axios = require('axios');
 
 // Strapi API configuration
-const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL || 'https://strapi-project-d3p7.onrender.com';
+const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN;
+
+// Validate required environment variables
+if (!STRAPI_BASE_URL || !STRAPI_TOKEN) {
+  console.error('❌ Missing required Strapi environment variables');
+  console.error('Required: STRAPI_BASE_URL, STRAPI_TOKEN');
+}
 
 /**
  * Retry helper with exponential backoff

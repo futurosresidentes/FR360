@@ -1,12 +1,18 @@
 const axios = require('axios');
 
 // FRAPP API configuration
-const FRAPP_BASE_URL = process.env.FRAPP_BASE_URL || 'https://admin-appfr-os0a.onrender.com';
-const FRAPP_API_KEY = process.env.FRAPP_API_KEY || '5a8812447d3195748c5a438c9a85478e';
-const FRAPP_API_KEY_READ = process.env.FRAPP_API_KEY_READ || FRAPP_API_KEY;
-const FRAPP_API_KEY_REGISTER = process.env.FRAPP_API_KEY_REGISTER || FRAPP_API_KEY;
-const FRAPP_API_KEY_UPDATE = process.env.FRAPP_API_KEY_UPDATE || FRAPP_API_KEY;
-const FRAPP_API_KEY_FILTERS = process.env.FRAPP_API_KEY_FILTERS || FRAPP_API_KEY;
+const FRAPP_BASE_URL = process.env.FRAPP_BASE_URL;
+const FRAPP_API_KEY = process.env.FRAPP_API_KEY;
+const FRAPP_API_KEY_READ = FRAPP_API_KEY;
+const FRAPP_API_KEY_REGISTER = FRAPP_API_KEY;
+const FRAPP_API_KEY_UPDATE = FRAPP_API_KEY;
+const FRAPP_API_KEY_FILTERS = FRAPP_API_KEY;
+
+// Validate required environment variables
+if (!FRAPP_BASE_URL || !FRAPP_API_KEY) {
+  console.error('❌ Missing required FRAPP environment variables');
+  console.error('Required: FRAPP_BASE_URL, FRAPP_API_KEY');
+}
 
 /**
  * Retry helper with exponential backoff

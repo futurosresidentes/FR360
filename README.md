@@ -58,37 +58,48 @@ Edita el archivo `.env` con tus credenciales reales:
 
 ```env
 PORT=3000
-SESSION_SECRET=tu_secret_super_seguro_cambialo_en_produccion
+SESSION_SECRET=GENERA_UN_SECRET_ALEATORIO_DE_64_CARACTERES
+
+# Google OAuth 2.0
+GOOGLE_CLIENT_ID=TU_GOOGLE_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=TU_GOOGLE_CLIENT_SECRET
+GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 # Strapi CMS
-STRAPI_BASE_URL=https://strapi-project-d3p7.onrender.com/api
-STRAPI_TOKEN=b07772d8be9e7a19ea6ee8536e6b2858e3d06f50f1505ec954f2dc5a98b240a0c7f53fd65c9b90f0edac2336b88294591eab7b28f455389830cfebf90f3a4718d31e2b029be1b1708c6b235a842d514e8e504517e4791a53d1bcf1c1fb4808deddc6c6adc2af3c10c2b5a7bc090519928210752e7a879fa132a0513e6fe045e6
+STRAPI_BASE_URL=https://tu-strapi.onrender.com
+STRAPI_TOKEN=TU_STRAPI_TOKEN_AQUI
 
 # FR360 API
-FR360_BASE_URL=https://fr360-7cwi.onrender.com/api
-FR360_BEARER_TOKEN=91f3c19f460cf9ea3f3f00aa8339f2ab
-FR360_EPAYCO_TOKEN=145c42235fb69634f97d628ca902f35b
+FR360_BASE_URL=https://tu-fr360.onrender.com
+FR360_BEARER_TOKEN=TU_FR360_BEARER_TOKEN
+FR360_EPAYCO_TOKEN=TU_FR360_EPAYCO_TOKEN
 
 # FRAPP API
-FRAPP_BASE_URL=https://admin-appfr-os0a.onrender.com/api
-FRAPP_API_KEY=5a8812447d3195748c5a438c9a85478e
+FRAPP_BASE_URL=https://tu-frapp.onrender.com
+FRAPP_API_KEY=TU_FRAPP_API_KEY
 
-# Callbell API
+# Callbell API (WhatsApp)
 CALLBELL_BASE_URL=https://api.callbell.eu/v1
-CALLBELL_API_KEY=tu_api_key_callbell_aqui
+CALLBELL_API_KEY=TU_CALLBELL_API_KEY
+CALLBELL_TEMPLATE_UUID=TU_CALLBELL_TEMPLATE_UUID
 
-# Old Membership Platform
-OLD_MEMB_BASE_URL=https://app.cursofuturosresidentes.com/wp-json
-OLD_MEMB_AUTH=JqL1TDznO43PsMk?bbeoSk_h#B+tGOhjKjuD
+# Old Membership Platform (WordPress)
+OLD_MEMB_BASE_URL=https://app.cursofuturosresidentes.com
+OLD_MEMB_AUTH="TU_WORDPRESS_AUTH_TOKEN"
 
-# Usuarios especiales (separados por comas)
-SPECIAL_USERS=daniel.cardona@sentiretaller.com,alex.lopez@sentiretaller.com
+# Usuarios especiales con permisos administrativos (separados por comas)
+SPECIAL_USERS=email1@sentiretaller.com,email2@sentiretaller.com
 
-# Configuración de timeouts
+# Configuración de timeouts y reintentos
 API_TIMEOUT=15000
 API_MAX_RETRIES=5
 API_RETRY_DELAY=2000
 ```
+
+⚠️ **IMPORTANTE**:
+- NO uses estos valores de ejemplo
+- Genera tus propias credenciales en cada plataforma
+- Para SESSION_SECRET usa: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
 
 ### 3. Ejecutar en modo desarrollo
 
@@ -144,35 +155,23 @@ git push -u origin main
 
 ### Paso 3: Configurar Variables de Entorno en Render
 
-⚠️ **MUY IMPORTANTE**: Debes agregar TODAS estas variables en Render:
+⚠️ **MUY IMPORTANTE**: Usa las mismas variables que en tu archivo `.env` local, pero con los valores de producción.
 
-```
-PORT=3000
+Consulta el archivo `RENDER_ENV_VARIABLES.md` para ver la lista completa de variables requeridas.
 
-SESSION_SECRET=genera_un_secret_aleatorio_seguro_de_64_caracteres
+**Variables mínimas requeridas:**
+- `SESSION_SECRET` - Secret aleatorio de 64 caracteres
+- `GOOGLE_CLIENT_ID` - Client ID de Google OAuth
+- `GOOGLE_CLIENT_SECRET` - Client Secret de Google OAuth
+- `GOOGLE_CALLBACK_URL` - URL de callback de producción
+- `STRAPI_BASE_URL` y `STRAPI_TOKEN`
+- `FR360_BASE_URL`, `FR360_BEARER_TOKEN`, `FR360_EPAYCO_TOKEN`
+- `FRAPP_BASE_URL` y `FRAPP_API_KEY`
+- `CALLBELL_BASE_URL`, `CALLBELL_API_KEY`, `CALLBELL_TEMPLATE_UUID`
+- `OLD_MEMB_BASE_URL` y `OLD_MEMB_AUTH`
+- `SPECIAL_USERS`
 
-STRAPI_BASE_URL=https://strapi-project-d3p7.onrender.com/api
-STRAPI_TOKEN=b07772d8be9e7a19ea6ee8536e6b2858e3d06f50f1505ec954f2dc5a98b240a0c7f53fd65c9b90f0edac2336b88294591eab7b28f455389830cfebf90f3a4718d31e2b029be1b1708c6b235a842d514e8e504517e4791a53d1bcf1c1fb4808deddc6c6adc2af3c10c2b5a7bc090519928210752e7a879fa132a0513e6fe045e6
-
-FR360_BASE_URL=https://fr360-7cwi.onrender.com/api
-FR360_BEARER_TOKEN=91f3c19f460cf9ea3f3f00aa8339f2ab
-FR360_EPAYCO_TOKEN=145c42235fb69634f97d628ca902f35b
-
-FRAPP_BASE_URL=https://admin-appfr-os0a.onrender.com/api
-FRAPP_API_KEY=5a8812447d3195748c5a438c9a85478e
-
-CALLBELL_BASE_URL=https://api.callbell.eu/v1
-CALLBELL_API_KEY=TU_API_KEY_CALLBELL
-
-OLD_MEMB_BASE_URL=https://app.cursofuturosresidentes.com/wp-json
-OLD_MEMB_AUTH=JqL1TDznO43PsMk?bbeoSk_h#B+tGOhjKjuD
-
-SPECIAL_USERS=daniel.cardona@sentiretaller.com,alex.lopez@sentiretaller.com
-
-API_TIMEOUT=15000
-API_MAX_RETRIES=5
-API_RETRY_DELAY=2000
-```
+📝 **Nota**: NO copies las credenciales de este README. Usa tus propias credenciales generadas en cada plataforma.
 
 ### Paso 4: Deploy
 

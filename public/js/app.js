@@ -377,7 +377,7 @@
       document.querySelector('.memb-old h3').textContent = 'Plataforma vieja';
       document.querySelector('.memb-new h3').textContent = 'Plataforma nueva';
       clearMembNewHeader();
-      document.getElementById('membOldContainer').innerHTML   = '';
+      clearMembOldHeader();
       document.getElementById('membNewContainer').innerHTML   = '';
       // Limpiar statusTop pero preservar estructura del panel de progreso
       const progressPanel = document.getElementById('loadingProgress');
@@ -467,6 +467,14 @@
       const info = wrap?.querySelector('#membNewInfo');
       if (info) info.remove(); // <-- quita nombre/correo/roles previos
       const cont = document.getElementById('membNewContainer');
+      if (cont) cont.innerHTML = '';
+    }
+
+    function clearMembOldHeader(){
+      const wrap = document.querySelector('.memb-old');
+      const info = wrap?.querySelector('#membOldInfo');
+      if (info) info.remove(); // <-- quita nombre/correo/roles previos
+      const cont = document.getElementById('membOldContainer');
       if (cont) cont.innerHTML = '';
     }
 
@@ -1364,13 +1372,9 @@
       // === 4) Membresías (plataforma vieja) ===
       inc('Membresías vieja');
       api.traerMembresiasServer(uid)
-        .then(html => {
+        .then(data => {
           try {
-            const cont = document.getElementById('membOldContainer');
-            cont.innerHTML = (!html || !html.trim())
-              ? '<p>No hay membresías viejas</p>'
-              : html;
-            attachRowActions('membOldContainer', { enableFreeze: false, enableEdit: false });
+            renderMembOld(data);
           } finally { done('Membresías vieja'); }
         })
         .catch(err => {
@@ -2721,6 +2725,104 @@
       } else if (!isSpecialUser) {
         valorInput.readOnly = false;
       }
+    }
+
+    // renderMembOld - Renderiza membresías de plataforma vieja (WordPress)
+    function renderMembOld(data) {
+      const cont = document.getElementById('membOldContainer');
+
+      // Si hay error, mostrar mensaje
+      if (data && data.error) {
+        cont.innerHTML = data.message || '<p>Error al cargar membresías viejas</p>';
+        return;
+      }
+
+      // Validar estructura de datos
+      if (!data || !data.user || !Array.isArray(data.memberships)) {
+        cont.innerHTML = '<p>No hay membresías viejas</p>';
+        return;
+      }
+
+      const user = data.user;
+      const memberships = data.memberships;
+
+      // Construir info del usuario (nombre + cédula + email + roles)
+      const wrapper = document.querySelector('.memb-old');
+      const header = wrapper.querySelector('.memb-old h3');
+
+      // Crear o actualizar el div de info del usuario
+      let info = wrapper.querySelector('#membOldInfo');
+      if (!info) {
+        info = document.createElement('div');
+        info.id = 'membOldInfo';
+        info.style.margin = '4px 0 10px';
+        header.insertAdjacentElement('afterend', info);
+      }
+
+      const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+      const cedula = user.user_login || '';
+      const email = user.user_email || '';
+      const roles = user.roles ? user.roles.replace(/elite/gi, 'Élite') : '';
+
+      info.innerHTML = [
+        fullName ? `<div>${fullName}${cedula ? ` <span class="student-name">(${cedula})</span>` : ''}</div>` : '',
+        email ? `<div>${email}</div>` : '',
+        roles ? `<div>Roles: ${roles}</div>` : ''
+      ].filter(Boolean).join('');
+
+      // Renderizar tabla de membresías
+      if (!memberships.length) {
+        cont.innerHTML = '<p>No hay membresías viejas</p>';
+        return;
+      }
+
+      let html = '<table><thead><tr>'
+        + '<th>Id</th><th>Membresía</th><th>Fecha inicio</th>'
+        + '<th>Fecha fin</th><th>Estado</th><th class="actions-header">Acciones</th></tr></thead><tbody>';
+
+      memberships.forEach(m => {
+        let role = (m.roles || '').replace(/elite/gi, 'Élite');
+
+        // Calcular meses (copiado de calcularMeses del backend)
+        const calcMeses = (start, end) => {
+          if (!start || !end) return null;
+          const d1 = new Date(start);
+          const d2 = new Date(end);
+          if (isNaN(d1) || isNaN(d2) || d2 < d1) return null;
+          return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24 * 30));
+        };
+
+        const months = calcMeses(m.start_date, m.expiry_date);
+        if (months != null) {
+          const color = m.status === 'active' ? '#fff' : '#999';
+          role += ` <span style="color:${color}">(${months} ${months === 1 ? 'mes' : 'meses'})</span>`;
+        }
+
+        // Formatear fechas DD/MM/YYYY
+        const formatDate = (s) => {
+          if (!s) return '';
+          const d = new Date(s);
+          if (isNaN(d)) return '';
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getFullYear();
+          return `${day}/${month}/${year}`;
+        };
+
+        const highlightClass = m.status === 'active' ? ' class="highlight"' : '';
+
+        html += `<tr${highlightClass}>`
+          + `<td>${m.id || ''}</td>`
+          + `<td>${role}</td>`
+          + `<td>${formatDate(m.start_date)}</td>`
+          + `<td>${formatDate(m.expiry_date)}</td>`
+          + `<td>${m.status || ''}</td>`
+          + `</tr>`;
+      });
+
+      html += '</tbody></table>';
+      cont.innerHTML = html;
+      attachRowActions('membOldContainer', { enableFreeze: false, enableEdit: false });
     }
 
     // renderMembFRAPP
