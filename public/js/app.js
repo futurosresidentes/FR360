@@ -3127,7 +3127,7 @@
       accTd.appendChild(cancel);
     }
 
-    let USER_EMAIL = '';
+    // USER_EMAIL is already declared in home.ejs inline script
     // Mapea cada correo autorizado a su changedById
     const USER_IDS = {
       'daniel.cardona@sentiretaller.com': 53,
@@ -3136,9 +3136,11 @@
       'diego.pelaez@sentiretaller.com': 6,
       'yuliana.giraldo@sentiretaller.com': 63,
     };
+    // Update USER_EMAIL from server (already initialized in home.ejs)
+    document.getElementById('currentUser').textContent = USER_EMAIL;
     google.script.run
       .withSuccessHandler(e => {
-        USER_EMAIL = e;
+        // USER_EMAIL = e; // Commented out - already set in home.ejs
         document.getElementById('currentUser').textContent = e;
         // hint visual (mantengo el alert en el click para el mensaje):
         if (!ADMINS.includes(USER_EMAIL)) {
