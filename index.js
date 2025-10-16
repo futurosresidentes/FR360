@@ -33,13 +33,14 @@ app.use(express.static('public'));
 app.set('trust proxy', 1);
 
 // Configurar sesiones (DEBE ir antes de Passport)
+const isProduction = process.env.NODE_ENV === 'production';
 app.use(session({
   secret: process.env.SESSION_SECRET || 'fr360-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  proxy: true, // Trust the reverse proxy
+  proxy: isProduction, // Trust the reverse proxy only in production
   cookie: {
-    secure: true, // Always use secure cookies in Render (HTTPS)
+    secure: isProduction, // HTTPS cookies only in production (Render)
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
     sameSite: 'lax'
