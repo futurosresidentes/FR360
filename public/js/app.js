@@ -1975,7 +1975,7 @@
           producto_nombre: tr.dataset.productoNombre || '',
           cuota_nro:       tr.dataset.cuotaNro || ''
         };
-        api.withFailureHandler(()
+        api.resolvePagoYActualizarCartera(payload)
           .then(res => {
             hydrateRowFromResponse(tr, res, fmt);
             // revalida contra Ventas: Paz y salvo / Cuota N / Cuota N (Mora)
@@ -1988,8 +1988,6 @@
             }
           })
           .catch(err => console.error(err));
-          })
-          .resolvePagoYActualizarCartera(payload);
       }
 
       // — Helper: busca en ventas una línea "<producto> - Paz y salvo" del mismo acuerdo
@@ -3035,16 +3033,26 @@
       });
 
       // 6) Llamar al servidor
-      api.join('\n')
+      api.updateMembershipFRAPP(membershipId, changedById, reason, changes)
         .then(res => {
-        console.log('DEBUG updateMembershipFRAPP response:', res);
+          console.log('DEBUG updateMembershipFRAPP response:', res);
           if (res.error) {
             console.log('DEBUG updateMembershipFRAPP details:', res.details);
             // construimos un mensaje legible con los detalles que manda el servidor
             const detailMsgs = Array.isArray(res.details)
-              ? res.details.map(d => `${d.field || 'campo'}: ${d.message}`)
-        .catch(err => console.error(err));
-        .updateMembershipFRAPP(membershipId, changedById, reason, changes);
+              ? res.details.map(d => `${d.field || 'campo'}: ${d.message}`).join('\n')
+              : (res.message || res.error);
+            alert('❌ No se pudo actualizar la membresía:\n' + detailMsgs);
+          } else {
+            alert(res.message || 'Membresía actualizada exitosamente');
+          }
+          // refrescar tabla
+          const uid = searchId.value.replace(/\D/g,'');
+          api.fetchMembresiasFRAPP(uid).then(renderMembFRAPP);
+        })
+        .catch(err => {
+          alert('❌ Error al actualizar: ' + err.message);
+        });
     });
 
 
@@ -3545,7 +3553,7 @@
         resetModal(); // Resetear completamente el modal
 
         // ——— 3) Refrescamos la tabla "Plataforma nueva" ———
-        api.fetchMembresiasFRAPP(searchId.value.replace(/\D/g,'')
+        api.fetchMembresiasFRAPP(searchId.value.replace(/\D/g,''))
           .then(renderMembFRAPP)
           .catch(err => console.error('Error recargando membresías:', err));
 
@@ -3874,8 +3882,8 @@
       buscarAcuerdoBtn.disabled = true;
       buscarAcuerdoBtn.innerHTML = '<span class="spinner"></span>Buscando...';
 
-      // Llamada a Google Apps Script para consultar el acuerdo
-      api.trim()
+      // Llamada al API para consultar el acuerdo
+      api.consultarAcuerdo(nroAcuerdo)
         .then((resultado) => {
           try {
             console.log('Respuesta del servidor:', resultado);
@@ -3891,8 +3899,11 @@
             }
 
             // Validar que el número de documento del acuerdo coincida con la cédula actual
-            const cedulaActual = document.getElementById('searchId').value.replace(/\D/g,'')
-        .catch(err => console.error(err));
+            const cedulaActual = document.getElementById('searchId').value.replace(/\D/g,'').trim();
+            const dataAcuerdo = Array.isArray(resultado.data) ? resultado.data[0] : resultado.data;
+            const numeroDocumentoAcuerdo = String(dataAcuerdo?.numero_documento || '').replace(/\D/g,'').trim();
+
+            if (cedulaActual && numeroDocumentoAcuerdo && cedulaActual !== numeroDocumentoAcuerdo) {
               alert(`❌ El número de acuerdo no corresponde al estudiante actual.\n\nEstudiante actual: ${cedulaActual}\nAcuerdo corresponde a: ${numeroDocumentoAcuerdo}\n\nPor favor valide nuevamente el número de acuerdo.`);
               return;
             }
@@ -3948,15 +3959,14 @@
             buscarAcuerdoBtn.innerHTML = '🔍 Buscar acuerdo';
           }
         })
-        .withFailureHandler((error) => {
+        .catch((error) => {
           console.error('Error al buscar acuerdo:', error);
           alert('Error de conexión al buscar el acuerdo. Por favor intente nuevamente.');
 
           // Restaurar el botón
           buscarAcuerdoBtn.disabled = false;
           buscarAcuerdoBtn.innerHTML = '🔍 Buscar acuerdo';
-        })
-        .consultarAcuerdo(nroAcuerdo);
+        });
     });
 
     // Prevenir edición manual de campos automáticos (medida de seguridad adicional)
