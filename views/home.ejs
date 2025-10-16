@@ -1,5 +1,421 @@
-<h1>�Hola desde EJS!</h1>
-<p>Esto reemplaza a tu doGet(): una vista con datos del servidor.</p>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FR 360 – Panel Administrativo</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="logo">
+      <img
+        src="https://raw.githubusercontent.com/mamicio/imagenes/refs/heads/main/ChatGPT%20Image%2029%20jul%202025%2C%2015_55_37.png"
+        alt="FR 360 Logo"
+        class="logo-img"
+      />
+    </div>
+    <nav>
+      <ul>
+        <li data-tab="comercialito" class="active">Comercialito</li>
+        <li data-tab="membresias">Membresías</li>
+        <li data-tab="ventas">Ventas</li>
+        <li data-tab="acuerdos">Acuerdos</li>
+        <li data-tab="links">Links</li>
+      </ul>
+    </nav>
+  </aside>
 
-<button id="btn-api">Llamar a /api/externa</button>
-<pre id="salida"></pre>
+  <!-- MAIN -->
+  <div id="main">
+    <!-- TOPBAR -->
+    <div id="topbar">
+      <input type="text" id="searchId" placeholder="Ingrese Nro ID o correo…" />
+      <button type="button" id="searchBtn">Buscar</button>
+      <div id="statusTop"></div>
+      <div id="currentUser" style="margin-left:auto; font-size:0.9em; color:#666;"></div>
+    </div>
+
+    <!-- CONTENT -->
+    <div id="content">
+      <!-- COMERCIALITO -->
+      <div class="pane left active" id="comercialito">
+        <div class="comercialito-layout">
+          <!-- VENTA NORMAL (IZQUIERDA) -->
+          <div class="venta-normal">
+            <h3 style="margin-top: 0; margin-bottom: 20px; color: #075183;">Venta normal</h3>
+            <div class="form-row">
+              <span class="label">Nombres:</span>
+              <input id="nombres" class="input gray"/>
+            </div>
+            <div class="form-row">
+              <span class="label">Apellidos:</span>
+              <input id="apellidos" class="input gray"/>
+            </div>
+            <div class="form-row">
+              <span class="label">Correo:</span>
+              <input id="correo" class="input" />
+            </div>
+            <div class="form-row">
+              <span class="label">Celular:</span>
+              <div class="input-wrapper">
+                <input id="celular" class="input" />
+                <span id="callbellIcon" class="callbell-icon" style="display:none;">🛎️</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="label">Producto:</span>
+              <input id="producto" class="input" list="productosList" autocomplete="off" />
+              <datalist id="productosList"></datalist>
+            </div>
+            <div class="form-row hidden" id="row-cuotas">
+              <span class="label">Nro de cuotas:</span>
+              <select id="cuotas" class="input">
+                <option value="" disabled selected>Selecciona la cantidad de cuotas</option>
+              </select>
+            </div>
+            <div class="form-row" id="row-valor">
+              <span class="label">Valor:</span>
+              <input id="valor" class="input" />
+            </div>
+            <div class="form-row hidden" id="row-inicio">
+              <span class="label">Inicio plataforma:</span>
+              <div class="inicio-container" style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                <select id="inicioTipo" class="input">
+                  <option value="" disabled selected>Selecciona el tipo de inicio</option>
+                  <option value="primer-pago">Con primer pago</option>
+                  <option value="fecha-personalizada">Fecha personalizada</option>
+                </select>
+                <input type="date" id="inicio" class="input" style="display: none;" />
+              </div>
+            </div>
+            <div class="form-row hidden" id="row-fecha-max">
+              <span class="label">Fecha máxima:</span>
+              <input
+                type="date"
+                id="fechaMax"
+                class="input"
+                placeholder="Indica hasta qué día estará disponible el link de pago"
+              />
+            </div>
+            <div class="form-row" id="row-comercial">
+              <span class="label">Comercial:</span>
+              <select id="comercial" class="input">
+                <option value="" disabled selected>Selecciona tu nombre</option>
+                <option>Álex David López Jaramillo</option>
+                <option>Ana Isabel Arango Goez</option>
+                <option>Ángela Yirley Silva David</option>
+                <option>Angélica Solórzano Torres</option>
+                <option>Daniel Mauricio Cardona Alzate</option>
+                <option>Eliana Marcela Montilla De La Cruz</option>
+                <option>Giancarlo Aguilar Fonnegra</option>
+                <option>Santiago Flórez Rojo</option>
+              </select>
+            </div>
+            <!-- Plan de pagos -->
+            <div id="planPagosContainer" class="hidden">
+              <h3 style="margin-top: 20px; color: #075183;">Plan de pagos</h3>
+              <table id="planPagosTable">
+                <thead>
+                  <tr>
+                    <th>Nro de cuota</th>
+                    <th>Fecha</th>
+                    <th>Valor cuota</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <!-- Botón Crear link debajo del Plan de pagos -->
+            <div class="form-row hidden" id="row-link-btn">
+              <button id="createLinkBtn" class="input">Crear link</button>
+            </div>
+            <div id="linkResult" style="margin-top:8px;"></div>
+          </div>
+
+          <!-- VENTA EN CONFIANZA (DERECHA) -->
+          <div class="venta-confianza-section">
+            <h3 style="margin-top: 0; margin-bottom: 20px;">Venta en confianza</h3>
+            <div class="form-row">
+              <span class="label">Nombres:</span>
+              <input id="nombresConfianza" class="input gray"/>
+            </div>
+            <div class="form-row">
+              <span class="label">Apellidos:</span>
+              <input id="apellidosConfianza" class="input gray"/>
+            </div>
+            <div class="form-row">
+              <span class="label">Correo:</span>
+              <input id="correoConfianza" class="input" readonly style="background-color: #f5f5f5; cursor: not-allowed;" title="Campo automático: se alimenta de datos del sistema" />
+            </div>
+            <div class="form-row">
+              <span class="label">Celular:</span>
+              <input id="celularConfianza" class="input" readonly style="background-color: #f5f5f5; cursor: not-allowed;" title="Campo automático: se alimenta de datos del sistema" />
+            </div>
+            <div class="form-row">
+              <span class="label">Nro Acuerdo:</span>
+              <div style="display: flex; gap: 8px;">
+                <input id="nroAcuerdo" class="input" placeholder="Ingrese número de acuerdo" autocomplete="new-password" />
+                <button id="buscarAcuerdoBtn">🔍 Buscar acuerdo</button>
+              </div>
+            </div>
+
+            <!-- Campos deshabilitados que se poblarán con la consulta del acuerdo -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+              <div class="form-row">
+                <span class="label">Producto:</span>
+                <input id="productoAcuerdo" class="input" disabled style="background-color: #f5f5f5;"/>
+              </div>
+              <div class="form-row">
+                <span class="label">Comercial:</span>
+                <input id="comercialAcuerdo" class="input" disabled style="background-color: #f5f5f5;"/>
+              </div>
+              <div class="form-row">
+                <span class="label">Fecha inicio:</span>
+                <input id="fechaInicioAcuerdo" class="input" disabled style="background-color: #f5f5f5;"/>
+              </div>
+              <div class="form-row">
+                <span class="label">Estado:</span>
+                <input id="estadoAcuerdo" class="input" disabled style="background-color: #f5f5f5;"/>
+              </div>
+              <!-- Botón Otorgar acceso en confianza -->
+              <button id="otorgarAccesoBtn">🤝 Otorgar acceso en confianza</button>
+
+              <!-- Campo URL de activación (inicialmente oculto) -->
+              <div id="urlActivacionSection" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <div class="form-row">
+                  <span class="label">URL de activación:</span>
+                  <div style="display: flex; gap: 8px;">
+                    <input id="urlActivacion" class="input" disabled style="background-color: #f5f5f5; flex: 1;" placeholder="Se generará automáticamente tras el registro exitoso"/>
+                    <button id="copiarUrlBtn" disabled style="white-space: nowrap;">📋 Copiar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OTRAS PESTAÑAS -->
+      <div class="pane right" id="membresias">
+      <div class="memb-layout">
+        <!-- IZQUIERDA: Plataforma vieja -->
+        <div class="memb-old">
+          <h3 style="margin-top: 20px; color: #075183;">Plataforma vieja</h3>
+          <div id="membOldContainer"></div>
+        </div>
+
+        <!-- CENTRO: FRAPP -->
+        <div class="memb-new">
+          <div class="memb-new-header" style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:8px">
+            <h3 style="margin-top: 20px; color: #075183;">Plataforma nueva</h3>
+          </div>
+          <div id="membNewContainer"></div>
+          <div style="margin-top:12px;">
+            <button id="addMembBtn" style="padding:6px 12px;font-size:1em;cursor:pointer;">
+              ➕ Agregar plan
+            </button>
+          </div>
+        </div>
+
+        <!-- DERECHA: Acciones (estrecha) -->
+        <div class="memb-actions">
+          <h3 style="margin-top: 20px; color: #075183;">Acciones</h3>
+          <button id="batchOpenBtn" class="batch-btn" title="Agregar planes en lote">
+            ➕➕ Agregar planes<br>en lote
+          </button>
+          <!-- aquí en el futuro puedes sumar más botones/acciones -->
+        </div>
+      </div>
+
+      <div id="membresiasContainer"></div>
+    </div>
+      <div class="pane right" id="ventas">
+        <div id="ventasContainer"></div>
+        <div id="discountAnalysis" style="margin-top:16px"></div>
+      </div>
+      <div class="pane right" id="acuerdos">
+        <div id="acuerdosContainer"></div>
+      </div>
+      <div class="pane right" id="links">
+        <h3 id="linksTitle" style="display:none">Links</h3>
+        <div id="linksContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Modal para "Agregar plan" ====== -->
+  <div id="addMembModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>➕ Agregar plan</h3>
+      <div id="modalResponse" class="modal-response" style="margin-bottom:12px;color:#333;display:none;"></div>
+      <form id="addMembForm">
+        <!-- Email -->
+        <div class="modal-row">
+          <label for="modalEmail">Correo</label>
+          <input type="email" id="modalEmail" required />
+        </div>
+        <!-- Nombres -->
+        <div class="modal-row">
+          <label for="modalGiven">Nombres</label>
+          <input type="text" id="modalGiven" required />
+        </div>
+        <!-- Apellidos -->
+        <div class="modal-row">
+          <label for="modalFamily">Apellidos</label>
+          <input type="text" id="modalFamily" required />
+        </div>
+        <!-- Celular -->
+        <div class="modal-row">
+          <label for="modalPhone">Celular</label>
+          <input type="tel" id="modalPhone" required />
+        </div>
+        <div class="modal-row">
+          <label for="modalEvento">Justificación</label>
+          <textarea id="modalEvento" required rows="2"></textarea>
+        </div>
+        <!-- Plan -->
+        <div class="modal-row">
+          <label for="modalHandle">Plan</label>
+          <select id="modalHandle" required>
+            <option value="" disabled selected>Cargando planes...</option>
+          </select>
+        </div>
+        <!-- Fecha inicio -->
+        <div class="modal-row">
+          <label for="modalStart">Fecha inicio</label>
+          <input type="date" id="modalStart" required />
+        </div>
+        <!-- Duración (días) -->
+        <div class="modal-row">
+          <label for="modalDuration">Duración (días)</label>
+          <input type="number" id="modalDuration" min="1" required />
+        </div>
+        <!-- Fecha fin -->
+        <div class="modal-row">
+          <label for="modalExpiry">Fecha fin</label>
+          <input type="date" id="modalExpiry" required />
+        </div>
+        <!-- Botones -->
+        <div class="modal-actions">
+          <button type="button" id="cancelAddMemb">❌ Cancelar</button>
+          <button type="submit">✅ Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal para Congelar membresía -->
+  <div id="freezeModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>🥶 Congelar membresía</h3>
+      <form id="freezeForm">
+        <div class="modal-row">
+          <label for="freezeReason">Motivo</label>
+          <input type="text" id="freezeReason" required />
+        </div>
+        <div class="modal-row">
+          <label for="freezeDate">Desde</label>
+          <input type="date" id="freezeDate" required />
+        </div>
+        <div class="modal-row">
+          <label for="unfreezeDate">Hasta</label>
+          <input type="date" id="unfreezeDate" required />
+        </div>
+        <div class="modal-row">
+          <label for="daysRemaining">Días restantes</label>
+          <input type="number" id="daysRemaining" readonly />
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelFreeze">❌ Cancelar</button>
+          <button type="submit">🥶 Congelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de confirmación -->
+  <div id="freezeSuccessModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>✅ Congelación exitosa</h3>
+      <div class="modal-actions">
+        <button id="closeFreezeSuccess">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Agregar planes en lote -->
+    <div id="batchModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-dialog" style="width:900px;max-width:95vw">
+        <h3>➕➕ Agregar planes en lote</h3>
+
+        <!-- Plan -->
+        <div class="modal-row">
+          <label for="batchProduct">Plan</label>
+          <select id="batchProduct" required>
+            <option value="" disabled selected>Cargando planes...</option>
+          </select>
+        </div>
+
+        <!-- Fecha inicio -->
+        <div class="modal-row">
+          <label for="batchStart">Fecha inicio</label>
+          <input type="date" id="batchStart" required />
+        </div>
+
+        <!-- Duración (días) -->
+        <div class="modal-row">
+          <label for="batchDuration">Duración (días)</label>
+          <input type="number" id="batchDuration" min="1" required />
+        </div>
+
+        <!-- Fecha fin -->
+        <div class="modal-row">
+          <label for="batchExpiry">Fecha fin</label>
+          <input type="date" id="batchExpiry" required />
+        </div>
+
+        <div class="batch-grid">
+          <div class="batch-col">
+            <label><strong>Cédulas</strong></label>
+            <textarea id="batchCedulas" placeholder="Una cédula por línea"></textarea>
+            <div class="mini">Se ignorarán duplicados y caracteres no numéricos.</div>
+          </div>
+          <div class="batch-col">
+            <button id="batchValidateBtn">📧 Validar emails</button>
+            <div id="batchResults" class="box" aria-live="polite">
+              <ul id="batchResultsList" class="pair-list"></ul>
+            </div>
+          </div>
+          <div class="batch-col">
+            <button id="batchAddBtn">➕➕ Agregar planes</button>
+            <button id="batchPauseBtn" disabled>⏸️ Pausar</button>
+            <div id="batchAddStatus" class="box" aria-live="polite">
+              <ul id="batchAddList" class="pair-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="batchCloseBtn">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+  <!-- Include the JavaScript file -->
+  <script>
+    // Pass server-side variables to client-side JavaScript
+    const USER_EMAIL = '<%= typeof userEmail !== "undefined" ? userEmail : "" %>';
+  </script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

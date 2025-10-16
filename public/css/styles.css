@@ -1,0 +1,857 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Montserrat', sans-serif;
+}
+body {
+  display: flex;
+  height: 100vh;
+  background: #fff;
+  color: #000;
+}
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 100vh;
+  background: #00162C;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+#sidebar .logo {
+  padding: 1rem;
+  text-align: center;
+}
+.logo-img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+}
+#sidebar nav ul {
+  list-style: none;
+  margin-top: 1rem;
+}
+#sidebar nav li {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #fff;
+}
+#sidebar nav li:hover {
+  background: #2e3a4e;
+}
+#sidebar nav li.active {
+  background: #13bf81;
+}
+#main {
+  position: absolute;
+  top: 60px;        /* ⬆ justo debajo del topbar */
+  left: 220px;      /* ⬅ al lado del sidebar */
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* el scroll sólo irá en #content */
+  }
+.refresh-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  margin-left: 16px;
+  padding: 6px 10px;
+  font-size: 0.9em;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  color: #075183;
+  border: 1px solid #075183;
+  border-radius: 8px;
+}
+.refresh-btn:hover {
+  background: rgba(7, 81, 131, 0.06);
+}
+.refresh-btn.loading {
+  opacity: 0.85;
+  cursor: not-allowed !important;
+}
+.refresh-btn .spinner {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  border: 2px solid #ddd;
+  border-top-color: #075183;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+#topbar {
+  position: fixed;
+  top: 0;
+  left: 220px;
+  right: 0;
+  height: 60px;
+  z-index: 200;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #ddd;
+}
+#searchId {
+  flex: 0 0 300px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px 0 0 4px;
+  font-family: 'Montserrat', sans-serif;
+}
+#searchBtn {
+  padding: 0.55rem 1rem;
+  border: none;
+  background: #075183;
+  color: #fff;
+  border-radius: 0 4px 4px 0;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+}
+#searchBtn:disabled {
+  cursor: not-allowed;
+}
+#statusTop {
+  margin-left: 16px;
+  font-size: 0.9em;
+  color: #666;
+}
+#createLinkBtn {
+  background: #13bf81 !important;
+  color: #fff !important;
+  border: 1px solid #13bf81 !important;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto;
+  padding: 0.5rem 1rem;
+}
+#createLinkBtn:hover {
+  background: #10a16f !important;
+  border-color: #10a16f !important;
+}
+#createLinkBtn:disabled,
+#createLinkBtn.loading {
+  opacity: 0.85;
+  cursor: not-allowed !important;
+  background: #999 !important;
+  border-color: #999 !important;
+}
+#createLinkBtn .spinner {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  border: 2px solid #ddd;
+  border-top-color: #13bf81;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+#content {
+  flex: 1;
+  overflow: auto;
+}
+html, body {
+  height: 100%;
+  margin: 0;
+  /* opcional: evitar scroll horizontal de toda la página */
+  overflow-x: hidden;
+}
+.pane {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+  display: none;
+  background: #fff;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pane.active {
+  display: block;
+}
+.left {
+  max-width: 700px;
+}
+
+/* Excepción para Comercialito - debe ocupar todo el ancho disponible */
+#comercialito.left {
+  max-width: none;
+}
+.form-row {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+}
+.label {
+  width: 140px;
+  padding: 6px 8px;
+  background: #13bf81;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 4px 0 0 4px;
+  font-family: 'Montserrat', sans-serif;
+}
+.input,
+select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 0 4px 4px 0;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Estilos para wrapper de input con icono callbell */
+.input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper .input {
+  flex: 1;
+  padding-right: 35px;
+}
+
+.callbell-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 16px;
+  user-select: none;
+  z-index: 1;
+  background: transparent;
+  border: none;
+  padding: 2px;
+  border-radius: 2px;
+  transition: background-color 0.2s;
+}
+
+.callbell-icon:hover {
+  background-color: rgba(40, 90, 117, 0.1);
+}
+select.input:invalid,
+select.input option[disabled] {
+  color: #666;
+}
+.hidden {
+  display: none;
+}
+table {
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-family: 'Montserrat', sans-serif;
+}
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+thead th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+#planPagosTable thead th {
+  background: #13bf81;
+  color: #fff;
+  font-weight: 600;
+}
+.highlight {
+  background: #fffae6;
+}
+/* Plataforma vieja */
+#membOldContainer table { width:100%; }
+#membOldContainer table thead th { background: #1E3A8A; color:#fff; }
+#membOldContainer table tbody tr.highlight { background: #13BF81; color:#fff; }
+
+/* FRAPP */
+#membNewContainer table { width:100%; }
+#membNewContainer table thead th { background: #022851; color:#fff; }
+#membNewContainer table tbody tr.active { background: #60C5FA; color:#fff; }
+
+.modal.hidden { display: none; }
+.modal {
+  position: fixed; top:0; left:0; width:100%; height:100%;
+  display: flex; align-items:center; justify-content:center;
+  z-index: 1000;
+}
+.modal-backdrop {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  background: rgba(0,0,0,0.4);
+}
+.modal-dialog {
+  position: relative;
+  background: #fff; padding: 24px; border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  width: 360px;
+}
+.modal-dialog h3 {
+  margin-bottom:16px;
+  font-size:1.2em;
+}
+.modal-row {
+  display:flex; flex-direction:column; margin-bottom:12px;
+}
+.modal-row label {
+  font-weight:600; margin-bottom:4px;
+}
+.modal-row input,
+.modal-row select {
+  padding:6px 8px; border:1px solid #ccc; border-radius:4px;
+}
+.modal-actions {
+  display:flex; justify-content:flex-end; gap:8px; margin-top:16px;
+}
+/* pinta distinto un input disabled para que se note */
+input:disabled,
+input[readonly] {
+  background: #f0f0f0;
+  color: #666;
+  cursor: not-allowed;
+}
+.modal-response {
+  /* convierte en un flex‐container y separa el contenido */
+  display: flex;
+  flex-direction: column;    /* contenido arriba, botón abajo */
+  align-items: flex-end;     /* alinea a la derecha */
+  gap: 8px;                  /* espacio entre líneas y botón */
+  padding-top: 8px;          /* espacio antes del botón */
+}
+
+/* Dale estilo al botón Continuar */
+.modal-response .continue-btn {
+  border-radius: 6px;        /* esquinas redondeadas */
+  padding: 6px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  /* opcional: un sombreadito muy ligero */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+/* ----- Botón "➕ Agregar plan ----- */
+#addMembBtn {
+  background-color: #6c63ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+#addMembBtn:hover {
+  background-color: #574edb;
+}
+/* ===== Membresías: layout de 3 columnas ===== */
+.memb-layout{
+  display: grid;
+  grid-template-columns: 1fr 1fr 220px; /* Vieja | Nueva | Acciones angosta */
+  gap: 24px;
+  align-items: start;
+}
+.memb-actions{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;   /* que no se "pierda" al hacer scroll */
+  top: 8px;
+}
+.memb-actions h4{ margin: 0 0 8px 0; }
+
+/* botón a doble renglón, sin desbordar */
+.memb-actions .batch-btn{
+  white-space: normal;     /* permite salto de línea */
+  text-align: center;
+  line-height: 1.2;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+/* Responsive: si el ancho baja, la columna de acciones pasa abajo */
+@media (max-width: 1200px){
+  .memb-layout{ grid-template-columns: 1fr 1fr; }
+  .memb-actions{ grid-column: 1 / -1; flex-direction: row; }
+  .memb-actions .batch-btn{ width: auto; }
+}
+
+/* Layout para sección Comercialito copiando exactamente el de Membresías */
+.comercialito-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Venta normal | Venta en confianza */
+  gap: 24px;
+  align-items: start;
+}
+
+/* Responsive igual que Membresías */
+@media (max-width: 1200px) {
+  .comercialito-layout {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .comercialito-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  #comercialito h3 {
+    font-size: 1.1em;
+  }
+}
+
+/* Títulos de secciones */
+.venta-confianza-section h3 {
+  color: #285a75 !important;
+}
+
+/* Labels especiales para sección confianza */
+.venta-confianza-section .label {
+  background: #285a75 !important;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 4px 0 0 4px;
+}
+
+/* Campos de input en sección confianza - formato idéntico a venta normal */
+.venta-confianza-section .input {
+  border: 1px solid #ccc;
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  background: #fff;
+}
+
+.venta-confianza-section .input:focus {
+  border-color: #285a75 !important;
+  box-shadow: 0 0 0 2px rgba(40, 90, 117, 0.2) !important;
+}
+
+/* Estilo para campos deshabilitados y readonly en sección confianza */
+.venta-confianza-section .input:disabled,
+.venta-confianza-section .input:read-only,
+.venta-confianza-section .input.gray {
+  background-color: #f5f5f5 !important;
+  cursor: not-allowed !important;
+}
+
+#buscarAcuerdoBtn {
+  background: #285a75 !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+}
+
+#buscarAcuerdoBtn:hover {
+  background: #1e4a5f !important;
+}
+
+#buscarAcuerdoBtn:disabled {
+  background: #6b9bb3 !important;
+  cursor: not-allowed !important;
+}
+
+#buscarAcuerdoBtn .spinner {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  border: 2px solid #ddd;
+  border-top-color: #285a75;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* Estado sin firmar en rojo */
+#estadoAcuerdo.sin-firmar {
+  color: #dc3545 !important;
+  font-weight: 600 !important;
+}
+
+/* Botón Otorgar acceso en confianza - mismo estilo que buscarAcuerdoBtn */
+#otorgarAccesoBtn {
+  background: #285a75 !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  margin-top: 15px !important;
+  display: none; /* Oculto por defecto */
+}
+
+#otorgarAccesoBtn:hover {
+  background: #1e4a5f !important;
+}
+
+#otorgarAccesoBtn:disabled {
+  background: #6b9bb3 !important;
+  cursor: not-allowed !important;
+}
+
+#otorgarAccesoBtn .spinner {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  border: 2px solid #ddd;
+  border-top-color: #285a75;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* Campo de número de acuerdo más ancho */
+#nroAcuerdo {
+  min-width: 250px;
+  flex: 1;
+}
+
+
+/* ----- Botones del modal (Cancelar / Guardar / Continuar) ----- */
+.modal-actions button {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s;
+  margin-left: 8px;          /* separación entre botones */
+}
+.modal-actions button:hover {
+  background-color: #e0e0e0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Hover styles for search buttons and batch button */
+#searchBtn:hover {
+  background-color: #054066;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+#batchOpenBtn:hover {
+  background-color: #5a52e6;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* ----- Posicionamiento del botón "Continuar" dentro de la caja de respuesta ----- */
+#modalResponse {
+  position: relative;
+  padding-bottom: 2.5rem;
+}
+#modalResponse button {
+  /* que fluya en el flujo normal */
+  position: static;
+  margin-top: 8px;      /* espacio sobre el botón */
+  border-radius: 6px;   /* redondeo que ya tenías */
+  padding: 6px 12px;
+}
+#addMembBtn.semi-disabled {
+  opacity: 0.5;
+}
+.student-name {
+  color: #777;
+  font-weight: 400;
+  margin-left: 0.5rem;
+  font-size: 0.9em;
+}
+
+ /*===== Links ===== */
+#linksContainer {
+  padding: 16px;
+}
+#linksControls {
+  position: fixed;
+  top: 60px;
+  left: 220px;
+  right: 0;
+  z-index: 100;
+  background: #fff;
+  padding: 12px 24px;
+  display: none;
+}
+#links.pane.active ~ #linksControls,
+#links.pane.active #linksControls {
+  display: flex;
+}
+#links.pane.active #linksContainer {
+  padding-top: 60px;
+}
+#linksTableWrap {
+  position: relative;
+  overflow: auto;
+  max-height: calc(100vh - 180px);
+}
+#linksTableWrap table {
+  width: max-content !important;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#linksContainer table {
+  width: auto;
+  display: inline-table;
+  min-width: 600px;
+  font-family: 'Montserrat', sans-serif;
+}
+#linksContainer th,
+#linksContainer td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+#linksContainer thead th {
+  background: #434fab;
+  color: #fff;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border: 1px solid #ddd;
+}
+#linksContainer tbody tr {
+  background: #fff;      /* filas blancas */
+  color: #000;           /* texto negro */
+}
+#linksContainer a {
+  color: #075183;
+  text-decoration: underline;
+}
+#linksContainer tbody tr.expired-link {
+  background: #f0f0f0;
+}
+#ventasContainer table {
+  font-size: 0.9rem;
+}
+#ventasContainer table thead th {
+   background: #f37808;
+   color: #fff;
+ }
+#ventasContainer .highlight {
+  background: #ffba6e;
+}
+#ventasContainer .summary strong {
+  font-weight: bold;
+  color: #f37808;
+}
+#ventasContainer .summary span.label {
+  color: #000;
+  background: none !important;
+  padding: 0 !important;
+}
+#acuerdosContainer table thead th {
+  background: #f70f79 !important;
+  color: #fff !important;
+}
+#acuerdosContainer .summary{
+  color: #f70f79; /* mismo rosa del header */
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+#acuerdosContainer .summary strong { color: inherit; }
+#acuerdosContainer .highlight {
+  background: #ffba6e;
+}
+.negotiation-hint {
+  color: #999;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+.pane table {
+  display: inline-table;
+  width: auto !important;
+  min-width: 600px !important;
+  white-space: nowrap;
+}
+#acuerdosContainer {
+  padding: 16px;
+}
+/* Títulos de secciones en Acuerdos en rosa */
+#acuerdosContainer h3 {
+  color: var(--ac-pink);
+}
+#acuerdos.pane { overflow-x: auto; }
+#acuerdosControls {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  padding: 8px 0;
+}
+#acuerdosTableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+#acuerdosTableWrap table { width: max-content !important; }
+/* === Botón refresh rosa de Acuerdos === */
+:root { --ac-pink: #f70f79; }
+.btn-refresh{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 10px; font-size:.9em; font-weight:600;
+  background:#fff; color:var(--ac-pink);
+  border:1px solid var(--ac-pink); border-radius:8px;
+  cursor:pointer;
+}
+.btn-refresh:hover{ background:rgba(247,15,121,.06); }
+.btn-refresh .icon{
+  width:18px; height:18px; flex:0 0 18px;
+  stroke: var(--ac-pink); fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.btn-refresh.loading{ opacity:.85; cursor:not-allowed !important; }
+.btn-refresh .spinner{
+  width:16px; height:16px; display:inline-block;
+  border:2px solid #ddd; border-top-color:var(--ac-pink);
+  border-radius:50%; animation:spin .8s linear infinite;
+}
+/* === Botón refresh naranja para Ventas (mismo look que Acuerdos) === */
+.btn-refresh-orange{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 10px; font-size:.9em; font-weight:600;
+  background:#fff; color:var(--ve-orange);
+  border:1px solid var(--ve-orange); border-radius:8px;
+  cursor:pointer;
+}
+.btn-refresh-orange:hover{ background:rgba(243,120,8,.06); }
+.btn-refresh-orange.loading{ opacity:.85; cursor:not-allowed !important; }
+.btn-refresh-orange .icon{
+  width:18px; height:18px; flex:0 0 18px;
+  stroke: var(--ve-orange); fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.btn-refresh-orange .spinner{
+  width:16px; height:16px; display:inline-block;
+  border:2px solid #ddd; border-top-color:var(--ve-orange);
+  border-radius:50%; animation:spin .8s linear infinite;
+}
+/* por si aún no existe la animación */
+@keyframes spin{to{transform:rotate(360deg)}}
+:root{
+  --ac-pink: #f70f79;
+  --ac-paid-bg: #ffe6f1;
+  --ac-mora: #c01414;
+  --ve-orange: #f37808; /* Ventas */
+}
+/* sólo columnas de cuotas en estado Pagado */
+#acuerdosContainer table tbody tr.row-paid td.qcell {
+  background: var(--ac-paid-bg);
+}
+/* todo el acuerdo cuando TODAS las cuotas están pagadas */
+#acuerdosContainer table tbody tr.group-all-paid td.qcell,
+#acuerdosContainer table tbody tr.group-all-paid td.head-cols {
+  background: var(--ac-paid-bg);
+}
+/* cabecera del acuerdo en rojo si el acuerdo tiene alguna cuota en mora */
+#acuerdosContainer table tbody tr.group-has-mora td.head-cols {
+  color: var(--ac-mora);
+  font-weight: 700;
+}
+/* sólo la fila de la cuota en mora en rojo y negrita */
+#acuerdosContainer table tbody tr.row-mora td.qcell {
+  color: var(--ac-mora);
+  font-weight: 700;
+}
+/* botón Paz y salvo */
+.ps-btn{
+  cursor:pointer;
+  font-size:18px;
+  line-height:1;
+  background: transparent;
+  border: 0;
+}
+.ps-btn:hover{ transform: scale(1.05); }
+/* ===== Modal lote de membresías ===== */
+.batch-btn{
+  background:#6c63ff; color:#fff; border:0; border-radius:6px; padding:6px 12px; font-weight:600; cursor:pointer;
+}
+.batch-grid{
+  display:grid;
+  /* cédulas más angosta; resultados un poco más ancha */
+  grid-template-columns: 0.8fr 1.3fr 1fr;
+  gap:12px; margin-top:8px; align-items:start;
+}
+.batch-col{ display:flex; flex-direction:column; gap:8px; }
+.batch-col textarea{
+  width:100%; min-height:260px; resize:vertical; padding:8px;
+  border:1px solid #ccc; border-radius:6px;
+  font-family:'Montserrat',sans-serif; font-size:14px; line-height:1.35;
+}
+.batch-col .box{
+  min-height:260px; max-height:420px;
+  padding:8px; border:1px dashed #ccc; border-radius:6px; background:#fafafa;
+  overflow-y:auto; overflow-x:auto;
+  white-space:normal; word-break:break-word;
+  font-family:'Montserrat',sans-serif; font-size:14px; line-height:1.35;
+}
+.batch-col .mini{ font-size:.9em; color:#666; }
+/* listas de resultados: mismo tamaño que textarea */
+#batchResultsList, #batchAddList{
+  margin:0;
+  padding-left:0;
+  list-style:none;                 /* sin numeración */
+  font-size:14px;                  /* mismo tamaño que textarea */
+  line-height:1.35;
+  font-family:'Montserrat',sans-serif;
+}
+/* cada fila corresponde a la misma línea de la columna de cédulas */
+#batchResultsList li, #batchAddList li { padding:2px 0; }
+
+/* ====== NUEVO: filas de pares con flecha y columnas fijas ====== */
+.pair-list li{
+  display:grid;
+  grid-template-columns: 140px 24px 1fr; /* izquierda | flecha | derecha */
+  align-items:center;
+  gap:6px;
+}
+/* en la lista de AGREGAR (correo ➡️ estado) el email ocupa la parte flexible y el estado a la derecha */
+#batchAddList.pair-list li{
+  grid-template-columns: 1fr 24px 140px; /* email (derecha) | flecha | estado */
+}
+.pair-list li .left{
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.pair-list li .arrow{ text-align:center; }
+.pair-list li .right{ overflow-wrap:anywhere; }
+/* correo a la derecha en la tercera columna */
+#batchAddList.pair-list li .left{ text-align:right; }
+
+/* Estilos para botones de WhatsApp deshabilitados */
+button[onclick*="sendToWhatsApp"]:disabled:hover,
+button[onclick*="openWhatsApp"]:disabled:hover {
+  position: relative;
+}
+button[onclick*="sendToWhatsApp"]:disabled:hover:before,
+button[onclick*="openWhatsApp"]:disabled:hover:before {
+  content: "🚫";
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+}
