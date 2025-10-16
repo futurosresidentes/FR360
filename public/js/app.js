@@ -6,7 +6,9 @@
  * to fetch() API calls for Node.js/Express backend.
  * 
  * Conversion pattern:
- * FROM: google.script.run.withSuccessHandler(callback).withFailureHandler(errCallback).functionName(args)
+ api.functionName(args)
+   .then(callback)
+   .catch(errCallback);
  * TO:   fetch('/api/functionName', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({args})})
  *       .then(res => res.json()).then(callback).catch(errCallback)
  * 
@@ -193,105 +195,10 @@
 
     // === Helpers globales para promesas y reintentos (usados en todo el panel) ===
 
-    // Simular google.script.run para compatibilidad con código legado
-    window.google = window.google || {};
-    window.google.script = {
-      run: new Proxy({}, {
-        get: function(target, prop) {
-          if (prop === 'withSuccessHandler') {
-            let successHandler = null;
-            let failureHandler = null;
-
-            const handlerObj = {
-              withSuccessHandler: function(handler) {
-                successHandler = handler;
-                return handlerObj;
-              },
-              withFailureHandler: function(handler) {
-                failureHandler = handler;
-                return handlerObj;
-              }
-            };
-
-            // Crear proxy para capturar cualquier llamada a función
-            return function(handler) {
-              successHandler = handler;
-              const proxy = new Proxy(handlerObj, {
-                get: function(target, fnName) {
-                  if (fnName === 'withFailureHandler' || fnName === 'withSuccessHandler') {
-                    return target[fnName];
-                  }
-                  // Esta es la función real que se está llamando
-                  return function(...args) {
-                    fetch(`/api/${fnName}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ args: args })
-                    })
-                    .then(res => {
-                      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-                      return res.json();
-                    })
-                    .then(data => {
-                      const result = data.result !== undefined ? data.result : data;
-                      if (successHandler) successHandler(result);
-                    })
-                    .catch(err => {
-                      if (failureHandler) failureHandler(err);
-                      else console.error('Error en llamada API:', err);
-                    });
-                  };
-                }
-              });
-              return proxy;
-            };
-          }
-
-          // Llamadas directas sin handlers (ej: google.script.run.functionName())
-          return function(...args) {
-            return fetch(`/api/${prop}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ args: args })
-            })
-            .then(res => {
-              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-              return res.json();
-            })
-            .then(data => data.result !== undefined ? data.result : data);
-          };
-        }
-      })
-    };
-
-    function gs(name, ...args) {
-        return new Promise((resolve, reject) => {
-          fetch(`/api/${name}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ args: args })
-          })
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(data => {
-            if (data.success === false) {
-              reject(new Error(data.error || 'Error desconocido'));
-            } else {
-              resolve(data.result !== undefined ? data.result : data);
-            }
-          })
-          .catch(reject);
-        });
-    }
-    
+    // Sleep helper
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+    // Retry helper
     async function withRetry(fn, tries = 3, wait = 1000) {
         let lastErr;
         for (let i = 1; i <= tries; i++) {
@@ -340,33 +247,29 @@
 
     // ===== Productos dinámicos =====
     const productMeta = new Map(); // nombre → {precio, max_financiacion, categoria, ...}
-    function loadProductos() {
+    async function loadProductos() {
       // 1) Llenar datalist con nombres
-      google.script.run
-        .withSuccessHandler((list) => {
-          productosList.innerHTML = '';
-          list.forEach((n) => {
-            const o = document.createElement('option');
-            o.value = n;
-            productosList.appendChild(o);
-          });
-        })
-        .withFailureHandler(err => {
-          console.error('getProductosServer error', err);
-          statusTop.textContent = '❌ Error al cargar productos';
-        })
-        .getProductosServer();
+      try {
+        const list = await api.getProductosServer();
+        productosList.innerHTML = '';
+        list.forEach((n) => {
+          const o = document.createElement('option');
+          o.value = n;
+          productosList.appendChild(o);
+        });
+      } catch (err) {
+        console.error('getProductosServer error', err);
+        statusTop.textContent = '❌ Error al cargar productos';
+      }
 
       // 2) Cargar catálogo (precio / max_financiacion) para lógica dinámica
-      google.script.run
-        .withSuccessHandler((rows) => {
-          productMeta.clear();
-          (rows || []).forEach(p => productMeta.set(p.nombre, p));
-        })
-        .withFailureHandler(err => {
-          console.warn('getProductosCatalog error', err);
-        })
-        .getProductosCatalog();
+      try {
+        const rows = await api.getProductosCatalog();
+        productMeta.clear();
+        (rows || []).forEach(p => productMeta.set(p.nombre, p));
+      } catch (err) {
+        console.warn('getProductosCatalog error', err);
+      }
     }
 
     // → helper para YYYY-MM-DD sin sorpresas de zona
@@ -423,12 +326,7 @@
       console.log('🔄 Iniciando consulta: Callbell');
 
       try {
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getCallbellContact(celularValue);
-        });
+        const result = await api.getCallbellContact(celularValue);
 
         if (result.success && result.conversationHref) {
           console.log('✅ Completada consulta: Callbell');
@@ -802,8 +700,8 @@
 
     // Función para cargar planes en el modal de lote
     function loadBatchMembershipPlans() {
-      google.script.run
-        .withSuccessHandler(plans => {
+      api.getActiveMembershipPlans()
+        .then(plans => {
           batchMembershipPlans = plans;
           batchProduct.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
           plans.forEach(plan => {
@@ -814,11 +712,10 @@
           });
           console.log('✅ Planes de membresía cargados en modal de lote:', plans.length);
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           console.error('❌ Error cargando planes en lote:', err);
           batchProduct.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
-        })
-        .getActiveMembershipPlans();
+        });
     }
 
     // Funciones de cálculo bidireccional para modal de lote
@@ -1347,8 +1244,8 @@
 
       // === 1) Ciudadano ===
       inc('Datos ciudadano');
-      google.script.run
-        .withSuccessHandler((r) => {
+      api.getCitizenServer(uid)
+        .then((r) => {
           try {
             nombres.value = r.nombres || '';
             apellidos.value = r.apellidos || '';
@@ -1368,18 +1265,17 @@
 
           } finally { done('Datos ciudadano'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('getCitizenServer error', err);
             trackLoadingError('Datos ciudadano', err);
           } finally { done('Datos ciudadano'); }
-        })
-        .getCitizenServer(uid);
+        });
 
       // === 2) CRM (Strapi solo) ===
       inc('CRM Strapi');
-      google.script.run
-        .withSuccessHandler(strapi => {
+      api.fetchCrmStrapiOnly(uid)
+        .then(strapi => {
           try {
             if (strapi && (strapi.correo || strapi.celular)) {
               correo.value  = strapi.correo  || '';
@@ -1412,19 +1308,18 @@
             }
           } finally { done('CRM Strapi'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.warn('Error cargando CRM (solo Strapi):', err);
             trackLoadingError('CRM Strapi', err);
           }
           finally { done('CRM Strapi'); }
-        })
-        .fetchCrmStrapiOnly(uid);
+        });
 
       // === 3) Sincronizador CRM ===
       inc('Sincronización CRM');
-      google.script.run
-        .withSuccessHandler(res => {
+      api.sincronizarCrmPorNumeroDocumento(uid)
+        .then(res => {
           try {
             if (res.estado === 'error') {
               console.warn('Error al sincronizar CRM:', res.mensaje);
@@ -1458,19 +1353,18 @@
             }
           } finally { done('Sincronización CRM'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('sincronizarCrmPorNumeroDocumento falló:', err);
             trackLoadingError('Sincronización CRM', err);
           }
           finally { done('Sincronización CRM'); }
-        })
-        .sincronizarCrmPorNumeroDocumento(uid);
+        });
 
       // === 4) Membresías (plataforma vieja) ===
       inc('Membresías vieja');
-      google.script.run
-        .withSuccessHandler(html => {
+      api.traerMembresiasServer(uid)
+        .then(html => {
           try {
             const cont = document.getElementById('membOldContainer');
             cont.innerHTML = (!html || !html.trim())
@@ -1479,33 +1373,31 @@
             attachRowActions('membOldContainer', { enableFreeze: false, enableEdit: false });
           } finally { done('Membresías vieja'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('traerMembresiasServer error', err);
             document.getElementById('membOldContainer').innerHTML =
               '<p>❌ Error al cargar membresías viejas</p>';
             trackLoadingError('Membresías vieja', err);
           } finally { done('Membresías vieja'); }
-        })
-        .traerMembresiasServer(uid);
+        });
 
       // === 5) Membresías (FRAPP / plataforma nueva) ===
       inc('Membresías FRAPP');
-      google.script.run
-        .withSuccessHandler(res => {
+      api.fetchMembresiasFRAPP(uid)
+        .then(res => {
           try {
             renderMembFRAPP(res);
           } finally { done('Membresías FRAPP'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('fetchMembresiasFRAPP error', err);
             document.getElementById('membNewContainer').innerHTML =
               '<p>❌ Error al cargar membresías nuevas</p>';
             trackLoadingError('Membresías FRAPP', err);
           } finally { done('Membresías FRAPP'); }
-        })
-        .fetchMembresiasFRAPP(uid);
+        });
 
       // === 6) Ventas y 7) Acuerdos - Carga coordinada ===
       // Acuerdos necesita que Ventas termine primero para validar correctamente
@@ -1526,15 +1418,15 @@
         }
       };
 
-      google.script.run
-        .withSuccessHandler(res => {
+      api.fetchVentas(uid)
+        .then(res => {
           try {
             renderVentas(res);
             ventasDataLoaded = true;
             maybeRenderAcuerdos(); // Intentar renderizar Acuerdos si ya llegó
           } finally { done('Ventas'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('fetchFacturacion error', err);
             document.getElementById('ventasContainer').innerHTML =
@@ -1543,18 +1435,17 @@
             ventasDataLoaded = true;
             maybeRenderAcuerdos(); // Intentar de todas formas
           } finally { done('Ventas'); }
-        })
-        .fetchVentas(uid);
+        });
 
       // === 7) Acuerdos ===
       inc('Acuerdos');
-      google.script.run
-        .withSuccessHandler((data) => {
+      api.fetchAcuerdos(uid)
+        .then((data) => {
           acuerdosDataCache = data;
           acuerdosDataLoaded = true;
           maybeRenderAcuerdos(); // Intentar renderizar si Ventas ya terminó
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('fetchCartera error', err);
             trackLoadingError('Acuerdos', err);
@@ -1564,26 +1455,24 @@
           } catch(e) {
             console.error('Error en failureHandler de Acuerdos:', e);
           }
-        })
-        .fetchAcuerdos(uid);
+        });
 
       // === 8) Links ===
       inc('Links');
-      google.script.run
-        .withSuccessHandler(res => {
+      api.getLinksByIdentityDocument(uid)
+        .then(res => {
           try {
             renderLinks(res);
           } finally { done('Links'); }
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           try {
             console.error('getLinksByIdentityDocument error', err);
             document.getElementById('linksContainer').innerHTML =
               '<p>❌ Error al cargar links</p>';
             trackLoadingError('Links', err);
           } finally { done('Links'); }
-        })
-        .getLinksByIdentityDocument(uid);
+        });
 
     // Por si (muy raro) no se llegó a incrementar nada:
         if (pending === 0) finish();
@@ -1657,8 +1546,8 @@
         btn.innerHTML = `<span class="spinner"></span><span>Actualizando…</span>`;
 
         const uid = searchId.value.replace(/\D/g,'');
-        google.script.run
-          .withSuccessHandler(newData => {
+        api.fetchVentas(uid)
+          .then(newData => {
             renderVentas(newData);
             const msg = document.createElement('span');
             msg.className = 'refresh-msg';
@@ -1670,13 +1559,12 @@
             btn.classList.remove('loading');
             btn.innerHTML = origHTMLV;
           })
-          .withFailureHandler(err => {
+          .catch(err => {
             console.error('Error al refrescar ventas', err);
             btn.disabled = false;
             btn.classList.remove('loading');
             btn.innerHTML = origHTMLV;
-          })
-          .fetchVentas(uid);
+          });
       });
       controls.appendChild(btn);
 
@@ -1838,16 +1726,14 @@
         };
 
         // 1) Refrescar Ventas (actualiza lastFactRows dentro de renderVentas)
-        google.script.run
-          .withSuccessHandler(v => { try { renderVentas(v); } catch(e){ console.error('renderVentas error:', e); } ventasOK = true; maybeFinish(); })
-          .withFailureHandler(err => { console.error('Error al refrescar ventas', err); ventasOK = true; maybeFinish(); })
-          .fetchVentas(uid);
+        api.fetchVentas(uid)
+          .then(v => { try { renderVentas(v); } catch(e){ console.error('renderVentas error:', e); } ventasOK = true; maybeFinish(); })
+          .catch(err => { console.error('Error al refrescar ventas', err); ventasOK = true; maybeFinish(); });
 
         // 2) Refrescar Acuerdos (se pintan cuando ventas también esté lista)
-        google.script.run
-          .withSuccessHandler(a => { acuerdosData = a; acuerdosOK = true; maybeFinish(); })
-          .withFailureHandler(err => { console.error('Error al refrescar acuerdos', err); acuerdosData = []; acuerdosOK = true; maybeFinish(); })
-          .fetchAcuerdos(uid);
+        api.fetchAcuerdos(uid)
+          .then(a => { acuerdosData = a; acuerdosOK = true; maybeFinish(); })
+          .catch(err => { console.error('Error al refrescar acuerdos', err); acuerdosData = []; acuerdosOK = true; maybeFinish(); });
       });
       
       // ==== Partición por estado_firma y doble tabla ====
@@ -2089,8 +1975,8 @@
           producto_nombre: tr.dataset.productoNombre || '',
           cuota_nro:       tr.dataset.cuotaNro || ''
         };
-        google.script.run
-          .withSuccessHandler(res => {
+        api.withFailureHandler(()
+          .then(res => {
             hydrateRowFromResponse(tr, res, fmt);
             // revalida contra Ventas: Paz y salvo / Cuota N / Cuota N (Mora)
             markAsPaidFromVentas(tr);
@@ -2101,15 +1987,7 @@
               setTimeout(() => resolveRow(tr, attempt+1), wait);
             }
           })
-          .withFailureHandler(() => {
-            // incluso si falla, revalida contra Ventas
-            markAsPaidFromVentas(tr);
-            if (rowIsResolved(tr) || attempt >= MAX_RESOLVE_ATTEMPTS) {
-              onRowDone();
-            } else {
-              const wait = RETRY_BASE_MS * Math.pow(2, attempt-1);
-              setTimeout(() => resolveRow(tr, attempt+1), wait);
-            }
+          .catch(err => console.error(err));
           })
           .resolvePagoYActualizarCartera(payload);
       }
@@ -2513,12 +2391,7 @@
         createLinkBtn.innerHTML = '<span class="spinner"></span>Procesando...';
 
         // Llamar a la función del backend
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .processSinglePayment(formData);
-        });
+        const result = await api.processSinglePayment(formData);
 
         console.log('✅ Resultado del backend:', result);
 
@@ -2651,12 +2524,7 @@
         feedbackArea.innerHTML = '<div style="color: #ff9800;">📤 Enviando mensaje por WhatsApp...</div>';
 
         // Llamar al backend para enviar el mensaje
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .sendWhatsAppMessage(celular, producto, linkUrl);
-        });
+        const result = await api.sendWhatsAppMessage(celular, producto, linkUrl);
 
         console.log('📤 Resultado envío WhatsApp:', result);
 
@@ -2666,12 +2534,7 @@
 
           setTimeout(async () => {
             try {
-              const statusResult = await new Promise((resolve, reject) => {
-                google.script.run
-                  .withSuccessHandler(resolve)
-                  .withFailureHandler(reject)
-                  .checkMessageStatus(result.messageUuid);
-              });
+              const statusResult = await api.checkMessageStatus(result.messageUuid);
 
               console.log('📊 Estado del mensaje:', statusResult);
 
@@ -2747,12 +2610,7 @@
         }
 
         // Llamar al backend para obtener el contacto
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .getCallbellContact(celular);
-        });
+        const result = await api.getCallbellContact(celular);
 
         console.log('🔍 Resultado búsqueda contacto:', result);
 
@@ -3177,27 +3035,15 @@
       });
 
       // 6) Llamar al servidor
-      google.script.run
-        .withSuccessHandler(res => {
+      api.join('\n')
+        .then(res => {
         console.log('DEBUG updateMembershipFRAPP response:', res);
           if (res.error) {
             console.log('DEBUG updateMembershipFRAPP details:', res.details);
             // construimos un mensaje legible con los detalles que manda el servidor
             const detailMsgs = Array.isArray(res.details)
-              ? res.details.map(d => `${d.field || 'campo'}: ${d.message}`).join('\n')
-              : (res.message || res.error);
-            alert('❌ No se pudo actualizar la membresía:\n' + detailMsgs);
-          } else {
-            alert(res.message || 'Membresía actualizada exitosamente');
-          } 
-          // refrescar tabla
-          const uid = searchId.value.replace(/\D/g,'');
-          google.script.run.withSuccessHandler(renderMembFRAPP)
-                          .fetchMembresiasFRAPP(uid);
-        })
-        .withFailureHandler(err => {
-          alert('❌ Error al actualizar: ' + err.message);
-        })
+              ? res.details.map(d => `${d.field || 'campo'}: ${d.message}`)
+        .catch(err => console.error(err));
         .updateMembershipFRAPP(membershipId, changedById, reason, changes);
     });
 
@@ -3228,8 +3074,8 @@
     };
     // Update USER_EMAIL from server (already initialized in home.ejs)
     document.getElementById('currentUser').textContent = USER_EMAIL;
-    google.script.run
-      .withSuccessHandler(e => {
+    api.getUserEmail()
+      .then(e => {
         // USER_EMAIL = e; // Commented out - already set in home.ejs
         document.getElementById('currentUser').textContent = e;
         // hint visual (mantengo el alert en el click para el mensaje):
@@ -3240,10 +3086,9 @@
           batchAddBtn.classList.remove('semi-disabled');
         }
       })
-      .withFailureHandler(err => {
+      .catch(err => {
         console.error('getUserEmail error', err);
-      })
-      .getUserEmail();
+      });
 
     // Lista de correos autorizados
     const ADMINS = [
@@ -3606,8 +3451,8 @@
 
     // Función para cargar los planes de membresía
     function loadMembershipPlans() {
-      google.script.run
-        .withSuccessHandler(plans => {
+      api.getActiveMembershipPlans()
+        .then(plans => {
           membershipPlans = plans;
           // Llenar el select con los planes
           selHandle.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
@@ -3620,11 +3465,10 @@
           });
           console.log('✅ Planes de membresía cargados:', plans.length);
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           console.error('❌ Error cargando planes:', err);
           selHandle.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
-        })
-        .getActiveMembershipPlans();
+        });
     }
     
 
@@ -3682,20 +3526,18 @@
           const today = new Date();
           // Obtener el nombre del plan seleccionado
           const selectedPlanName = selHandle.options[selHandle.selectedIndex].text;
-          google.script.run
-            .withFailureHandler(err => console.error('Error al anotar patrocinio:', err))
-            .appendPatrocinioRecord({
-              year:               today.getFullYear(),
-              month:              today.getMonth() + 1,
-              day:                today.getDate(),
-              uid:                searchId.value.replace(/\D/g,''),
-              givenName:          inpGiven.value,
-              familyName:         inpFamily.value,
-              phone:              inpPhone.value,
-              email:              inpEmail.value,
-              productHandle:      selectedPlanName,
-              eventObservation:   inpEvento.value
-            });
+          api.appendPatrocinioRecord({
+            year:               today.getFullYear(),
+            month:              today.getMonth() + 1,
+            day:                today.getDate(),
+            uid:                searchId.value.replace(/\D/g,''),
+            givenName:          inpGiven.value,
+            familyName:         inpFamily.value,
+            phone:              inpPhone.value,
+            email:              inpEmail.value,
+            productHandle:      selectedPlanName,
+            eventObservation:   inpEvento.value
+          }).catch(err => console.error('Error al anotar patrocinio:', err));
         }
 
         // ——— 2) Cerramos modal y reseteamos completamente ———
@@ -3703,10 +3545,9 @@
         resetModal(); // Resetear completamente el modal
 
         // ——— 3) Refrescamos la tabla "Plataforma nueva" ———
-        google.script.run
-          .withSuccessHandler(renderMembFRAPP)
-          .withFailureHandler(err => console.error('Error recargando membresías:', err))
-          .fetchMembresiasFRAPP(searchId.value.replace(/\D/g,''));
+        api.fetchMembresiasFRAPP(searchId.value.replace(/\D/g,'')
+          .then(renderMembFRAPP)
+          .catch(err => console.error('Error recargando membresías:', err));
 
       });
       modalResponse.appendChild(btn);
@@ -3940,11 +3781,7 @@
         createLinkBtn.innerHTML = '<span class="spinner"></span>Creando Acuerdo...';
 
         // Llamar a la función del backend
-        const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .crearAcuerdo(
+        const result = await api.crearAcuerdo(
               formData.nombres,
               formData.apellidos,
               formData.cedula,
@@ -3957,7 +3794,6 @@
               formData.inicioTipo,
               formData.inicioFecha
             );
-        });
 
         console.log('✅ Resultado del backend:', result);
 
@@ -4039,8 +3875,8 @@
       buscarAcuerdoBtn.innerHTML = '<span class="spinner"></span>Buscando...';
 
       // Llamada a Google Apps Script para consultar el acuerdo
-      google.script.run
-        .withSuccessHandler((resultado) => {
+      api.trim()
+        .then((resultado) => {
           try {
             console.log('Respuesta del servidor:', resultado);
 
@@ -4055,11 +3891,8 @@
             }
 
             // Validar que el número de documento del acuerdo coincida con la cédula actual
-            const cedulaActual = document.getElementById('searchId').value.replace(/\D/g,'').trim();
-            const dataAcuerdo = Array.isArray(resultado.data) ? resultado.data[0] : resultado.data;
-            const numeroDocumentoAcuerdo = String(dataAcuerdo?.numero_documento || '').replace(/\D/g,'').trim();
-
-            if (cedulaActual && numeroDocumentoAcuerdo && cedulaActual !== numeroDocumentoAcuerdo) {
+            const cedulaActual = document.getElementById('searchId').value.replace(/\D/g,'')
+        .catch(err => console.error(err));
               alert(`❌ El número de acuerdo no corresponde al estudiante actual.\n\nEstudiante actual: ${cedulaActual}\nAcuerdo corresponde a: ${numeroDocumentoAcuerdo}\n\nPor favor valide nuevamente el número de acuerdo.`);
               return;
             }
@@ -4205,7 +4038,7 @@
         // Si no hay datos en cache o no coinciden, consultar el servidor
         if (!memberships) {
           console.log('Consultando membresías desde el servidor...');
-          memberships = await google.script.run.fetchMembresiasFRAPP(cedula);
+          memberships = await api.fetchMembresiasFRAPP(cedula);
 
           if (!memberships) {
             throw new Error('No se pudo obtener respuesta del servidor de membresías');
@@ -4311,8 +4144,8 @@
         console.log('Obteniendo handle para producto:', producto);
 
         const productHandle = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler((result) => {
+          api.getProductHandleFromFRAPP(producto)
+            .then((result) => {
               console.log('Resultado raw del servidor:', result);
               console.log('Tipo de resultado:', typeof result);
               console.log('Resultado es null?', result === null);
@@ -4320,11 +4153,10 @@
               console.log('Resultado convertido a string:', String(result));
               resolve(result);
             })
-            .withFailureHandler((error) => {
+            .catch((error) => {
               console.error('Error del servidor:', error);
               reject(error);
-            })
-            .getProductHandleFromFRAPP(producto);
+            });
         });
 
         console.log('Handle procesado:', productHandle);
@@ -4367,8 +4199,8 @@
         console.log('Payload para registro:', payload);
 
         const result = await new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler((result) => {
+          api.registerMembFRAPP(payload)
+            .then((result) => {
               console.log('Resultado del registro (raw):', result);
               console.log('Tipo de resultado:', typeof result);
               console.log('result.success:', result?.success);
@@ -4378,11 +4210,10 @@
               console.log('Resultado completo:', JSON.stringify(result, null, 2));
               resolve(result);
             })
-            .withFailureHandler((error) => {
+            .catch((error) => {
               console.error('Error en registerMembFRAPP:', error);
               reject(error);
-            })
-            .registerMembFRAPP(payload);
+            });
         });
 
         if (result && result.success) {
@@ -4409,10 +4240,9 @@
           // Refrescar membresías si estamos en la pestaña correcta
           const uid = searchId.value.replace(/\D/g,'').trim();
           if (uid) {
-            google.script.run
-              .withSuccessHandler(renderMembFRAPP)
-              .withFailureHandler(err => console.error('Error recargando membresías:', err))
-              .fetchMembresiasFRAPP(uid);
+            api.fetchMembresiasFRAPP(uid)
+              .then(renderMembFRAPP)
+              .catch(err => console.error('Error recargando membresías:', err));
           }
 
           // Guardar registro en Google Sheets en paralelo
@@ -4428,10 +4258,9 @@
             fechaInicio: fechaInicio
           };
 
-          google.script.run
-            .withSuccessHandler(result => console.log('Registro guardado en Sheets:', result))
-            .withFailureHandler(err => console.error('Error guardando en Sheets:', err))
-            .saveConfianzaRecord(confianzaData);
+          api.saveConfianzaRecord(confianzaData)
+            .then(result => console.log('Registro guardado en Sheets:', result))
+            .catch(err => console.error('Error guardando en Sheets:', err));
         } else {
           console.log('ENTRANDO AL ELSE - result:', result);
           console.log('result.success:', result?.success);
@@ -4460,16 +4289,15 @@
 
             // Intentar crear membresía para usuario existente
             const resultExisting = await new Promise((resolve, reject) => {
-              google.script.run
-                .withSuccessHandler((result) => {
+              api.registerMembFRAPP(payloadExistingUser)
+                .then((result) => {
                   console.log('Resultado para usuario existente (raw):', result);
                   resolve(result);
                 })
-                .withFailureHandler((error) => {
+                .catch((error) => {
                   console.error('Error en registerMembFRAPP para usuario existente:', error);
                   reject(error);
-                })
-                .registerMembFRAPP(payloadExistingUser);
+                });
             });
 
             if (resultExisting && resultExisting.success) {
@@ -4507,10 +4335,9 @@
                 // Hacer refresh paralelo de las membresías
                 const uid = searchId.value.replace(/\D/g,'').trim();
                 if (uid) {
-                  google.script.run
-                    .withSuccessHandler(renderMembFRAPP)
-                    .withFailureHandler(err => console.error('Error recargando membresías:', err))
-                    .fetchMembresiasFRAPP(uid);
+                  api.fetchMembresiasFRAPP(uid)
+                    .then(renderMembFRAPP)
+                    .catch(err => console.error('Error recargando membresías:', err));
                 }
               });
 
@@ -4523,10 +4350,9 @@
               // Hacer refresh paralelo inmediato de las membresías sin esperar click
               const uid = searchId.value.replace(/\D/g,'').trim();
               if (uid) {
-                google.script.run
-                  .withSuccessHandler(renderMembFRAPP)
-                  .withFailureHandler(err => console.error('Error recargando membresías:', err))
-                  .fetchMembresiasFRAPP(uid);
+                api.fetchMembresiasFRAPP(uid)
+                  .then(renderMembFRAPP)
+                  .catch(err => console.error('Error recargando membresías:', err));
               }
 
               // Guardar registro en Google Sheets en paralelo
@@ -4542,10 +4368,9 @@
                 fechaInicio: fechaInicio
               };
 
-              google.script.run
-                .withSuccessHandler(result => console.log('Registro guardado en Sheets (usuario existente):', result))
-                .withFailureHandler(err => console.error('Error guardando en Sheets (usuario existente):', err))
-                .saveConfianzaRecord(confianzaData);
+              api.saveConfianzaRecord(confianzaData)
+                .then(result => console.log('Registro guardado en Sheets (usuario existente):', result))
+                .catch(err => console.error('Error guardando en Sheets (usuario existente):', err));
 
               return; // Salir exitosamente
             } else {
@@ -4688,10 +4513,9 @@
         modalResponse.textContent = `⌛ Guardando… (intento ${attempt}/${maxAttempts})`;
 
         return new Promise((resolve, reject) => {
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)
-            .registerMembFRAPP(payloadToSend);
+          api.registerMembFRAPP(payloadToSend)
+            .then(resolve)
+            .catch(reject);
         })
         .then(res => {
           console.log(`Intento ${attempt} - Respuesta:`, res);
@@ -4740,10 +4564,9 @@
           showApiResponse(finalRes);
 
           // Refrescar tabla de membresías
-          google.script.run
-            .withSuccessHandler(renderMembFRAPP)
-            .withFailureHandler(err => console.error('Error recargando membresías:', err))
-            .fetchMembresiasFRAPP(uid);
+          api.fetchMembresiasFRAPP(uid)
+            .then(renderMembFRAPP)
+            .catch(err => console.error('Error recargando membresías:', err));
         })
         .catch(err => {
           console.error('Error final después de todos los reintentos:', err);
@@ -4802,26 +4625,25 @@
         changes
       });
 
-      google.script.run
-        .withSuccessHandler(res => {
+      api.updateMembershipFRAPP(currentFreeze.id, changedById, reason, changes)
+        .then(res => {
           console.log('DEBUG freeze response:', res);
           freezeModal.classList.add('hidden');
           freezeSuccessModal.classList.remove('hidden');
         })
-        .withFailureHandler(err => {
+        .catch(err => {
           console.error('DEBUG freeze error:', err);
           alert('❌ Error al congelar: ' + err.message);
-        })
-        .updateMembershipFRAPP(currentFreeze.id, changedById, reason, changes);
+        });
     });
 
     // Al aceptar el modal de éxito, refresca Plataforma nueva
     closeFreezeSuccess.addEventListener('click', () => {
       freezeSuccessModal.classList.add('hidden');
       const uid = searchId.value.replace(/\D/g,'');
-      google.script.run
-        .withSuccessHandler(renderMembFRAPP)
-        .fetchMembresiasFRAPP(uid);
+      api.fetchMembresiasFRAPP(uid)
+        .then(renderMembFRAPP)
+        .catch(err => console.error(err));
     });
 
     // ——— Render de Links ———
