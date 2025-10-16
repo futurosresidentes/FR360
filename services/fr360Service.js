@@ -182,9 +182,43 @@ async function getLinksByIdentityDocument(uid) {
   }
 }
 
+/**
+ * Process a single payment
+ * @param {Object} formData - Payment form data
+ * @returns {Promise<Object>} Payment result
+ */
+async function processSinglePayment(formData) {
+  console.log('⚠️ processSinglePayment needs full implementation');
+  console.log('📝 Form data:', formData);
+
+  // Stub implementation - would need to integrate with payment gateway
+  return {
+    success: false,
+    error: 'processSinglePayment not fully implemented yet - requires payment gateway integration'
+  };
+}
+
+/**
+ * Resolve payment and update portfolio
+ * @param {Object} payload - Payment resolution data
+ * @returns {Promise<Object>} Resolution result
+ */
+async function resolvePagoYActualizarCartera(payload) {
+  console.log('⚠️ resolvePagoYActualizarCartera needs full implementation');
+  console.log('📝 Payload:', payload);
+
+  // Stub implementation - would need to integrate with payment and portfolio systems
+  return {
+    success: false,
+    error: 'resolvePagoYActualizarCartera not fully implemented yet - requires payment resolution logic'
+  };
+}
+
 module.exports = {
   getCitizen,
   createPaymentLink,
   savePaymentLinkToDatabase,
-  getLinksByIdentityDocument
+  getLinksByIdentityDocument,
+  processSinglePayment,
+  resolvePagoYActualizarCartera
 };

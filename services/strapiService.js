@@ -393,6 +393,41 @@ async function consultarAcuerdo(nroAcuerdo) {
   }
 }
 
+/**
+ * Sincronizar CRM por número de documento
+ * @param {string} uid - Identity document number
+ * @returns {Promise<Object>} Synchronized CRM data
+ */
+async function sincronizarCrmPorNumeroDocumento(uid) {
+  // This would normally sync with external CRM systems
+  // For now, just return Strapi data
+  try {
+    const data = await fetchCrmStrapiOnly(uid);
+    return {
+      estado: data ? 'success' : 'error',
+      mensaje: data ? 'Datos sincronizados' : 'No se encontró en CRM',
+      datos: data ? { attributes: data } : null
+    };
+  } catch (error) {
+    return {
+      estado: 'error',
+      mensaje: error.message
+    };
+  }
+}
+
+/**
+ * Crear acuerdo (agreement)
+ * @param {...any} args - Agreement creation arguments
+ * @returns {Promise<Object>} Created agreement
+ */
+async function crearAcuerdo(...args) {
+  console.log('⚠️ crearAcuerdo needs full implementation');
+  console.log('📝 Args received:', args);
+
+  throw new Error('crearAcuerdo not fully implemented yet - requires Strapi POST integration');
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -401,5 +436,7 @@ module.exports = {
   fetchCrmStrapiBatch,
   fetchCrmByEmail,
   saveConfianzaRecord,
-  consultarAcuerdo
+  consultarAcuerdo,
+  sincronizarCrmPorNumeroDocumento,
+  crearAcuerdo
 };

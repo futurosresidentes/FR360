@@ -70,6 +70,157 @@ app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
 // Aplicar middleware de autenticación a todas las rutas /api/*
 app.use('/api/*', ensureAuthenticated, ensureDomain);
 
+// Universal POST handler for API client compatibility
+// Mapea las llamadas POST del cliente a las funciones de servicio correctas
+app.post('/api/:functionName', async (req, res) => {
+  const { functionName } = req.params;
+  const { args } = req.body;
+
+  console.log(`📞 API Call: ${functionName}`, args);
+
+  try {
+    let result;
+
+    // Mapear nombres de funciones a sus implementaciones
+    switch (functionName) {
+      // === CITIZEN & CRM ===
+      case 'getCitizenServer':
+        result = await fr360Service.getCitizen(args[0]);
+        break;
+
+      case 'fetchCrmByEmail':
+        result = await strapiService.fetchCrmByEmail(args[0]);
+        break;
+
+      case 'fetchCrmStrapiOnly':
+        result = await strapiService.fetchCrmStrapiOnly(args[0]);
+        break;
+
+      case 'sincronizarCrmPorNumeroDocumento':
+        result = await strapiService.sincronizarCrmPorNumeroDocumento(args[0]);
+        break;
+
+      // === PRODUCTS ===
+      case 'getProductosServer':
+        result = await strapiService.getProducts({ mode: 'names' });
+        break;
+
+      case 'getProductosCatalog':
+        result = await strapiService.getProducts({ mode: 'catalog' });
+        break;
+
+      case 'getActiveMembershipPlans':
+        result = await frappService.getActiveMembershipPlans();
+        break;
+
+      // === CALLBELL ===
+      case 'getCallbellContact':
+        result = await callbellService.getCallbellContact(args[0]);
+        break;
+
+      case 'sendWhatsAppMessage':
+        result = await callbellService.sendWhatsAppMessage(args[0], args[1], args[2]);
+        break;
+
+      case 'checkMessageStatus':
+        result = await callbellService.checkMessageStatus(args[0]);
+        break;
+
+      // === MEMBERSHIPS ===
+      case 'traerMembresiasServer':
+        result = await oldMembershipService.traerMembresiasServer(args[0]);
+        break;
+
+      case 'fetchMembresiasFRAPP':
+        result = await frappService.fetchMembresiasFRAPP(args[0]);
+        break;
+
+      case 'registerMembFRAPP':
+        result = await frappService.registerMembFRAPP(args[0]);
+        break;
+
+      case 'updateMembershipFRAPP':
+        result = await frappService.updateMembershipFRAPP(args[0], args[1], args[2], args[3]);
+        break;
+
+      case 'freezeMembershipFRAPP':
+        result = await frappService.freezeMembershipFRAPP(args[0], args[1], args[2], args[3]);
+        break;
+
+      case 'appendPatrocinioRecord':
+        result = await frappService.appendPatrocinioRecord(args[0]);
+        break;
+
+      case 'saveConfianzaRecord':
+        result = await frappService.saveConfianzaRecord(args[0]);
+        break;
+
+      // === SALES & AGREEMENTS ===
+      case 'fetchVentas':
+        result = await strapiService.fetchVentas(args[0]);
+        break;
+
+      case 'fetchAcuerdos':
+        result = await strapiService.fetchAcuerdos(args[0]);
+        break;
+
+      case 'processSinglePayment':
+        result = await fr360Service.processSinglePayment(args[0]);
+        break;
+
+      case 'resolvePagoYActualizarCartera':
+        result = await fr360Service.resolvePagoYActualizarCartera(args[0]);
+        break;
+
+      case 'crearAcuerdo':
+        result = await strapiService.crearAcuerdo(...args);
+        break;
+
+      case 'consultarAcuerdo':
+        result = await strapiService.consultarAcuerdo(args[0]);
+        break;
+
+      // === LINKS ===
+      case 'getLinksByIdentityDocument':
+        result = await fr360Service.getLinksByIdentityDocument(args[0]);
+        break;
+
+      // === USER ===
+      case 'getUserEmail':
+        result = req.user.email;
+        break;
+
+      default:
+        return res.status(404).json({
+          success: false,
+          error: `Function '${functionName}' not found`,
+          availableFunctions: [
+            'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento',
+            'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans',
+            'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
+            'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP',
+            'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
+            'getLinksByIdentityDocument', 'getUserEmail'
+          ]
+        });
+    }
+
+    // Enviar respuesta exitosa
+    res.json({
+      success: true,
+      result: result
+    });
+
+  } catch (error) {
+    console.error(`❌ Error in ${functionName}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.details || null
+    });
+  }
+});
+
 // Obtener datos de ciudadano por UID
 app.get('/api/citizen/:uid', async (req, res) => {
   try {
