@@ -67,12 +67,10 @@ app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
 });
 
 // === API ENDPOINTS (TODOS PROTEGIDOS) ===
-// Aplicar middleware de autenticación a todas las rutas /api/*
-app.use('/api/*', ensureAuthenticated, ensureDomain);
 
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
-app.post('/api/:functionName', async (req, res) => {
+app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
   const { functionName } = req.params;
   const { args } = req.body;
 
