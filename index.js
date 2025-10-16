@@ -13,38 +13,56 @@ const frappService = require('./services/frappService');
 const callbellService = require('./services/callbellService');
 const oldMembershipService = require('./services/oldMembershipService');
 
+// Importar middleware de autenticación
+const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
+
+// Importar rutas de autenticación
+const authRoutes = require('./routes/auth');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- Middlewares
+// --- Middlewares básicos
 app.use(morgan('dev'));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Configurar sesiones
+// Configurar sesiones (DEBE ir antes de Passport)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'fr360-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+  }
 }));
+
+// Configurar Passport (después de session)
+require('./config/passport')(app);
 
 // --- Motor de vistas (EJS)
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// --- Ruta principal
-app.get('/', (req, res) => {
-  const userEmail = req.session?.userEmail || 'sin-login@example.com';
+// --- Rutas de autenticación (públicas)
+app.use('/', authRoutes);
+
+// --- Ruta principal (PROTEGIDA)
+app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
   res.render('home', {
     title: 'FR360 - Panel Comercial',
-    userEmail: userEmail
+    userEmail: req.user.email,
+    userName: req.user.displayName,
+    userPhoto: req.user.photo
   });
 });
 
-// === API ENDPOINTS ===
+// === API ENDPOINTS (TODOS PROTEGIDOS) ===
+// Aplicar middleware de autenticación a todas las rutas /api/*
+app.use('/api/*', ensureAuthenticated, ensureDomain);
 
 // Obtener datos de ciudadano por UID
 app.get('/api/citizen/:uid', async (req, res) => {

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Montserrat', sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #c33 0%, #f44 100%);
+      color: #fff;
+    }
+
+    .error-container {
+      background: #fff;
+      color: #000;
+      padding: 3rem;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+    }
+
+    .error-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      color: #c33;
+      margin-bottom: 1rem;
+    }
+
+    .message {
+      font-size: 1.125rem;
+      color: #666;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .user-info {
+      background: #f5f5f5;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .user-email {
+      font-weight: 600;
+      color: #000;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #075183;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #064872;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: #075183;
+      border: 2px solid #075183;
+    }
+
+    .btn-secondary:hover {
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-icon">🚫</div>
+    <h1><%= title %></h1>
+    <div class="message">
+      <%= message %>
+    </div>
+
+    <% if (typeof userEmail !== 'undefined' && userEmail) { %>
+      <div class="user-info">
+        Intentaste acceder con:<br>
+        <span class="user-email"><%= userEmail %></span>
+      </div>
+    <% } %>
+
+    <div class="actions">
+      <a href="/logout" class="btn btn-primary">Intentar con otra cuenta</a>
+      <a href="mailto:soporte@sentiretaller.com" class="btn btn-secondary">Contactar Soporte</a>
+    </div>
+  </div>
+</body>
+</html>
