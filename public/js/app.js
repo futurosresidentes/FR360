@@ -323,23 +323,20 @@
         return;
       }
 
-      console.log('🔄 Iniciando consulta: Callbell');
-
       try {
         const result = await api.getCallbellContact(celularValue);
 
         if (result.success && result.conversationHref) {
-          console.log('✅ Completada consulta: Callbell');
           callbellIcon.style.display = 'inline';
           callbellIcon.setAttribute('data-href', result.conversationHref);
           callbellAvailable = true;
         } else {
-          console.log('❌ Error en consulta: Callbell - No se encontró contacto');
+          console.log('❌ Callbell: No se encontró contacto');
           callbellIcon.style.display = 'none';
           callbellAvailable = false;
         }
       } catch (error) {
-        console.log('❌ Error en consulta: Callbell -', error.message);
+        console.error('❌ Error consultando Callbell:', error.message);
         callbellIcon.style.display = 'none';
         callbellAvailable = false;
       }
@@ -1211,7 +1208,6 @@
         const inc = (queryName) => {
           pending++;
           pendingQueries.add(queryName);
-          console.log(`🔄 Iniciando consulta: ${queryName}`);
         };
 
         const finish = () => {
@@ -1230,7 +1226,6 @@
         const done = (queryName) => {
           if (mySeq !== window.CURRENT_FETCH_SEQ || finished) return;
           pendingQueries.delete(queryName);
-          console.log(`✅ Completada consulta: ${queryName}`);
           if (--pending <= 0) finish();
         };
 
@@ -1956,19 +1951,35 @@
         // Después de hidratar, verificar si está vencida
         checkIfOverdue(tr);
       }
-      // criterio de “ya quedó lista” (ya tenemos estado o quedó marcada por Paz y salvo)
+      // criterio de "ya quedó lista" - solo si NO tiene links de pago que consultar
       function rowIsResolved(tr){
+        // Si tiene id_pago o id_pago_mora, SIEMPRE necesitamos consultar ePayco para actualizar Strapi
+        const idPago = tr.dataset.idPago || '';
+        const idPagoMora = tr.dataset.idPagoMora || '';
+        if (idPago || idPagoMora) return false; // Necesita resolución
+
+        // Si no tiene links de pago, verificar si ya tiene estado
         const est = (tr.dataset.estadoPago || '').toLowerCase();
-        if (est) return true;                       // ya vino estado
-        // si no vino, pero la marcamos como Pagado por “Paz y salvo”
+        if (est) return true;
+
+        // Si no vino, pero la marcamos como Pagado por "Paz y salvo"
         const c1 = tr.querySelector('.estado-cell');
         return !!c1 && c1.textContent === 'Pagado';
       }
 
-      // reintenta resolver una fila con backoff exponencial + validación “Paz y salvo”
+      // reintenta resolver una fila con backoff exponencial + validación "Paz y salvo"
       function resolveRow(tr, attempt){
-        // si ya está resuelta, no hacemos nada
+        // si ya está resuelta (no tiene links para consultar y ya tiene estado), no hacemos nada
         if (rowIsResolved(tr)) return onRowDone();
+
+        // PRIMERO: Marcar desde Ventas para obtener los datos correctos
+        markAsPaidFromVentas(tr);
+
+        // SEGUNDO: Extraer los datos ya calculados desde el tr
+        const estadoPagoActual = tr.dataset.estadoPago || '';
+        const fechaPagoActual = tr.dataset.fechaPago || '';
+        const valorPagadoActual = tr.dataset.valorPagado || '';
+
         const payload = {
           documentId:      tr.dataset.documentId,
           id_pago:         tr.dataset.idPago || '',
@@ -1977,13 +1988,20 @@
           valor_cuota:     tr.dataset.valorCuota ? Number(tr.dataset.valorCuota) : 0,
           nro_acuerdo:     tr.dataset.nroAcuerdo || '',
           producto_nombre: tr.dataset.productoNombre || '',
-          cuota_nro:       tr.dataset.cuotaNro || ''
+          cuota_nro:       tr.dataset.cuotaNro || '',
+          // NUEVO: Enviar los datos ya calculados desde Ventas
+          estado_pago_calculado: estadoPagoActual,
+          fecha_pago_calculada: fechaPagoActual,
+          valor_pagado_calculado: valorPagadoActual ? Number(valorPagadoActual) : null
         };
+
         api.resolvePagoYActualizarCartera(payload)
           .then(res => {
-            hydrateRowFromResponse(tr, res, fmt);
-            // revalida contra Ventas: Paz y salvo / Cuota N / Cuota N (Mora)
-            markAsPaidFromVentas(tr);
+            // Solo hidratar si la respuesta tiene datos (por si acaso el backend calculó algo diferente)
+            if (res && res.estado_pago) {
+              hydrateRowFromResponse(tr, res, fmt);
+            }
+
             if (rowIsResolved(tr) || attempt >= MAX_RESOLVE_ATTEMPTS) {
               onRowDone();
             } else {
@@ -2054,10 +2072,17 @@
         // tolerancia nominal (centavos/redondeos)
         const TOL = 1000; // COP
         const paidEnough = cuotaValor ? (sum + TOL >= cuotaValor) : sum > 0;
+        const fechaStr = lastY ? fmtRowDate(lastY,lastM,lastD) : '';
+        const valorStr = sum ? Number(sum).toLocaleString('es-CO') : '';
+
+        // Actualizar DOM
         tr.dataset.estadoPago = paidEnough ? 'pagado' : 'en_mora';
+        tr.dataset.fechaPago = fechaStr;
+        tr.dataset.valorPagado = sum.toString();
+
         const cE = tr.querySelector('.estado-cell');       if (cE) cE.textContent = paidEnough ? 'Pagado' : 'En mora';
-        const cF = tr.querySelector('.fecha-pago-cell');   if (cF) cF.textContent = lastY ? fmtRowDate(lastY,lastM,lastD) : '';
-        const cV = tr.querySelector('.valor-pagado-cell'); if (cV) cV.textContent = sum ? Number(sum).toLocaleString('es-CO') : '';
+        const cF = tr.querySelector('.fecha-pago-cell');   if (cF) cF.textContent = fechaStr;
+        const cV = tr.querySelector('.valor-pagado-cell'); if (cV) cV.textContent = valorStr;
         return true;
       }
 
@@ -2069,17 +2094,26 @@
         const ventas = findVentasFor(acc, base, cuota, total);
         if (!ventas.length) return false;
 
-        // Si es la última cuota y hay “Paz y salvo”, se considera pagada
+        // Si es la última cuota y hay "Paz y salvo", se considera pagada
         const paz = ventas.find(v => String(v[5]).toLowerCase().includes('paz y salvo'));
         if (paz){
-          tr.dataset.estadoPago = 'pagado';
           const y=Number(paz[0]), m=Number(paz[1]), d=Number(paz[2]);
+          const valorPaz = Number(paz[6]||0);
+          const fechaStr = fmtRowDate(y,m,d);
+          const valorStr = valorPaz.toLocaleString('es-CO');
+
+          // Actualizar dataset
+          tr.dataset.estadoPago = 'pagado';
+          tr.dataset.fechaPago = fechaStr;
+          tr.dataset.valorPagado = valorPaz.toString();
+
+          // Actualizar DOM
           const cE = tr.querySelector('.estado-cell');       if (cE) cE.textContent = 'Pagado';
-          const cF = tr.querySelector('.fecha-pago-cell');   if (cF) cF.textContent = fmtRowDate(y,m,d);
-          const cV = tr.querySelector('.valor-pagado-cell'); if (cV) cV.textContent = Number(paz[6]||0).toLocaleString('es-CO');
+          const cF = tr.querySelector('.fecha-pago-cell');   if (cF) cF.textContent = fechaStr;
+          const cV = tr.querySelector('.valor-pagado-cell'); if (cV) cV.textContent = valorStr;
           return true;
         }
-        // Para el resto de cuotas: sumar “Cuota N” + “Cuota N (Mora)”
+        // Para el resto de cuotas: sumar "Cuota N" + "Cuota N (Mora)"
         return applyEstadoFromVentas(tr, ventas);
       }
 
@@ -2398,16 +2432,18 @@
         console.log('✅ Resultado del backend:', result);
 
         if (result.success) {
-          alert('✅ ¡Venta de contado procesada exitosamente!\n\nSe ha generado el link de pago.');
           console.log('🔗 Link de pago generado:', result.paymentLink);
 
           // Mostrar el link en la UI
-          const linkUrl = result.paymentLink.data?.data?.routeLink;
+          const linkUrl = result.paymentLink.data?.data?.data?.routeLink;
           if (linkUrl) {
             showPaymentLinkSuccess(linkUrl);
+            // Mostrar mensaje de éxito sin alert (ya se muestra en el cuadro)
+            console.log('✅ Link mostrado en UI:', linkUrl);
           } else {
             console.log('⚠️ No se pudo extraer el link URL de la respuesta');
             console.log('📝 Estructura recibida:', result.paymentLink);
+            alert('✅ Link de pago creado pero no se pudo mostrar en la UI');
           }
 
         } else {
