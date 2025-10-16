@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 // Old WordPress platform configuration
-const WP_BASE_URL = process.env.WP_BASE_URL || 'https://app.cursofuturosresidentes.com';
-const WP_AUTH_TOKEN = process.env.WP_AUTH_TOKEN;
+const WP_BASE_URL = process.env.OLD_MEMB_BASE_URL || process.env.WP_BASE_URL || 'https://app.cursofuturosresidentes.com';
+const WP_AUTH_TOKEN = process.env.OLD_MEMB_AUTH || process.env.WP_AUTH_TOKEN;
 
 /**
  * Calculate months between two dates

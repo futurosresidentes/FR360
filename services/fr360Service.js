@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // FR360 API configuration
 const FR360_BASE_URL = process.env.FR360_BASE_URL || 'https://fr360-7cwi.onrender.com';
-const FR360_TOKEN = process.env.FR360_TOKEN;
+const FR360_TOKEN = process.env.FR360_BEARER_TOKEN || process.env.FR360_TOKEN;
 
 /**
  * Retry helper with exponential backoff

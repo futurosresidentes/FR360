@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Callbell API configuration
 const CALLBELL_BASE_URL = process.env.CALLBELL_BASE_URL || 'https://api.callbell.eu/v1';
-const CALLBELL_TOKEN = process.env.CALLBELL_TOKEN;
+const CALLBELL_TOKEN = process.env.CALLBELL_API_KEY || process.env.CALLBELL_TOKEN;
 
 /**
  * Normalize Colombian phone number to international format
