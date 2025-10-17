@@ -274,6 +274,13 @@ thead th {
 #membOldContainer table { width:100%; }
 #membOldContainer table thead th { background: #1E3A8A; color:#fff; }
 #membOldContainer table tbody tr.highlight { background: #13BF81; color:#fff; }
+/* Ajustar el texto de roles para que no exceda el ancho */
+#membOldContainer div {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
 
 /* FRAPP */
 #membNewContainer table { width:100%; }
