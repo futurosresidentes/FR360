@@ -4,15 +4,22 @@ const axios = require('axios');
 const FRAPP_BASE_URL = process.env.FRAPP_BASE_URL;
 const FRAPP_API_KEY = process.env.FRAPP_API_KEY;
 const FRAPP_API_KEY_READ = FRAPP_API_KEY;
-const FRAPP_API_KEY_REGISTER = FRAPP_API_KEY;
-const FRAPP_API_KEY_UPDATE = FRAPP_API_KEY;
-const FRAPP_API_KEY_FILTERS = FRAPP_API_KEY;
+const FRAPP_API_KEY_REGISTER = process.env.FRAPP_API_KEY_REGISTER || FRAPP_API_KEY;
+const FRAPP_API_KEY_UPDATE = process.env.FRAPP_API_KEY_UPDATE || FRAPP_API_KEY;
+const FRAPP_API_KEY_FILTERS = process.env.FRAPP_API_KEY_FILTERS || FRAPP_API_KEY;
 
 // Validate required environment variables
 if (!FRAPP_BASE_URL || !FRAPP_API_KEY) {
   console.error('❌ Missing required FRAPP environment variables');
   console.error('Required: FRAPP_BASE_URL, FRAPP_API_KEY');
 }
+
+// Log API keys configuration (only first 8 characters for security)
+console.log('🔑 FRAPP API Keys configuradas:');
+console.log('  - READ:', FRAPP_API_KEY_READ?.substring(0, 8) + '...');
+console.log('  - REGISTER:', FRAPP_API_KEY_REGISTER?.substring(0, 8) + '...');
+console.log('  - UPDATE:', FRAPP_API_KEY_UPDATE?.substring(0, 8) + '...');
+console.log('  - FILTERS:', FRAPP_API_KEY_FILTERS?.substring(0, 8) + '...');
 
 /**
  * Retry helper with exponential backoff
@@ -182,7 +189,9 @@ async function updateMembershipFRAPP(membershipId, changedById, reason, changes)
 async function getActiveMembershipPlans() {
   const url = `${FRAPP_BASE_URL}/api/filters`;
 
-  console.log('Obteniendo planes de membresía activos');
+  console.log('=== OBTENIENDO PLANES DE MEMBRESÍA ===');
+  console.log('URL:', url);
+  console.log('API Key configurada:', FRAPP_API_KEY_FILTERS ? 'SÍ' : 'NO');
 
   try {
     const response = await axios.get(url, {
@@ -191,7 +200,7 @@ async function getActiveMembershipPlans() {
       }
     });
 
-    console.log('Status HTTP:', response.status);
+    console.log('✅ Status HTTP:', response.status);
 
     if (response.status !== 200) {
       throw new Error(`HTTP ${response.status} - ${response.data}`);
@@ -207,12 +216,20 @@ async function getActiveMembershipPlans() {
         isRecurring: plan.isRecurring
       }));
 
-    console.log('Planes activos encontrados:', activePlans.length);
+    console.log('✅ Planes activos encontrados:', activePlans.length);
     return activePlans;
 
   } catch (error) {
-    console.log('Error obteniendo planes de membresía:', error.message);
-    return [];
+    console.error('❌ Error obteniendo planes de membresía:', error.message);
+
+    if (error.response) {
+      console.error('Status:', error.response.status);
+      console.error('Data:', error.response.data);
+      console.error('Headers enviados:', error.config?.headers);
+    }
+
+    // Devolver array vacío pero también lanzar error para que el frontend lo sepa
+    throw new Error(`No se pudieron cargar los planes: ${error.message}`);
   }
 }
 

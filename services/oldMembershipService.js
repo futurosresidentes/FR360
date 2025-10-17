@@ -77,6 +77,15 @@ async function traerMembresiasServer(uid) {
     if (response.status !== 200) {
       console.log('⚠️ WordPress returned non-200:', response.status, response.data);
 
+      // Si es 404 y el código es invalid_user_id, el usuario no existe en WordPress
+      if (response.status === 404 && response.data?.code === 'invalid_user_id') {
+        console.log('ℹ️ Usuario no encontrado en WordPress (404 - invalid_user_id)');
+        return {
+          error: true,
+          message: '<p style="color:#666;font-style:italic;">Sin membresías en plataforma vieja (Wordpress)</p>'
+        };
+      }
+
       // Si es 401, el servicio puede estar deprecado o el token expiró
       if (response.status === 401) {
         console.log('ℹ️ WordPress service unavailable (401 - auth expired)');

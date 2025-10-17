@@ -29,7 +29,19 @@ function ensureDomain(req, res, next) {
     return next();
   }
 
-  // Si no es del dominio correcto, mostrar error
+  // Si no es del dominio correcto, verificar si es una llamada API
+  const isApiCall = req.path.startsWith('/api/');
+
+  if (isApiCall) {
+    // Para llamadas API, devolver JSON
+    return res.status(403).json({
+      success: false,
+      error: 'Acceso denegado',
+      message: 'Solo usuarios con correo @sentiretaller.com pueden acceder a esta aplicación.'
+    });
+  }
+
+  // Para páginas web, mostrar página de error
   res.status(403).render('error', {
     title: 'Acceso Denegado',
     message: 'Solo usuarios con correo @sentiretaller.com pueden acceder a esta aplicación.',

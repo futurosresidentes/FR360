@@ -281,25 +281,67 @@
     }
 
     function toUTCDateTimeString(date, endOfDay = false) {
-        // ajusta hora local
-        const d = new Date(date);
-        if (endOfDay) d.setHours(23, 59, 59, 0);
-        // construye string con horas UTC
+        // Si date es un Date object local, necesitamos crear un Date UTC con los mismos valores
+        let d;
+        if (date instanceof Date) {
+          // Tomar los valores locales y crear una fecha UTC con esos mismos valores
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          const day = date.getDate();
+          const hours = endOfDay ? 23 : 0;
+          const minutes = endOfDay ? 59 : 0;
+          const seconds = endOfDay ? 59 : 0;
+
+          // Date.UTC crea un timestamp usando valores como UTC
+          d = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+        } else {
+          d = new Date(date);
+          if (endOfDay) d.setUTCHours(23, 59, 59, 0);
+        }
+
+        // Construir string con valores UTC
         const Y = d.getUTCFullYear();
         const M = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const D = String(d.getUTCDate()     ).padStart(2, '0');
-        const h = String(d.getUTCHours()    ).padStart(2, '0');
-        const m = String(d.getUTCMinutes()  ).padStart(2, '0');
-        const s = String(d.getUTCSeconds()  ).padStart(2, '0');
+        const D = String(d.getUTCDate()).padStart(2, '0');
+        const h = String(d.getUTCHours()).padStart(2, '0');
+        const m = String(d.getUTCMinutes()).padStart(2, '0');
+        const s = String(d.getUTCSeconds()).padStart(2, '0');
         return `${Y}-${M}-${D} ${h}:${m}:${s}`;
       }
-    
+
     function localToUTCISOString(input, endOfDay = false) {
       const d = (input instanceof Date) ? new Date(input) : new Date(input + 'T00:00:00');
       if (endOfDay) {
         d.setHours(23, 59, 59, 999);
       }
       return d.toISOString(); // ej. "2025-07-29T04:00:00.000Z"
+    }
+
+    // Nueva función para fecha inicio: si es hoy usa hora actual, si es futuro usa 00:00:00 UTC
+    function getMembershipStartDate(dateInput) {
+      const selectedDate = parseLocalDate(dateInput);
+      const today = new Date();
+
+      // Comparar solo las fechas (año, mes, día) sin horas
+      const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      if (selectedDateOnly.getTime() === todayOnly.getTime()) {
+        // Es hoy: usar hora actual en formato ISO sin milisegundos
+        return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+      } else {
+        // Es fecha futura: usar 00:00:00 UTC
+        return toUTCDateTimeString(selectedDate, false);
+      }
+    }
+
+    // Nueva función para fecha fin: primero establecer 23:59:59 local, luego convertir a UTC
+    function getMembershipExpiryDate(dateInput) {
+      const selectedDate = parseLocalDate(dateInput);
+      // Establecer 23:59:59 en hora LOCAL (sin milisegundos)
+      selectedDate.setHours(23, 59, 59, 0);
+      // Ahora convertir a UTC sin milisegundos
+      return selectedDate.toISOString().replace(/\.\d{3}Z$/, 'Z');
     }
 
     // ===== Funciones del Callbell =====
@@ -704,11 +746,14 @@
     let batchMembershipPlans = [];
 
     // Función para cargar planes en el modal de lote
-    function loadBatchMembershipPlans() {
-      api.getActiveMembershipPlans()
-        .then(plans => {
-          batchMembershipPlans = plans;
-          batchProduct.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
+    async function loadBatchMembershipPlans() {
+      try {
+        const plans = await api.getActiveMembershipPlans();
+        batchMembershipPlans = plans;
+
+        batchProduct.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
+
+        if (plans && plans.length > 0) {
           plans.forEach(plan => {
             const option = document.createElement('option');
             option.value = plan.id;
@@ -716,11 +761,15 @@
             batchProduct.appendChild(option);
           });
           console.log('✅ Planes de membresía cargados en modal de lote:', plans.length);
-        })
-        .catch(err => {
-          console.error('❌ Error cargando planes en lote:', err);
-          batchProduct.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
-        });
+        } else {
+          batchProduct.innerHTML = '<option value="" disabled selected>No hay planes disponibles</option>';
+          console.warn('⚠️ No se encontraron planes de membresía');
+        }
+      } catch (err) {
+        console.error('❌ Error cargando planes en lote:', err);
+        batchProduct.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
+        alert('❌ Error al cargar los planes de membresía. Por favor contacta al administrador.\n\nDetalle: ' + (err.message || err));
+      }
     }
 
     // Funciones de cálculo bidireccional para modal de lote
@@ -764,8 +813,8 @@
       document.getElementById('batchResultsList').innerHTML = '';
       document.getElementById('batchAddList').innerHTML = '';
 
-      // Cargar planes de membresía
-      loadBatchMembershipPlans();
+      // Cargar planes de membresía y esperar a que termine
+      await loadBatchMembershipPlans();
 
       // Setear fecha de inicio como hoy
       const today = new Date();
@@ -3472,8 +3521,8 @@
       const selectedPlanId = parseInt(batchProduct.value);
       const selectedPlan = batchMembershipPlans.find(p => p.id === selectedPlanId);
       const planName = selectedPlan ? selectedPlan.name : 'Plan desconocido';
-      const durationDays = parseInt(batchDuration.value);
-      const startDateStr = toUTCDateTimeString(parseLocalDate(batchStart.value));
+      const startDateStr = getMembershipStartDate(batchStart.value);
+      const expiryDateStr = getMembershipExpiryDate(batchExpiry.value);
 
       try{
         for (let i=0; i<idsToAdd.length; i++){
@@ -3501,7 +3550,7 @@
             identityDocument: uid,
             membershipPlanId: selectedPlanId,
             membershipStartDate: startDateStr,
-            membershipDurationDays: durationDays
+            membershipEndDate: expiryDateStr
           };
 
           try{
@@ -3517,7 +3566,7 @@
                 email: st.email,
                 membershipPlanId: selectedPlanId,
                 membershipStartDate: startDateStr,
-                membershipDurationDays: durationDays,
+                membershipEndDate: expiryDateStr,
                 createMembershipIfUserExists: true,
                 allowDuplicateMemberships: false
               };
@@ -3596,12 +3645,15 @@
     let membershipPlans = [];
 
     // Función para cargar los planes de membresía
-    function loadMembershipPlans() {
-      api.getActiveMembershipPlans()
-        .then(plans => {
-          membershipPlans = plans;
-          // Llenar el select con los planes
-          selHandle.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
+    async function loadMembershipPlans() {
+      try {
+        const plans = await api.getActiveMembershipPlans();
+        membershipPlans = plans;
+
+        // Llenar el select con los planes
+        selHandle.innerHTML = '<option value="" disabled selected>Seleccione un plan</option>';
+
+        if (plans && plans.length > 0) {
           plans.forEach(plan => {
             const option = document.createElement('option');
             option.value = plan.id;
@@ -3610,11 +3662,15 @@
             selHandle.appendChild(option);
           });
           console.log('✅ Planes de membresía cargados:', plans.length);
-        })
-        .catch(err => {
-          console.error('❌ Error cargando planes:', err);
-          selHandle.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
-        });
+        } else {
+          selHandle.innerHTML = '<option value="" disabled selected>No hay planes disponibles</option>';
+          console.warn('⚠️ No se encontraron planes de membresía');
+        }
+      } catch (err) {
+        console.error('❌ Error cargando planes:', err);
+        selHandle.innerHTML = '<option value="" disabled selected>Error al cargar planes</option>';
+        alert('❌ Error al cargar los planes de membresía. Por favor contacta al administrador.\n\nDetalle: ' + (err.message || err));
+      }
     }
     
 
@@ -3700,8 +3756,8 @@
     }
 
 
-    // Botón “➕ Agregar plan
-    addMembBtn.addEventListener('click', () => {
+    // Botón "➕ Agregar plan
+    addMembBtn.addEventListener('click', async () => {
       // 1) Si había membresía activa, pregunta confirmación
       if (activeMembershipFRAPP) {
         const fin = new Date(activeMembershipFRAPP.expiryDate)
@@ -3717,8 +3773,8 @@
       if (!uid) return alert('❗ Debes ingresar un Nro ID antes.');
       if (!ADMINS.includes(USER_EMAIL)) return alert('🚫 Sin permisos.');
 
-      // Cargar planes de membresía
-      loadMembershipPlans();
+      // Cargar planes de membresía y esperar a que termine
+      await loadMembershipPlans();
 
       // Prefill
       inpEmail.value  = correo.value.trim();
@@ -4635,9 +4691,8 @@
       modalResponse.style.display = 'block';
       const uid = searchId.value.replace(/\D/g,'').trim();
 
-      // Obtener el plan seleccionado y la duración en días
+      // Obtener el plan seleccionado
       const selectedPlanId = parseInt(selHandle.value);
-      const durationDays = parseInt(inpDuration.value);
 
       // Payload del primer intento (crear usuario + membresía)
       const payload = {
@@ -4648,8 +4703,8 @@
         identityType: 'CC',
         identityDocument: uid,
         membershipPlanId: selectedPlanId,
-        membershipStartDate: toUTCDateTimeString(parseLocalDate(inpStart.value)),
-        membershipDurationDays: durationDays
+        membershipStartDate: getMembershipStartDate(inpStart.value),
+        membershipEndDate: getMembershipExpiryDate(inpExpiry.value)
         // role: 'elite'  // Campo no usado actualmente, descomentar si cambia la lógica
       };
 
@@ -4693,7 +4748,7 @@
               email: payload.email,
               membershipPlanId: payload.membershipPlanId,
               membershipStartDate: payload.membershipStartDate,
-              membershipDurationDays: payload.membershipDurationDays,
+              membershipEndDate: payload.membershipEndDate,
               createMembershipIfUserExists: true,
               allowDuplicateMemberships: false
             };

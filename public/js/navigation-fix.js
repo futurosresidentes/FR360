@@ -29,6 +29,50 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         console.error(`❌ No se encontró pane: ${this.dataset.tab}`);
       }
+
+      // Cerrar sidebar en móvil después de seleccionar una opción
+      if (window.innerWidth <= 768) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) {
+          sidebar.classList.remove('active');
+        }
+      }
     });
   });
+
+  // Funcionalidad del menú hamburguesa para móvil
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+
+  if (menuToggle && sidebar) {
+    // Toggle del menú al hacer click en el botón hamburguesa
+    menuToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      sidebar.classList.toggle('active');
+    });
+
+    // Cerrar menú al hacer click en el overlay (usando el pseudo-elemento ::before)
+    sidebar.addEventListener('click', function(e) {
+      // Solo cerrar si el click fue en el overlay (el sidebar mismo, no en sus hijos)
+      if (e.target === sidebar && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+      }
+    });
+
+    // Cerrar menú al hacer click fuera del sidebar
+    document.addEventListener('click', function(e) {
+      if (sidebar.classList.contains('active') &&
+          !sidebar.contains(e.target) &&
+          e.target !== menuToggle) {
+        sidebar.classList.remove('active');
+      }
+    });
+
+    // Cerrar menú al presionar la tecla Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+      }
+    });
+  }
 });
