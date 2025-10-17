@@ -545,7 +545,7 @@
         setSearching(true);
         statusTop.textContent = 'Buscando por correo…';
 
-        gs('fetchCrmByEmail', raw)
+        api.fetchCrmByEmail(raw)
           .then(rec => {
             if (!rec || !rec.uid) {
               const progressPanel = document.getElementById('loadingProgress');
@@ -3358,7 +3358,7 @@
         console.log(`🚀 Consultando ${uids.length} cédulas en batch a Strapi CRM...`);
         let crmResults = {};
         try {
-          crmResults = await gs('fetchCrmStrapiBatch', uids);
+          crmResults = await api.legacy('fetchCrmStrapiBatch', uids);
           console.log('📦 Respuesta cruda de fetchCrmStrapiBatch:', crmResults);
           console.log('📦 Tipo de respuesta:', typeof crmResults);
 
@@ -3438,7 +3438,7 @@
 
             // Intentar obtener datos faltantes de getCitizenServer
             try {
-              const cit = await withRetry(() => gs('getCitizenServer', uid), 3, 1000);
+              const cit = await withRetry(() => api.getCitizenServer(uid), 3, 1000);
 
               // Solo sobrescribir si el campo está vacío (fallback inteligente)
               if (!st.givenName && cit?.nombres) st.givenName = cit.nombres;
@@ -3515,7 +3515,7 @@
       batchPauseBtn.textContent = '⏸️ Pausar';
 
       let todayCO = {year:0,month:0,day:0};
-      try { todayCO = await gs('getColombiaTodayParts'); } catch(e){ console.warn('getColombiaTodayParts', e); }
+      try { todayCO = await api.legacy('getColombiaTodayParts'); } catch(e){ console.warn('getColombiaTodayParts', e); }
 
       // Obtener datos del plan seleccionado
       const selectedPlanId = parseInt(batchProduct.value);
@@ -3554,7 +3554,7 @@
           };
 
           try{
-            let res = await withRetry(()=>gs('registerMembFRAPP', payload), 3, 1000);
+            let res = await withRetry(()=>api.registerMembFRAPP(payload), 3, 1000);
 
             // Si el error indica que el usuario ya existe, hacer segundo intento
             if (res && res.error && /createMembershipIfUserExists/i.test(res.error)) {
@@ -3571,7 +3571,7 @@
                 allowDuplicateMemberships: false
               };
 
-              res = await withRetry(()=>gs('registerMembFRAPP', retryPayload), 3, 1000);
+              res = await withRetry(()=>api.registerMembFRAPP(retryPayload), 3, 1000);
             }
 
             // Evaluar resultado final
@@ -3580,7 +3580,7 @@
               setAddRow(i, st.addStatus);
               // anotar en Patrocinios
               try{
-                await gs('appendPatrocinioRecord', {
+                await api.appendPatrocinioRecord({
                   year: todayCO.year, month: todayCO.month, day: todayCO.day,
                   uid: uid,
                   givenName: st.givenName || '',

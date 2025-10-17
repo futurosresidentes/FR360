@@ -271,14 +271,44 @@ thead th {
   background: #fffae6;
 }
 /* Plataforma vieja */
-#membOldContainer table { width:100%; }
-#membOldContainer table thead th { background: #1E3A8A; color:#fff; }
-#membOldContainer table tbody tr.highlight { background: #13BF81; color:#fff; }
+.memb-old {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+#membOldContainer {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+#membOldContainer table {
+  width:100%;
+  table-layout: fixed;
+}
+
+#membOldContainer table thead th {
+  background: #1E3A8A;
+  color:#fff;
+}
+
+#membOldContainer table tbody tr.highlight {
+  background: #13BF81;
+  color:#fff;
+}
+
 /* Ajustar el texto de roles para que no exceda el ancho */
-#membOldContainer div {
+#membOldInfo {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+#membOldInfo div {
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
+  white-space: normal;
   max-width: 100%;
 }
 
