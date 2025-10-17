@@ -4870,21 +4870,19 @@
         btn.classList.add('loading');
         btn.innerHTML = `<span class="spinner"></span><span>Actualizando…</span>`;
         const uid = document.getElementById('searchId').value.replace(/\D/g,'');
-        google.script
-          .run
-          .withSuccessHandler(newData => {
+        api.getLinksByIdentityDocument(uid)
+          .then(newData => {
             renderLinks(newData);
             btn.disabled = false;
             btn.classList.remove('loading');
             btn.textContent = orig;
           })
-          .withFailureHandler(err => {
+          .catch(err => {
             console.error('Error al refrescar links', err);
             btn.disabled = false;
             btn.classList.remove('loading');
             btn.textContent = orig;
-          })
-          .getLinksByIdentityDocument(uid);
+          });
       });
       controls.appendChild(btn);
 
