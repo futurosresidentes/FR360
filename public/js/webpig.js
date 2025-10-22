@@ -153,6 +153,35 @@ function extractProduct(webhook) {
   return webhook.product || 'N/A';
 }
 
+// Extract phone from fr360_query logs
+function extractPhone(webhook) {
+  // Try to get phone from fr360_query response_data
+  const fr360Log = webhook.logs.all.find(log =>
+    log.stage === 'fr360_query' && log.status === 'success'
+  );
+
+  if (fr360Log && fr360Log.response_data && fr360Log.response_data.phone) {
+    let phone = fr360Log.response_data.phone;
+    // Add 57 if it's a 10-digit Colombian number without country code
+    if (phone && !phone.startsWith('57') && phone.length === 10) {
+      phone = '57' + phone;
+    }
+    return phone;
+  }
+
+  // Fallback to raw_data
+  if (webhook.raw_data?.x_customer_movil) {
+    let phone = webhook.raw_data.x_customer_movil;
+    // Add 57 if it's a 10-digit Colombian number without country code
+    if (phone && !phone.startsWith('57') && phone.length === 10) {
+      phone = '57' + phone;
+    }
+    return phone;
+  }
+
+  return 'N/A';
+}
+
 // Check if transaction was accepted
 function isTransactionAccepted(webhook) {
   return webhook.response === 'Aceptada';
@@ -323,6 +352,7 @@ function renderWebhooks(webhooks) {
     const customer = extractCustomer(webhook);
     const cedula = extractCedula(webhook);
     const product = extractProduct(webhook);
+    const phone = extractPhone(webhook);
     const isAccepted = isTransactionAccepted(webhook);
 
     // Estado icon
@@ -341,6 +371,7 @@ function renderWebhooks(webhooks) {
         <div class="customer-name" title="${customer}">${customer}</div>
         <div class="customer-cedula">CC ${cedula}</div>
         <div class="customer-email" title="${webhook.customer?.email || 'N/A'}">${webhook.customer?.email || 'N/A'}</div>
+        <div class="customer-phone" title="${phone}">${phone}</div>
       </td>
       <td class="product-col" title="${product}">${product}</td>
       <td class="estado-col">${estadoIcon}</td>
