@@ -31,6 +31,9 @@
         <li data-tab="ventas">Ventas</li>
         <li data-tab="acuerdos">Acuerdos</li>
         <li data-tab="links">Links</li>
+        <li class="nav-section-title">Utilidades</li>
+        <li data-tab="webpig">Web Pig 🐷</li>
+        <li data-tab="udea2026">Udea2026</li>
       </ul>
     </nav>
   </aside>
@@ -250,6 +253,49 @@
         <h3 id="linksTitle" style="display:none">Links</h3>
         <div id="linksContainer"></div>
       </div>
+
+      <!-- WEB PIG -->
+      <div class="pane right" id="webpig">
+        <div class="webpig-fixed-header">
+          <div class="webpig-header">
+            <h3 id="webpigTitle">Web Pig 🐷 - Transacciones Recientes</h3>
+            <button id="refreshWebhooksBtn" class="btn-primary">🔄 Actualizar transacciones</button>
+          </div>
+          <div class="webpig-controls">
+            <div class="feature-flags-container">
+              <div class="feature-flag-item">
+                <span class="flag-label">Crear membresías</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="flag-MEMBERSHIPS_ENABLED" data-flag="MEMBERSHIPS_ENABLED" disabled>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="feature-flag-item">
+                <span class="flag-label">Facturar</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="flag-WORLDOFFICE_INVOICE_ENABLED" data-flag="WORLDOFFICE_INVOICE_ENABLED" disabled>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="feature-flag-item">
+                <span class="flag-label">Emitir DIAN</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="flag-WORLDOFFICE_DIAN_ENABLED" data-flag="WORLDOFFICE_DIAN_ENABLED" disabled>
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+            <div id="flagsErrorMsg" class="flags-error-msg" style="display: none;"></div>
+          </div>
+        </div>
+        <div id="webpigContainer"></div>
+      </div>
+
+      <!-- UDEA2026 -->
+      <div class="pane right" id="udea2026">
+        <h2>Udea2026</h2>
+        <p>Contenido de Udea2026</p>
+      </div>
     </div>
   </div>
 
@@ -415,6 +461,20 @@
       </div>
     </div>
 
+  <!-- ====== Modal para detalles de Stage (Web Pig) ====== -->
+  <div id="stageDetailsModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 800px;">
+      <h2 id="stageDetailsTitle">Detalles del Stage</h2>
+      <div id="stageDetailsBody" style="max-height: 500px; overflow-y: auto;">
+        <!-- Content will be populated by JavaScript -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="stageDetailsCloseBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Include the JavaScript files -->
   <script>
     // Pass server-side variables to client-side JavaScript
@@ -426,5 +486,7 @@
   <script src="/js/navigation-fix.js"></script>
   <!-- Main application JavaScript -->
   <script src="/js/app.js"></script>
+  <!-- Web Pig module -->
+  <script src="/js/webpig.js"></script>
 </body>
 </html>

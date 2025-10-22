@@ -69,6 +69,83 @@ app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
 
 // === API ENDPOINTS (TODOS PROTEGIDOS) ===
 
+// ===== WEB PIG PROXY ENDPOINTS (MUST BE BEFORE GENERIC /api/:functionName) =====
+// GET recent webhooks
+app.get('/api/webpig/webhooks', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const response = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.FACTURADOR_WEBHOOK_BEARER_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching webhooks:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET feature flags
+app.get('/api/webpig/feature-flags', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const response = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/feature-flags`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.FACTURADOR_FEATURE_FLAGS_BEARER_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching feature flags:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST update feature flag
+app.post('/api/webpig/feature-flags/:flagKey', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { flagKey } = req.params;
+  const { value } = req.body;
+
+  console.log(`[WebPig] Updating feature flag: ${flagKey} to ${value}`);
+
+  try {
+    const url = `${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/feature-flags/${flagKey}`;
+    console.log(`[WebPig] PUT to: ${url}`);
+    console.log(`[WebPig] Body:`, JSON.stringify({ value }));
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${process.env.FACTURADOR_FEATURE_FLAGS_BEARER_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ value })
+    });
+
+    console.log(`[WebPig] Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[WebPig] Error response: ${errorText}`);
+      return res.status(response.status).json({ success: false, error: errorText });
+    }
+
+    const data = await response.json();
+    console.log(`[WebPig] Success:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('[WebPig] Error updating feature flag:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
 app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
