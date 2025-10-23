@@ -957,6 +957,7 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     width: 200px;
     left: -200px;
     transition: left 0.3s ease;
+    z-index: 1000;
   }
 
   /* Sidebar visible cuando está activo */
@@ -964,13 +965,20 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     left: 0;
   }
 
+  /* Bloquear scroll del body cuando sidebar está activo */
+  body.sidebar-active {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
   /* Overlay para cerrar el menú al hacer click fuera */
   #sidebar::before {
     content: '';
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100vw;
+    left: 200px;
+    width: calc(100vw - 200px);
     height: 100vh;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0;
