@@ -997,7 +997,7 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 
   #sidebar nav ul {
     flex-grow: 0;
-    padding-bottom: 5rem;
+    padding-bottom: 8rem;
   }
 
   /* Ajustar padding y fuente para items del menú en móvil */
