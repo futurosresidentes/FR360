@@ -33,24 +33,14 @@ body {
 #sidebar nav {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  height: 100%;
 }
 #sidebar nav ul {
   list-style: none;
-  margin: 0;
-  padding: 1rem 0;
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  height: 100%;
-  position: relative;
-  z-index: 1;
+  flex-grow: 1;
 }
 #sidebar nav li {
   padding: 0.75rem 1rem;
@@ -957,7 +947,6 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     width: 200px;
     left: -200px;
     transition: left 0.3s ease;
-    z-index: 1000;
   }
 
   /* Sidebar visible cuando está activo */
@@ -965,20 +954,13 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     left: 0;
   }
 
-  /* Bloquear scroll del body cuando sidebar está activo */
-  body.sidebar-active {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-  }
-
   /* Overlay para cerrar el menú al hacer click fuera */
   #sidebar::before {
     content: '';
     position: fixed;
     top: 0;
-    left: 200px;
-    width: calc(100vw - 200px);
+    left: 0;
+    width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0;
@@ -990,6 +972,16 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   #sidebar.active::before {
     opacity: 1;
     pointer-events: all;
+  }
+
+  /* Reducir padding en items del menú para que quepan todos */
+  #sidebar nav li {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  #sidebar .logo {
+    padding: 0.5rem;
   }
 
   /* Ajustar topbar para que ocupe todo el ancho */

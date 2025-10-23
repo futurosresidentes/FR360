@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm start)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd: Web Pig 🐷 - Sistema de monitoreo de webhooks y control de feature flags\n\n- Nueva sección Web Pig en panel de Utilidades con interfaz de monitoreo en tiempo real\n- Tabla de transacciones con columnas: ID, Cliente, Producto, Estado, FRAPP, CRM, WO, Factura, DIAN, Strapi\n- Sistema de iconos para estados: ✅ éxito, ⛔ error, ⏳ en proceso, ⚠️ saltado por feature flag\n- Modal interactivo para ver detalles completos de cada stage (request/response/errores)\n- Panel de control de feature flags con toggles para: Crear membresías, Facturar, Emitir DIAN\n- Sistema de permisos por email para controlar quién puede modificar cada feature flag\n- Endpoints proxy seguros en backend para proteger bearer tokens\n- Diseño responsive optimizado para móvil con toggles compactos\n- Tema visual rosado (#D63384) coordinado con emoji 🐷\n- Estilos sticky header para mantener controles visibles al hacer scroll\n\nArchivos modificados:\n- index.js: Endpoints proxy para webhooks y feature flags con autenticación\n- views/home.ejs: Estructura HTML de Web Pig con tabla y modal de detalles\n- public/js/webpig.js: Lógica completa de renderizado, permisos y gestión de estados\n- public/css/styles.css: Estilos completos con responsive design para móvil\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(git commit:*)",
+      "Bash(powershell -Command \"(Get-Content ''C:\\Sitios\\FR360\\public\\css\\styles.css'' | Measure-Object -Line).Lines\")",
+      "Bash(powershell -Command \"Get-Content ''C:\\Sitios\\FR360\\public\\css\\styles.css'' | Select-Object -Last 5\")",
+      "Bash(powershell -Command:*)"
     ],
     "deny": [],
     "ask": []
