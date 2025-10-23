@@ -945,9 +945,6 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   /* Bloquear scroll del body cuando sidebar está abierto */
   body.sidebar-open {
     overflow: hidden !important;
-    position: fixed;
-    width: 100%;
-    height: 100%;
   }
 
   /* Mostrar botón hamburguesa */

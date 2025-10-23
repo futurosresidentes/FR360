@@ -36,8 +36,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sidebar && sidebar.classList.contains('active')) {
           sidebar.classList.remove('active');
           document.body.classList.remove('sidebar-open');
-          document.body.style.top = '';
-          // No restauramos scroll aquí porque el usuario va a cambiar de vista
         }
       }
     });
@@ -48,40 +46,19 @@ document.addEventListener('DOMContentLoaded', function() {
   const sidebar = document.getElementById('sidebar');
 
   if (menuToggle && sidebar) {
-    let scrollPosition = 0;
-
-    function openSidebar() {
-      // Guardar posición actual del scroll
-      scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-      // Aplicar posición como top negativo para mantener la vista
-      document.body.style.top = `-${scrollPosition}px`;
-      document.body.classList.add('sidebar-open');
-      sidebar.classList.add('active');
-    }
-
-    function closeSidebar() {
-      sidebar.classList.remove('active');
-      document.body.classList.remove('sidebar-open');
-      // Restaurar scroll position
-      document.body.style.top = '';
-      window.scrollTo(0, scrollPosition);
-    }
-
     // Toggle del menú al hacer click en el botón hamburguesa
     menuToggle.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (sidebar.classList.contains('active')) {
-        closeSidebar();
-      } else {
-        openSidebar();
-      }
+      sidebar.classList.toggle('active');
+      document.body.classList.toggle('sidebar-open');
     });
 
     // Cerrar menú al hacer click en el overlay (usando el pseudo-elemento ::before)
     sidebar.addEventListener('click', function(e) {
       // Solo cerrar si el click fue en el overlay (el sidebar mismo, no en sus hijos)
       if (e.target === sidebar && sidebar.classList.contains('active')) {
-        closeSidebar();
+        sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
 
@@ -90,14 +67,16 @@ document.addEventListener('DOMContentLoaded', function() {
       if (sidebar.classList.contains('active') &&
           !sidebar.contains(e.target) &&
           e.target !== menuToggle) {
-        closeSidebar();
+        sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
 
     // Cerrar menú al presionar la tecla Escape
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && sidebar.classList.contains('active')) {
-        closeSidebar();
+        sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
   }
