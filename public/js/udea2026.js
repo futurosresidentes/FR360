@@ -193,12 +193,9 @@
     if (!dateString) return 'N/A';
 
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
+      // Split the date string to avoid timezone issues
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
     } catch (error) {
       return dateString;
     }
