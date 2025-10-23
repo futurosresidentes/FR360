@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) {
           sidebar.classList.remove('active');
+          document.body.classList.remove('sidebar-open');
         }
       }
     });
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
     menuToggle.addEventListener('click', function(e) {
       e.stopPropagation();
       sidebar.classList.toggle('active');
+      document.body.classList.toggle('sidebar-open');
     });
 
     // Cerrar menú al hacer click en el overlay (usando el pseudo-elemento ::before)
@@ -56,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Solo cerrar si el click fue en el overlay (el sidebar mismo, no en sus hijos)
       if (e.target === sidebar && sidebar.classList.contains('active')) {
         sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
 
@@ -65,6 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
           !sidebar.contains(e.target) &&
           e.target !== menuToggle) {
         sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
 
@@ -72,6 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && sidebar.classList.contains('active')) {
         sidebar.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
       }
     });
   }
