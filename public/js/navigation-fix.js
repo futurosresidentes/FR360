@@ -80,4 +80,45 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // Funcionalidad del botón de cerrar sesión
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        window.location.href = '/logout';
+      }
+    });
+  }
+
+  // Funcionalidad del botón de búsqueda en móvil
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  const topbar = document.getElementById('topbar');
+  const searchInput = document.getElementById('searchId');
+
+  if (searchToggleBtn && topbar) {
+    searchToggleBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      topbar.classList.add('search-active');
+      // Enfocar el input cuando se abre
+      setTimeout(() => {
+        if (searchInput) searchInput.focus();
+      }, 100);
+    });
+
+    // Cerrar búsqueda al hacer click fuera o presionar Escape
+    document.addEventListener('click', function(e) {
+      if (topbar.classList.contains('search-active') &&
+          !topbar.contains(e.target)) {
+        topbar.classList.remove('search-active');
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && topbar.classList.contains('search-active')) {
+        topbar.classList.remove('search-active');
+      }
+    });
+  }
 });

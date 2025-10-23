@@ -105,6 +105,11 @@ body {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
+/* Botón de lupa - oculto en desktop */
+.search-toggle-btn {
+  display: none;
+}
+
 #topbar {
   position: fixed;
   top: 0;
@@ -1012,9 +1017,44 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     max-width: 80%;
   }
 
-  /* Ocultar búsqueda en móvil */
+  /* Mostrar botón de lupa en móvil */
+  .search-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-size: 1.3rem;
+    background: #13bf81;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+
+  .search-toggle-btn:active {
+    background: #0fa871;
+  }
+
+  /* Ocultar búsqueda en móvil por defecto */
   #searchId,
   #searchBtn {
+    display: none;
+  }
+
+  /* Mostrar búsqueda cuando está activa */
+  #topbar.search-active #searchId,
+  #topbar.search-active #searchBtn {
+    display: flex;
+  }
+
+  #topbar.search-active .search-toggle-btn {
+    display: none;
+  }
+
+  #topbar.search-active #statusTop,
+  #topbar.search-active #currentUser {
     display: none;
   }
 
@@ -1023,10 +1063,11 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     left: 0;
     padding-left: 60px; /* Espacio para el botón hamburguesa */
     padding-right: 8px;
-    height: 60px; /* Más bajo sin búsqueda */
+    height: 60px;
     flex-wrap: nowrap;
     align-content: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    gap: 8px;
   }
 
   /* Ajustar main para que ocupe todo el ancho y empiece después del topbar */
