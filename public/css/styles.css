@@ -949,11 +949,12 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     display: flex;
   }
 
-  /* Sidebar más estrecho en móvil y oculto por defecto */
+  /* Sidebar ocupa 50% de pantalla en móvil y oculto por defecto */
   #sidebar {
-    width: 200px;
-    left: -200px;
+    width: 50%;
+    left: -50%;
     transition: left 0.3s ease;
+    z-index: 1000;
   }
 
   /* Sidebar visible cuando está activo */
@@ -961,19 +962,19 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     left: 0;
   }
 
-  /* Overlay para cerrar el menú al hacer click fuera */
+  /* Overlay oscuro que cubre el otro 50% de la pantalla */
   #sidebar::before {
     content: '';
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100vw;
+    left: 50%;
+    width: 50%;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.7);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
-    z-index: -1;
+    z-index: 999;
   }
 
   #sidebar.active::before {
@@ -994,14 +995,18 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     height: auto;
   }
 
-  /* Reducir padding en items del menú */
+  /* Ajustar padding y fuente para items del menú en móvil */
   #sidebar nav li {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.95rem;
   }
 
   #sidebar .logo {
-    padding: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .logo-img {
+    max-width: 80%;
   }
 
   /* Ajustar topbar para que ocupe todo el ancho */
