@@ -481,6 +481,17 @@ app.get('/api/links/:uid', async (req, res) => {
   }
 });
 
+// Eliminar link de pago por ID
+app.delete('/api/payment-link/:linkId', async (req, res) => {
+  try {
+    const result = await fr360Service.deletePaymentLink(req.params.linkId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting payment link:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Obtener CRM por UID
 app.get('/api/crm/:uid', async (req, res) => {
   try {

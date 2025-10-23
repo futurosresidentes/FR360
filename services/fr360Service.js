@@ -361,6 +361,52 @@ async function processSinglePayment(formData) {
 }
 
 /**
+ * Delete a payment link by ID
+ * @param {string} linkId - Payment link ID to delete
+ * @returns {Promise<Object>} Result object
+ */
+async function deletePaymentLink(linkId) {
+  const url = `${FR360_BASE_URL}/api/v1/payment-links/${linkId}`;
+
+  console.log(`🗑️ Eliminando link de pago con ID: ${linkId}`);
+
+  try {
+    const response = await axios.delete(url, {
+      headers: {
+        'Authorization': `Bearer ${FR360_TOKEN}`
+      }
+    });
+
+    console.log(`✅ Link eliminado: HTTP ${response.status}`);
+
+    if (response.status === 200 || response.status === 204) {
+      return {
+        success: true,
+        message: 'Link de pago eliminado exitosamente'
+      };
+    } else {
+      throw new Error(`Error HTTP ${response.status}`);
+    }
+  } catch (error) {
+    console.log(`❌ Error al eliminar link: ${error.message}`);
+
+    // Capturar detalles del error
+    if (error.response) {
+      console.log(`📡 HTTP Status: ${error.response.status}`);
+      console.log(`📡 Response data:`, JSON.stringify(error.response.data, null, 2));
+    }
+
+    return {
+      success: false,
+      error: 'DELETE_FAILED',
+      message: 'Error al eliminar el link de pago',
+      details: error.message,
+      responseData: error.response?.data
+    };
+  }
+}
+
+/**
  * Resolve payment and update portfolio
  * @param {Object} payload - Payment resolution data
  * @returns {Promise<Object>} Resolution result
@@ -483,6 +529,7 @@ module.exports = {
   createPaymentLink,
   savePaymentLinkToDatabase,
   getLinksByIdentityDocument,
+  deletePaymentLink,
   processSinglePayment,
   resolvePagoYActualizarCartera
 };
