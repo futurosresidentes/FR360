@@ -988,19 +988,17 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     pointer-events: all;
   }
 
-  /* Hacer el nav scrollable en móvil */
+  /* Hacer el nav scrollable en móvil - copia de YouTube */
   #sidebar nav {
-    flex: 1 1 auto;
+    flex: 1;
     min-height: 0;
-    height: auto;
-    overflow-y: scroll !important;
+    overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
   }
 
   #sidebar nav ul {
-    height: auto;
     flex-grow: 0;
     padding-bottom: 2rem;
   }
