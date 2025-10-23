@@ -974,7 +974,14 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     pointer-events: all;
   }
 
-  /* Reducir padding en items del menú para que quepan todos */
+  /* Hacer el nav scrollable en móvil */
+  #sidebar nav {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reducir padding en items del menú */
   #sidebar nav li {
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
