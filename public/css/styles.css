@@ -1170,19 +1170,44 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 }
 
 /* === Web Pig Styles === */
-#webpig {
-  position: relative;
-  overflow-y: auto;
+#webpig.active {
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
   max-height: calc(100vh - 60px);
 }
 
 .webpig-fixed-header {
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   background: #fff;
   z-index: 50;
   padding: 1rem 1rem 0.5rem;
   margin: -1rem -1rem 0 -1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#webpigContainer {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 1rem;
+  margin-top: 0;
+}
+
+#webhooksTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+#webhooksTable thead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+#webhooksTable thead th {
+  background: #D63384;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -1230,6 +1255,7 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   background: #fff9e6;
   border-radius: 8px;
   margin-top: 1rem;
+  margin-bottom: 0;
 }
 
 .feature-flags-container {
@@ -1319,36 +1345,7 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   font-size: 0.85rem;
 }
 
-#webpigContainer {
-  padding-bottom: 2rem;
-  padding-top: 1rem;
-}
-
-/* Tabla de webhooks */
-#webhooksTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-#webhooksTable thead {
-  position: sticky;
-  top: 85px;
-  background: #f8f9fa;
-  z-index: 10;
-}
-
-#webhooksTable thead::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  background: #dee2e6;
-  z-index: 11;
-}
-
+/* Tabla de webhooks - Header */
 #webhooksTable th {
   padding: 12px 8px;
   text-align: center;
@@ -1360,6 +1357,7 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   position: relative;
 }
 
+/* Tabla de webhooks - Body */
 #webhooksTable tbody tr {
   border-bottom: 1px solid #e9ecef;
   transition: background-color 0.2s;
@@ -1755,5 +1753,223 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 
   .toggle-switch input:checked + .slider:before {
     transform: translateX(18px);
+  }
+}
+
+/* === UDEA 2026 Styles === */
+.udea-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.udea-header h2 {
+  margin: 0;
+  color: #0d6939;
+  font-size: 1.5rem;
+}
+
+#refreshUdeaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: linear-gradient(135deg, #0d6939 0%, #0a5129 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#refreshUdeaBtn:hover {
+  background: linear-gradient(135deg, #0a5129 0%, #084020 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(13,105,57,0.3);
+}
+
+#refreshUdeaBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.udea-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #0d6939 0%, #0a5129 100%);
+  color: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(13,105,57,0.2);
+  text-align: center;
+}
+
+.stat-card h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+#udeaTableContainer {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+#udeaTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+#udeaTable thead {
+  background: #0d6939 !important;
+  color: white;
+}
+
+#udeaTable thead th {
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 2px solid #0a5129;
+  background: #0d6939 !important;
+  color: white !important;
+}
+
+#udeaTable tbody tr {
+  border-bottom: 1px solid #e9ecef;
+  transition: background-color 0.2s;
+  background-color: white;
+}
+
+#udeaTable tbody tr:hover {
+  background-color: #f0f8f4;
+}
+
+#udeaTable td {
+  padding: 10px 8px;
+  vertical-align: middle;
+  color: #0d6939;
+}
+
+#udeaTable td.fecha-col {
+  min-width: 90px;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+#udeaTable td.documento-col {
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+#udeaTable td.nombre-col {
+  font-weight: 600;
+  min-width: 180px;
+}
+
+#udeaTable td.correo-col {
+  font-size: 0.85rem;
+  min-width: 200px;
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#udeaTable td.telefono-col {
+  font-family: monospace;
+  font-size: 0.85rem;
+  min-width: 130px;
+}
+
+#udeaTable td.producto-col {
+  min-width: 200px;
+  font-size: 0.85rem;
+}
+
+#udeaTable td.valor-col,
+#udeaTable td.venta-col {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: right;
+  min-width: 110px;
+}
+
+#udeaTable td.acuerdo-col {
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+.udea-empty,
+.udea-error {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #888;
+  font-size: 1.1rem;
+}
+
+.udea-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+/* UDEA Responsive Styles */
+@media (max-width: 768px) {
+  .udea-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .udea-header h2 {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+
+  .udea-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+  }
+
+  #udeaTable {
+    font-size: 0.8rem;
+  }
+
+  #udeaTable thead th,
+  #udeaTable td {
+    padding: 8px 4px;
   }
 }

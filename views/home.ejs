@@ -293,8 +293,33 @@
 
       <!-- UDEA2026 -->
       <div class="pane right" id="udea2026">
-        <h2>Udea2026</h2>
-        <p>Contenido de Udea2026</p>
+        <div class="udea-header">
+          <h2>UDEA 2026</h2>
+          <button id="refreshUdeaBtn" class="btn-primary">🔄 Actualizar</button>
+        </div>
+        <div id="udeaStatsContainer" class="udea-stats">
+          <div class="stat-card">
+            <h3>Total Ventas</h3>
+            <p id="totalVentas" class="stat-value">$0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Total Recaudo</h3>
+            <p id="totalRecaudo" class="stat-value">$0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Total Estudiantes</h3>
+            <p id="totalEstudiantes" class="stat-value">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Contado</h3>
+            <p id="totalContado" class="stat-value">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Financiado</h3>
+            <p id="totalFinanciado" class="stat-value">0</p>
+          </div>
+        </div>
+        <div id="udeaTableContainer"></div>
       </div>
     </div>
   </div>
@@ -488,5 +513,7 @@
   <script src="/js/app.js"></script>
   <!-- Web Pig module -->
   <script src="/js/webpig.js"></script>
+  <!-- UDEA 2026 module -->
+  <script src="/js/udea2026.js"></script>
 </body>
 </html>

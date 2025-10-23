@@ -256,6 +256,15 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.consultarAcuerdo(args[0]);
         break;
 
+      // === UDEA 2026 ===
+      case 'fetchUdea2026Facturaciones':
+        result = await strapiService.fetchUdea2026Facturaciones();
+        break;
+
+      case 'fetchCarteraByAcuerdo':
+        result = await strapiService.fetchCarteraByAcuerdo(args[0]);
+        break;
+
       // === LINKS ===
       case 'getLinksByIdentityDocument':
         result = await fr360Service.getLinksByIdentityDocument(args[0]);
@@ -276,6 +285,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP',
             'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
+            'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
             'getLinksByIdentityDocument', 'getUserEmail'
           ]
         });

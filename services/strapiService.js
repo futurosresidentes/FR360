@@ -434,6 +434,68 @@ async function crearAcuerdo(...args) {
   throw new Error('crearAcuerdo not fully implemented yet - requires Strapi POST integration');
 }
 
+/**
+ * Fetch UDEA 2026 facturaciones from Strapi
+ * @returns {Promise<Array>} Array of facturaciones
+ */
+async function fetchUdea2026Facturaciones() {
+  const url = `${STRAPI_BASE_URL}/api/facturaciones?populate=*&filters[producto][nombre][$startsWith]=Curso Intensivo UDEA 2026&filters[fecha][$gte]=2025-10-22&pagination[pageSize]=10000`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`
+      }
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`Error al obtener facturaciones UDEA 2026: HTTP ${response.status}`);
+    }
+
+    const arr = Array.isArray(response.data.data) ? response.data.data : [];
+    return arr.map(it => it.attributes ? ({ id: it.id, documentId: it.documentId, ...it.attributes }) : it);
+  } catch (error) {
+    console.log('❌ Error fetching UDEA 2026 facturaciones:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Fetch cartera by agreement number
+ * @param {string} nroAcuerdo - Agreement number
+ * @returns {Promise<Object|null>} Cartera data or null
+ */
+async function fetchCarteraByAcuerdo(nroAcuerdo) {
+  const url = `${STRAPI_BASE_URL}/api/carteras?filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}&populate=*`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`
+      }
+    });
+
+    if (response.status !== 200) {
+      return null;
+    }
+
+    const arr = Array.isArray(response.data.data) ? response.data.data : [];
+    if (arr.length === 0) return null;
+
+    const cartera = arr[0];
+    const attributes = cartera.attributes || cartera;
+
+    return {
+      id: cartera.id,
+      documentId: cartera.documentId,
+      ...attributes
+    };
+  } catch (error) {
+    console.log(`❌ Error fetching cartera for acuerdo ${nroAcuerdo}:`, error.message);
+    return null;
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -444,5 +506,7 @@ module.exports = {
   saveConfianzaRecord,
   consultarAcuerdo,
   sincronizarCrmPorNumeroDocumento,
-  crearAcuerdo
+  crearAcuerdo,
+  fetchUdea2026Facturaciones,
+  fetchCarteraByAcuerdo
 };

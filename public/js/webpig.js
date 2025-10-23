@@ -320,10 +320,9 @@ function renderWebhooks(webhooks) {
     return;
   }
 
+  // Create single table
   const table = document.createElement('table');
   table.id = 'webhooksTable';
-
-  // Table header
   table.innerHTML = `
     <thead>
       <tr>
