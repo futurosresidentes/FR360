@@ -962,19 +962,19 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     left: 0;
   }
 
-  /* Overlay oscuro que cubre el otro 50% de la pantalla */
+  /* Overlay oscuro que cubre toda la pantalla detrás del sidebar */
   #sidebar::before {
     content: '';
     position: fixed;
     top: 0;
-    left: 50%;
-    width: 50%;
+    left: 0;
+    width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.7);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
-    z-index: 999;
+    z-index: -1;
   }
 
   #sidebar.active::before {
@@ -984,15 +984,18 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 
   /* Hacer el nav scrollable en móvil */
   #sidebar nav {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    height: auto;
+    overflow-y: scroll !important;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
 
   #sidebar nav ul {
     height: auto;
+    flex-grow: 0;
+    padding-bottom: 2rem;
   }
 
   /* Ajustar padding y fuente para items del menú en móvil */
@@ -1009,20 +1012,27 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     max-width: 80%;
   }
 
+  /* Ocultar búsqueda en móvil */
+  #searchId,
+  #searchBtn {
+    display: none;
+  }
+
   /* Ajustar topbar para que ocupe todo el ancho */
   #topbar {
     left: 0;
     padding-left: 60px; /* Espacio para el botón hamburguesa */
     padding-right: 8px;
-    height: 90px; /* Más alto para acomodar búsqueda en dos filas */
-    flex-wrap: wrap;
+    height: 60px; /* Más bajo sin búsqueda */
+    flex-wrap: nowrap;
     align-content: center;
+    justify-content: flex-end;
   }
 
-  /* Ajustar main para que ocupe todo el ancho y empiece más abajo */
+  /* Ajustar main para que ocupe todo el ancho y empiece después del topbar */
   #main {
     left: 0;
-    top: 90px;
+    top: 60px;
   }
 
   /* Contenedor de búsqueda en su propia fila */
