@@ -3441,13 +3441,17 @@
               const cit = await withRetry(() => api.getCitizenServer(uid), 3, 1000);
 
               // Solo sobrescribir si el campo está vacío (fallback inteligente)
+              if (!st.email && cit?.correo) {
+                st.email = cit.correo;
+                st.emailOk = true;
+              }
               if (!st.givenName && cit?.nombres) st.givenName = cit.nombres;
               if (!st.familyName && cit?.apellidos) st.familyName = cit.apellidos;
 
               // Actualizar flags
               st.nameOk = Boolean(st.givenName || st.familyName);
 
-              console.log(`✅ Fallback exitoso para ${uid}: nombres=${st.givenName}, apellidos=${st.familyName}`);
+              console.log(`✅ Fallback exitoso para ${uid}: correo=${st.email}, nombres=${st.givenName}, apellidos=${st.familyName}`);
             } catch(e){
               console.warn(`⚠️ getCitizenServer error para ${uid}:`, e);
             }
