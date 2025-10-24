@@ -248,7 +248,9 @@ async function fetchCrmStrapiBatch(uids) {
 
         const result = {};
         list.forEach(record => {
+          console.log(`🔍 record:`, JSON.stringify(record, null, 2));
           const att = record.attributes || record;
+          console.log(`🔍 att:`, JSON.stringify(att, null, 2));
           const numDoc = String(att.numero_documento || '').trim();
           if (numDoc) {
             result[numDoc] = {
@@ -258,6 +260,7 @@ async function fetchCrmStrapiBatch(uids) {
               apellidos: att.apellidos || '',
               numero_documento: numDoc
             };
+            console.log(`✅ Agregado a result[${numDoc}]:`, result[numDoc]);
           }
         });
 

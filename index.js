@@ -176,6 +176,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.sincronizarCrmPorNumeroDocumento(args[0]);
         break;
 
+      case 'fetchCrmStrapiBatch':
+        result = await strapiService.fetchCrmStrapiBatch(args[0]);
+        break;
+
       // === PRODUCTS ===
       case 'getProductosServer':
         result = await strapiService.getProducts({ mode: 'names' });
@@ -275,18 +279,28 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = req.user.email;
         break;
 
+      case 'getColombiaTodayParts':
+        // Retornar la fecha actual en zona horaria de Colombia (UTC-5)
+        const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        result = {
+          year: nowColombia.getFullYear(),
+          month: nowColombia.getMonth() + 1,
+          day: nowColombia.getDate()
+        };
+        break;
+
       default:
         return res.status(404).json({
           success: false,
           error: `Function '${functionName}' not found`,
           availableFunctions: [
-            'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento',
+            'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP',
             'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
-            'getLinksByIdentityDocument', 'getUserEmail'
+            'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts'
           ]
         });
     }

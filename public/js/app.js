@@ -317,9 +317,11 @@
       return d.toISOString(); // ej. "2025-07-29T04:00:00.000Z"
     }
 
-    // Nueva función para fecha inicio: si es hoy usa hora actual, si es futuro usa 00:00:00 UTC
+    // Nueva función para fecha inicio: convierte hora local de Colombia a UTC ISO
     function getMembershipStartDate(dateInput) {
+      console.log('🔍 getMembershipStartDate input:', dateInput);
       const selectedDate = parseLocalDate(dateInput);
+      console.log('🔍 selectedDate después de parseLocalDate:', selectedDate);
       const today = new Date();
 
       // Comparar solo las fechas (año, mes, día) sin horas
@@ -327,21 +329,44 @@
       const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
       if (selectedDateOnly.getTime() === todayOnly.getTime()) {
-        // Es hoy: usar hora actual en formato ISO sin milisegundos
-        return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+        // Es hoy: usar hora actual de Colombia convertida a UTC
+        const now = new Date();
+        const Y = now.getFullYear();
+        const M = now.getMonth();
+        const D = now.getDate();
+        const h = now.getHours();
+        const m = now.getMinutes();
+        const s = now.getSeconds();
+
+        // Crear fecha UTC sumando 5 horas al offset de Colombia (UTC-5)
+        const utcDate = new Date(Date.UTC(Y, M, D, h + 5, m, s));
+        const result = utcDate.toISOString();
+        console.log('🔍 Es hoy, retornando UTC:', result);
+        return result;
       } else {
-        // Es fecha futura: usar 00:00:00 UTC
-        return toUTCDateTimeString(selectedDate, false);
+        // Es fecha futura: usar 00:00:00 Colombia → 05:00:00 UTC
+        const Y = selectedDate.getFullYear();
+        const M = selectedDate.getMonth();
+        const D = selectedDate.getDate();
+
+        // Crear fecha UTC: 00:00 Colombia = 05:00 UTC
+        const utcDate = new Date(Date.UTC(Y, M, D, 5, 0, 0));
+        const result = utcDate.toISOString();
+        console.log('🔍 Es fecha futura, retornando UTC:', result);
+        return result;
       }
     }
 
-    // Nueva función para fecha fin: primero establecer 23:59:59 local, luego convertir a UTC
+    // Nueva función para fecha fin: convierte 23:59:59 Colombia a UTC ISO
     function getMembershipExpiryDate(dateInput) {
       const selectedDate = parseLocalDate(dateInput);
-      // Establecer 23:59:59 en hora LOCAL (sin milisegundos)
-      selectedDate.setHours(23, 59, 59, 0);
-      // Ahora convertir a UTC sin milisegundos
-      return selectedDate.toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const Y = selectedDate.getFullYear();
+      const M = selectedDate.getMonth();
+      const D = selectedDate.getDate();
+
+      // Crear fecha UTC: 23:59:59 Colombia (UTC-5) = 04:59:59 del día siguiente en UTC
+      const utcDate = new Date(Date.UTC(Y, M, D + 1, 4, 59, 59));
+      return utcDate.toISOString();
     }
 
     // ===== Funciones del Callbell =====
@@ -3389,6 +3414,7 @@
 
           // Obtener TODOS los datos del CRM desde el resultado del batch
           const crmData = crmResults[uid];
+          console.log(`🔍 crmData para ${uid}:`, crmData);
           if (crmData) {
             // Actualizar todos los campos disponibles
             st.email      = crmData.correo || '';
@@ -3398,6 +3424,7 @@
             st.emailOk    = Boolean(crmData.correo);
             st.nameOk     = Boolean(crmData.nombres || crmData.apellidos);
             st.notFound   = !st.emailOk && !st.nameOk;
+            console.log(`✅ Datos asignados para ${uid}: email="${st.email}", emailOk=${st.emailOk}, nombres="${st.givenName}", apellidos="${st.familyName}"`);
             batchState.set(uid, st);
 
             // Renderizar email inmediatamente si existe
@@ -3493,9 +3520,14 @@
       // validar que no haya ❌ en emails
       const hasMissing = idsToAdd.some(uid => {
         const st = batchState.get(uid) || {};
+        console.log(`🔍 Validando ${uid}:`, { email: st.email, emailOk: st.emailOk, estado: st });
         return !st.emailOk;
       });
       if (hasMissing){
+        console.error('❌ Hay cédulas sin email válido:', idsToAdd.map(uid => {
+          const st = batchState.get(uid) || {};
+          return { uid, email: st.email, emailOk: st.emailOk };
+        }));
         alert('Primero debes depurar / actualizar las bases de datos para que existan todos los usuarios a los que vamos a agregar la membresía');
         return;
       }

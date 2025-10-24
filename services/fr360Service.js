@@ -58,9 +58,11 @@ async function getCitizen(uid) {
 
     if (response.status === 200) {
       const d = response.data.data || {};
+      console.log(`🔍 getCitizen(${uid}) response.data.data:`, JSON.stringify(d, null, 2));
       return {
         nombres: d.givenName || '',
-        apellidos: d.familyName || ''
+        apellidos: d.familyName || '',
+        correo: d.email || d.mail || d.correo || ''
       };
     } else {
       throw new Error(`HTTP ${response.status}`);
