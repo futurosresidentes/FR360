@@ -53,6 +53,10 @@ require('./config/passport')(app);
 // --- Motor de vistas (EJS)
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+// Deshabilitar caché de vistas en desarrollo
+if (!isProduction) {
+  app.set('view cache', false);
+}
 
 // --- Rutas de autenticación (públicas)
 app.use('/', authRoutes);
@@ -231,6 +235,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await frappService.appendPatrocinioRecord(args[0]);
         break;
 
+      case 'updateUserFRAPP':
+        result = await frappService.updateUserFRAPP(args[0], args[1]);
+        break;
+
       case 'saveConfianzaRecord':
         result = await frappService.saveConfianzaRecord(args[0]);
         break;
@@ -297,7 +305,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
-            'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP',
+            'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts'

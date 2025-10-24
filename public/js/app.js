@@ -237,6 +237,7 @@
     let lastUid = '';
     let lastFactRows = [];
     let activeMembershipFRAPP = null;
+    let currentUserFRAPP = null; // Usuario actual de FRAPP
 
     const BASE_PRICE_9MESES           = 4130000;
     const BASE_PRICE_6MESES           = 3410000;
@@ -530,7 +531,11 @@
     function clearMembNewHeader(){
       const wrap   = document.querySelector('.memb-new');
       const header = wrap?.querySelector('.memb-new-header');
-      if (header) header.innerHTML = '<h3 style="margin-top: 20px; color: #075183;">Plataforma nueva</h3>';
+      if (header) {
+        // Solo actualizar el h3, no borrar todo el header (preservar botón editUserBtn)
+        const h3 = header.querySelector('h3');
+        if (h3) h3.textContent = 'Plataforma nueva';
+      }
       const info = wrap?.querySelector('#membNewInfo');
       if (info) info.remove(); // <-- quita nombre/correo/roles previos
       const cont = document.getElementById('membNewContainer');
@@ -2966,6 +2971,24 @@
       // NUEVO: el usuario viene dentro de cada membership; usa el primero como fuente
       const userFromMembership = (items[0] && items[0].user) ? items[0].user : null;
       const u = obj?.user || userFromMembership || null;
+
+      console.log('🔍 renderMembFRAPP - Usuario detectado:', u);
+      console.log('🔍 renderMembFRAPP - obj.user:', obj?.user);
+      console.log('🔍 renderMembFRAPP - userFromMembership:', userFromMembership);
+      console.log('🔍 renderMembFRAPP - items[0]:', items[0]);
+
+      // Guardar usuario actual para edición
+      currentUserFRAPP = u;
+
+      // Mostrar botón de editar si hay usuario
+      const editUserBtn = document.getElementById('editUserBtn');
+      console.log('🔍 editUserBtn element:', editUserBtn);
+      console.log('🔍 Usuario u:', u);
+      if (editUserBtn) {
+        editUserBtn.style.display = u ? 'inline-block' : 'none';
+        console.log('🔍 Botón de editar display:', editUserBtn.style.display);
+      }
+
       const fullName = u ? [u.givenName || '', u.familyName || ''].filter(Boolean).join(' ').trim() : '';
       // Roles: tomar de cada membership (string), normalizar y deduplicar
       const rolesFromItems = Array.from(new Set(
@@ -5024,6 +5047,137 @@
         </table>
       `;
       tableWrap.innerHTML = html;
+    }
+
+    // ===== Modal de Editar Usuario FRAPP =====
+    const editUserModal = document.getElementById('editUserModal');
+    const editUserBtn = document.getElementById('editUserBtn');
+    const editUserForm = document.getElementById('editUserForm');
+    const cancelEditUser = document.getElementById('cancelEditUser');
+    const editUserResponse = document.getElementById('editUserResponse');
+
+    // Abrir modal al hacer click en botón ✏️
+    if (editUserBtn) {
+      editUserBtn.addEventListener('click', () => {
+        if (!currentUserFRAPP) {
+          alert('No hay datos de usuario disponibles');
+          return;
+        }
+
+        // Cargar datos en el formulario
+        document.getElementById('editUserId').value = currentUserFRAPP.id || '';
+        document.getElementById('editUserEmail').value = currentUserFRAPP.email || '';
+        document.getElementById('editUserGivenName').value = currentUserFRAPP.givenName || '';
+        document.getElementById('editUserFamilyName').value = currentUserFRAPP.familyName || '';
+        document.getElementById('editUserIdentityDocument').value = currentUserFRAPP.identityDocument || '';
+
+        // Campos solo lectura
+        document.getElementById('editUserPhone').value = currentUserFRAPP.phone || '';
+        document.getElementById('editUserBirthdate').value = currentUserFRAPP.birthdate || '';
+        document.getElementById('editUserGender').value = currentUserFRAPP.gender || '';
+        document.getElementById('editUserIdentityType').value = currentUserFRAPP.identityType || '';
+        document.getElementById('editUserTimezone').value = currentUserFRAPP.timezone || '';
+        document.getElementById('editUserStatus').value = currentUserFRAPP.status || '';
+
+        // Mostrar modal
+        editUserModal.classList.remove('hidden');
+        editUserResponse.style.display = 'none';
+        editUserResponse.innerHTML = '';
+      });
+    }
+
+    // Cerrar modal
+    if (cancelEditUser) {
+      cancelEditUser.addEventListener('click', () => {
+        editUserModal.classList.add('hidden');
+      });
+    }
+
+    // Cerrar modal al hacer click en el backdrop
+    if (editUserModal) {
+      editUserModal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-backdrop') || e.target === editUserModal) {
+          editUserModal.classList.add('hidden');
+        }
+      });
+    }
+
+    // Submit del formulario
+    if (editUserForm) {
+      editUserForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const userId = document.getElementById('editUserId').value;
+        const userData = {
+          email: document.getElementById('editUserEmail').value.trim(),
+          givenName: document.getElementById('editUserGivenName').value.trim(),
+          familyName: document.getElementById('editUserFamilyName').value.trim(),
+          identityDocument: document.getElementById('editUserIdentityDocument').value.trim()
+        };
+
+        console.log('Actualizando usuario:', userId, userData);
+
+        // Deshabilitar form
+        const inputs = editUserForm.querySelectorAll('input, button');
+        inputs.forEach(inp => inp.disabled = true);
+
+        editUserResponse.style.display = 'block';
+        editUserResponse.innerHTML = '⌛ Actualizando usuario...';
+        editUserResponse.style.color = '#333';
+
+        try {
+          const result = await api.updateUserFRAPP(userId, userData);
+
+          if (result.success) {
+            editUserResponse.innerHTML = '✅ Usuario actualizado correctamente';
+            editUserResponse.style.color = '#28a745';
+
+            // Recargar datos de FRAPP para reflejar cambios
+            setTimeout(async () => {
+              const uid = searchId.value.replace(/\D/g,'').trim();
+              if (uid) {
+                try {
+                  const freshData = await api.fetchMembresiasFRAPP(uid);
+                  renderMembFRAPP(freshData);
+                  console.log('✅ Datos de FRAPP recargados');
+                } catch (err) {
+                  console.error('Error al recargar datos de FRAPP:', err);
+                }
+              }
+
+              // Cerrar modal después de 2 segundos
+              setTimeout(() => {
+                editUserModal.classList.add('hidden');
+                // Rehabilitar form
+                inputs.forEach(inp => inp.disabled = false);
+              }, 2000);
+            }, 1000);
+
+          } else {
+            let errorMsg = '❌ Error: ' + (result.error || 'Error desconocido');
+
+            if (result.validationErrors) {
+              errorMsg += '\n\nErrores de validación:';
+              for (const [field, errors] of Object.entries(result.validationErrors)) {
+                errorMsg += `\n- ${field}: ${errors.join(', ')}`;
+              }
+            }
+
+            editUserResponse.innerHTML = errorMsg.replace(/\n/g, '<br>');
+            editUserResponse.style.color = '#dc3545';
+
+            // Rehabilitar form para intentar de nuevo
+            inputs.forEach(inp => inp.disabled = false);
+          }
+        } catch (error) {
+          console.error('Error al actualizar usuario:', error);
+          editUserResponse.innerHTML = '❌ Error de conexión: ' + error.message;
+          editUserResponse.style.color = '#dc3545';
+
+          // Rehabilitar form
+          inputs.forEach(inp => inp.disabled = false);
+        }
+      });
     }
 
 

@@ -219,8 +219,9 @@
 
         <!-- CENTRO: FRAPP -->
         <div class="memb-new">
-          <div class="memb-new-header" style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:8px">
+          <div class="memb-new-header" style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:8px;gap:8px;">
             <h3 style="margin-top: 20px; color: #075183;">Plataforma nueva</h3>
+            <button id="editUserBtn" style="display:none;background:none;border:none;font-size:1.2em;cursor:pointer;padding:4px;margin-top:20px;" title="Editar usuario">✏️</button>
           </div>
           <div id="membNewContainer"></div>
           <div style="margin-top:12px;">
@@ -381,6 +382,76 @@
         <div class="modal-actions">
           <button type="button" id="cancelAddMemb">❌ Cancelar</button>
           <button type="submit">✅ Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal para Editar usuario de FRAPP -->
+  <div id="editUserModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>✏️ Editar usuario - Plataforma nueva</h3>
+      <div id="editUserResponse" class="modal-response" style="margin-bottom:12px;color:#333;display:none;"></div>
+      <form id="editUserForm">
+        <input type="hidden" id="editUserId" />
+
+        <!-- Campos editables -->
+        <div class="modal-row">
+          <label for="editUserEmail">Email *</label>
+          <input type="email" id="editUserEmail" required />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserGivenName">Nombres *</label>
+          <input type="text" id="editUserGivenName" required />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserFamilyName">Apellidos *</label>
+          <input type="text" id="editUserFamilyName" required />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserIdentityDocument">Cédula *</label>
+          <input type="text" id="editUserIdentityDocument" required />
+        </div>
+
+        <!-- Campos no editables (solo lectura) -->
+        <div class="modal-row">
+          <label for="editUserPhone">Teléfono (solo lectura)</label>
+          <input type="text" id="editUserPhone" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserBirthdate">Fecha nacimiento (solo lectura)</label>
+          <input type="text" id="editUserBirthdate" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserGender">Género (solo lectura)</label>
+          <input type="text" id="editUserGender" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserIdentityType">Tipo documento (solo lectura)</label>
+          <input type="text" id="editUserIdentityType" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserTimezone">Timezone (solo lectura)</label>
+          <input type="text" id="editUserTimezone" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <div class="modal-row">
+          <label for="editUserStatus">Estado (solo lectura)</label>
+          <input type="text" id="editUserStatus" readonly style="background-color: #f5f5f5; cursor: not-allowed;" />
+        </div>
+
+        <!-- Botones -->
+        <div class="modal-actions">
+          <button type="button" id="cancelEditUser">❌ Cancelar</button>
+          <button type="submit">✅ Guardar cambios</button>
         </div>
       </form>
     </div>

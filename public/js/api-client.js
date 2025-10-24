@@ -118,6 +118,10 @@ class FR360ApiClient {
     return this._call('freezeMembershipFRAPP', membershipId, changedById, reason, changes);
   }
 
+  async updateUserFRAPP(userId, userData) {
+    return this._call('updateUserFRAPP', userId, userData);
+  }
+
   async appendPatrocinioRecord(data) {
     return this._call('appendPatrocinioRecord', data);
   }

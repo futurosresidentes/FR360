@@ -7,6 +7,7 @@ const FRAPP_API_KEY_READ = FRAPP_API_KEY;
 const FRAPP_API_KEY_REGISTER = process.env.FRAPP_API_KEY_REGISTER || FRAPP_API_KEY;
 const FRAPP_API_KEY_UPDATE = process.env.FRAPP_API_KEY_UPDATE || FRAPP_API_KEY;
 const FRAPP_API_KEY_FILTERS = process.env.FRAPP_API_KEY_FILTERS || FRAPP_API_KEY;
+const FRAPP_API_KEY_UPDATE_USER = process.env.FRAPP_API_KEY_UPDATE_USER || FRAPP_API_KEY;
 
 // Validate required environment variables
 if (!FRAPP_BASE_URL || !FRAPP_API_KEY) {
@@ -304,6 +305,59 @@ async function appendPatrocinioRecord(data) {
   };
 }
 
+/**
+ * Update user in FRAPP
+ * @param {number} userId - User ID
+ * @param {Object} userData - User data to update
+ * @returns {Promise<Object>} Result object with status
+ */
+async function updateUserFRAPP(userId, userData) {
+  const url = `${FRAPP_BASE_URL}/api/users/${userId}`;
+
+  console.log('=== ACTUALIZACIÓN DE USUARIO FRAPP ===');
+  console.log('User ID:', userId);
+  console.log('Datos a actualizar:', JSON.stringify(userData, null, 2));
+  console.log('URL:', url);
+  console.log('API Key (primeros 8 chars):', FRAPP_API_KEY_UPDATE_USER?.substring(0, 8) + '...');
+
+  try {
+    const response = await axios.put(url, userData, {
+      headers: {
+        'x-api-key': FRAPP_API_KEY_UPDATE_USER,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('Status HTTP:', response.status);
+    console.log('Respuesta:', JSON.stringify(response.data, null, 2));
+
+    return {
+      success: true,
+      status: response.status,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error.message);
+
+    if (error.response) {
+      console.error('Status HTTP:', error.response.status);
+      console.error('Respuesta:', error.response.data);
+
+      return {
+        success: false,
+        status: error.response.status,
+        error: error.response.data?.error || error.response.data?.message || 'Error desconocido',
+        validationErrors: error.response.data?.validationErrors || null
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || 'Error de conexión'
+    };
+  }
+}
+
 module.exports = {
   fetchMembresiasFRAPP,
   registerMembFRAPP,
@@ -311,5 +365,6 @@ module.exports = {
   getActiveMembershipPlans,
   getProductHandleFromFRAPP,
   freezeMembershipFRAPP,
-  appendPatrocinioRecord
+  appendPatrocinioRecord,
+  updateUserFRAPP
 };
