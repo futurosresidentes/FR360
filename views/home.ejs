@@ -45,7 +45,8 @@
       <input type="text" id="searchId" placeholder="Ingrese Nro ID o correo…" />
       <button type="button" id="searchBtn">Buscar</button>
       <div id="statusTop"></div>
-      <div id="currentUser" style="margin-left:auto; font-size:0.9em; color:#666;"></div>
+      <button id="ticketBtn" style="margin-left:auto; background:#28a745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;" title="Crear ticket">💡 Sugerir mejora</button>
+      <div id="currentUser" style="margin-left:12px; font-size:0.9em; color:#666;"></div>
     </div>
 
     <!-- CONTENT -->
@@ -557,6 +558,69 @@
       </div>
     </div>
 
+  <!-- Modal para Crear Ticket en ClickUp -->
+  <div id="ticketModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>💡 Sugerir mejora o reportar problema</h3>
+      <p style="margin-bottom:16px; color:#666; font-size:0.9em;">
+        Usa este formulario para reportar bugs, solicitar cambios o proponer nuevas funciones para FR360.
+      </p>
+      <div id="ticketResponse" class="modal-response" style="margin-bottom:12px;color:#333;display:none;"></div>
+      <form id="ticketForm">
+        <!-- Título -->
+        <div class="modal-row">
+          <label for="ticketTitle">Título *</label>
+          <input type="text" id="ticketTitle" placeholder="Ej: Error al cargar membresías" required maxlength="100" />
+        </div>
+
+        <!-- Tipo -->
+        <div class="modal-row">
+          <label for="ticketType">Tipo *</label>
+          <select id="ticketType" required>
+            <option value="">Seleccione...</option>
+            <option value="Bug">🐛 Bug (algo no funciona)</option>
+            <option value="Mejora">✨ Mejora (optimizar algo existente)</option>
+            <option value="Nueva función">🚀 Nueva función</option>
+            <option value="Cambio">🔄 Cambio (modificar funcionalidad)</option>
+          </select>
+        </div>
+
+        <!-- Prioridad -->
+        <div class="modal-row">
+          <label for="ticketPriority">Prioridad *</label>
+          <select id="ticketPriority" required>
+            <option value="baja">🟢 Baja</option>
+            <option value="media" selected>🟡 Media</option>
+            <option value="alta">🟠 Alta</option>
+            <option value="urgente">🔴 Urgente</option>
+          </select>
+        </div>
+
+        <!-- Descripción -->
+        <div class="modal-row">
+          <label for="ticketDescription">Descripción detallada *</label>
+          <textarea
+            id="ticketDescription"
+            placeholder="Describe el problema o la mejora que propones. Incluye pasos para reproducir si es un bug."
+            required
+            rows="6"
+            maxlength="2000"
+          ></textarea>
+          <div style="font-size:0.8em; color:#999; margin-top:4px;">
+            <span id="ticketCharCount">0</span> / 2000 caracteres
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="modal-actions">
+          <button type="button" id="cancelTicket">❌ Cancelar</button>
+          <button type="submit">📤 Enviar ticket</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ====== Modal para detalles de Stage (Web Pig) ====== -->
   <div id="stageDetailsModal" class="modal hidden">
     <div class="modal-backdrop"></div>
@@ -575,6 +639,9 @@
   <script>
     // Pass server-side variables to client-side JavaScript
     const USER_EMAIL = '<%= typeof userEmail !== "undefined" ? userEmail : "" %>';
+    // Make user info globally available for ticket system
+    window.userEmail = USER_EMAIL;
+    window.userName = '<%= typeof userName !== "undefined" ? userName : "" %>';
   </script>
   <!-- API Client (loads first) -->
   <script src="/js/api-client.js"></script>
@@ -586,5 +653,7 @@
   <script src="/js/webpig.js"></script>
   <!-- UDEA 2026 module -->
   <script src="/js/udea2026.js"></script>
+  <!-- Ticket system module -->
+  <script src="/js/tickets.js"></script>
 </body>
 </html>

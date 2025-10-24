@@ -130,6 +130,12 @@ class FR360ApiClient {
     return this._call('saveConfianzaRecord', data);
   }
 
+  // ===== CLICKUP TICKETS =====
+
+  async createClickUpTask(taskData) {
+    return this._call('createClickUpTask', taskData);
+  }
+
   // ===== SALES & AGREEMENTS =====
 
   async fetchVentas(uid) {

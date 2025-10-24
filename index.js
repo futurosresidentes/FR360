@@ -12,6 +12,7 @@ const fr360Service = require('./services/fr360Service');
 const frappService = require('./services/frappService');
 const callbellService = require('./services/callbellService');
 const oldMembershipService = require('./services/oldMembershipService');
+const clickupService = require('./services/clickupService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -239,6 +240,11 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await frappService.updateUserFRAPP(args[0], args[1]);
         break;
 
+      // === CLICKUP TICKETS ===
+      case 'createClickUpTask':
+        result = await clickupService.createTask(args[0]);
+        break;
+
       case 'saveConfianzaRecord':
         result = await frappService.saveConfianzaRecord(args[0]);
         break;
@@ -308,7 +314,8 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
-            'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts'
+            'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
+            'createClickUpTask'
           ]
         });
     }
