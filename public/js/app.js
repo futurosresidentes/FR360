@@ -340,8 +340,9 @@
 
         // Crear fecha UTC sumando 5 horas al offset de Colombia (UTC-5)
         const utcDate = new Date(Date.UTC(Y, M, D, h + 5, m, s));
-        const result = utcDate.toISOString();
-        console.log('🔍 Es hoy, retornando UTC:', result);
+        // Formatear como "YYYY-MM-DD HH:MM:SS" (formato FRAPP)
+        const result = utcDate.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+        console.log('🔍 Es hoy, retornando UTC formato FRAPP:', result);
         return result;
       } else {
         // Es fecha futura: usar 00:00:00 Colombia → 05:00:00 UTC
@@ -351,13 +352,14 @@
 
         // Crear fecha UTC: 00:00 Colombia = 05:00 UTC
         const utcDate = new Date(Date.UTC(Y, M, D, 5, 0, 0));
-        const result = utcDate.toISOString();
-        console.log('🔍 Es fecha futura, retornando UTC:', result);
+        // Formatear como "YYYY-MM-DD HH:MM:SS" (formato FRAPP)
+        const result = utcDate.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+        console.log('🔍 Es fecha futura, retornando UTC formato FRAPP:', result);
         return result;
       }
     }
 
-    // Nueva función para fecha fin: convierte 23:59:59 Colombia a UTC ISO
+    // Nueva función para fecha fin: convierte 23:59:59 Colombia a UTC formato FRAPP
     function getMembershipExpiryDate(dateInput) {
       const selectedDate = parseLocalDate(dateInput);
       const Y = selectedDate.getFullYear();
@@ -366,7 +368,8 @@
 
       // Crear fecha UTC: 23:59:59 Colombia (UTC-5) = 04:59:59 del día siguiente en UTC
       const utcDate = new Date(Date.UTC(Y, M, D + 1, 4, 59, 59));
-      return utcDate.toISOString();
+      // Formatear como "YYYY-MM-DD HH:MM:SS" (formato FRAPP)
+      return utcDate.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
     }
 
     // ===== Funciones del Callbell =====
