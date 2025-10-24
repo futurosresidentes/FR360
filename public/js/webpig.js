@@ -20,7 +20,8 @@ const STAGE_COLUMNS = {
   'worldoffice_invoice_creation': 'Factura',
   'worldoffice_invoice_accounting': 'Factura',
   'worldoffice_dian_emission': 'DIAN',
-  'strapi_sync': 'Strapi'
+  'strapi_sync': 'Strapi',
+  'strapi_facturacion_creation': 'Strapi'
 };
 
 // Fetch webhooks from API
