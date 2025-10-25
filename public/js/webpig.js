@@ -20,8 +20,8 @@ const STAGE_COLUMNS = {
   'worldoffice_invoice_creation': 'Factura',
   'worldoffice_invoice_accounting': 'Factura',
   'worldoffice_dian_emission': 'DIAN',
-  'strapi_sync': 'Strapi',
-  'strapi_facturacion_creation': 'Strapi'
+  'strapi_cartera_update': 'Cartera',
+  'strapi_facturacion_creation': 'Facturación'
 };
 
 // Fetch webhooks from API
@@ -336,7 +336,8 @@ function renderWebhooks(webhooks) {
         <th>WO</th>
         <th>Factura</th>
         <th>DIAN</th>
-        <th>Strapi</th>
+        <th>Cartera</th>
+        <th>Facturación</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -363,7 +364,8 @@ function renderWebhooks(webhooks) {
     const woStatus = getStageStatus(webhook, 'WO', isAccepted);
     const facturaStatus = getStageStatus(webhook, 'Factura', isAccepted);
     const dianStatus = getStageStatus(webhook, 'DIAN', isAccepted);
-    const strapiStatus = isAccepted ? { status: 'not-run', icon: '⛔', logs: [] } : { status: 'not-applicable', icon: '-', logs: [] };
+    const carteraStatus = getStageStatus(webhook, 'Cartera', isAccepted);
+    const facturacionStatus = getStageStatus(webhook, 'Facturación', isAccepted);
 
     row.innerHTML = `
       <td class="id-col">${webhook.id}</td>
@@ -401,8 +403,13 @@ function renderWebhooks(webhooks) {
         </span>
       </td>
       <td class="stage-col">
-        <span class="stage-icon ${strapiStatus.status}" data-column="Strapi" data-webhook-id="${webhook.id}">
-          ${strapiStatus.icon}
+        <span class="stage-icon ${carteraStatus.status}" data-column="Cartera" data-webhook-id="${webhook.id}">
+          ${carteraStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col">
+        <span class="stage-icon ${facturacionStatus.status}" data-column="Facturación" data-webhook-id="${webhook.id}">
+          ${facturacionStatus.icon}
         </span>
       </td>
     `;
@@ -416,7 +423,8 @@ function renderWebhooks(webhooks) {
       WO: woStatus,
       Factura: facturaStatus,
       DIAN: dianStatus,
-      Strapi: strapiStatus
+      Cartera: carteraStatus,
+      Facturación: facturacionStatus
     });
   });
 
