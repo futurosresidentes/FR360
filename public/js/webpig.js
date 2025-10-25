@@ -21,7 +21,7 @@ const STAGE_COLUMNS = {
   'worldoffice_invoice_accounting': 'Factura',
   'worldoffice_dian_emission': 'DIAN',
   'strapi_cartera_update': 'Cartera',
-  'strapi_facturacion_creation': 'Facturación'
+  'strapi_facturacion_creation': 'Ventas'
 };
 
 // Fetch webhooks from API
@@ -337,7 +337,7 @@ function renderWebhooks(webhooks) {
         <th>Factura</th>
         <th>DIAN</th>
         <th>Cartera</th>
-        <th>Facturación</th>
+        <th>Ventas</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -365,7 +365,7 @@ function renderWebhooks(webhooks) {
     const facturaStatus = getStageStatus(webhook, 'Factura', isAccepted);
     const dianStatus = getStageStatus(webhook, 'DIAN', isAccepted);
     const carteraStatus = getStageStatus(webhook, 'Cartera', isAccepted);
-    const facturacionStatus = getStageStatus(webhook, 'Facturación', isAccepted);
+    const ventasStatus = getStageStatus(webhook, 'Ventas', isAccepted);
 
     row.innerHTML = `
       <td class="id-col">${webhook.id}</td>
@@ -408,8 +408,8 @@ function renderWebhooks(webhooks) {
         </span>
       </td>
       <td class="stage-col">
-        <span class="stage-icon ${facturacionStatus.status}" data-column="Facturación" data-webhook-id="${webhook.id}">
-          ${facturacionStatus.icon}
+        <span class="stage-icon ${ventasStatus.status}" data-column="Ventas" data-webhook-id="${webhook.id}">
+          ${ventasStatus.icon}
         </span>
       </td>
     `;
@@ -424,7 +424,7 @@ function renderWebhooks(webhooks) {
       Factura: facturaStatus,
       DIAN: dianStatus,
       Cartera: carteraStatus,
-      Facturación: facturacionStatus
+      Ventas: ventasStatus
     });
   });
 
