@@ -143,6 +143,14 @@ body {
 #searchBtn:disabled {
   cursor: not-allowed;
 }
+
+/* Mostrar/ocultar textos según tamaño de pantalla */
+.btn-text-mobile {
+  display: none;
+}
+.btn-text-desktop {
+  display: inline;
+}
 #statusTop {
   margin-left: 16px;
   font-size: 0.9em;
@@ -1036,10 +1044,15 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     order: 1;
   }
 
+  /* Botón de ticket y usuario en segunda fila */
+  #topbar > #ticketBtn {
+    order: 2;
+  }
+
   /* Usuario y status en segunda fila */
   #topbar > #statusTop,
   #topbar > #currentUser {
-    order: 2;
+    order: 3;
   }
 
   /* Ajustar search para que ocupe más espacio */
@@ -1047,15 +1060,32 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     flex: 1;
     min-width: 120px;
     max-width: none;
-    margin-right: 8px;
+    margin-right: 0;
     font-size: 1em;
     padding: 0.6rem 1rem;
+    border-radius: 4px 0 0 4px;
   }
 
   #searchBtn {
     flex-shrink: 0;
-    padding: 0.6rem 1.2rem;
-    font-size: 1em;
+    padding: 0.6rem 1rem;
+    font-size: 1.2em;
+    min-width: 48px;
+  }
+
+  /* Mostrar versión móvil de los botones */
+  .btn-text-mobile {
+    display: inline;
+  }
+  .btn-text-desktop {
+    display: none;
+  }
+
+  /* Ajustar botón de ticket para móvil */
+  #ticketBtn {
+    margin-left: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 1.2em !important;
   }
 
   /* Hacer el topbar más compacto */
