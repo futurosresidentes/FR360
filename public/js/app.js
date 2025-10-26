@@ -1665,6 +1665,7 @@
         '<th>Marca</th>' +
         '<th>Sub categoría</th>' +
         '<th>Categoria</th>' +
+        '<th>Acciones</th>' +
         '</tr></thead><tbody>';
 
       ordered.forEach(item => {
@@ -1686,10 +1687,10 @@
                           .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
                           .toLowerCase() === 'elite';
         const rowClass = (isElite && isPaz) ? ' class="highlight"' : '';
-        html += `<tr${rowClass}>` +
+        html += `<tr${rowClass} data-document-id="${item.documentId || ''}" data-comercial-id="${item.comercial?.id || ''}" data-comercial-nombre="${item.comercial?.nombre || ''}">` +
           `<td>${fecha}</td>` +
           `<td>${transaccion}</td>` +
-          `<td>${comercial}</td>` +
+          `<td class="col-comercial">${comercial}</td>` +
           `<td>${producto}</td>` +
           `<td>${recaudo}</td>` +
           `<td>${fechaIni}</td>` +
@@ -1698,6 +1699,7 @@
           `<td>${marca}</td>` +
           `<td>${subcat}</td>` +
           `<td>${categoria}</td>` +
+          `<td class="col-edit-venta" style="text-align:center"><button class="edit-venta-btn" title="Editar comercial">✏️</button></td>` +
         `</tr>`;
       });
 
@@ -1705,6 +1707,154 @@
       const tableWrapper = document.createElement('div');
       tableWrapper.innerHTML = html;
       c.appendChild(tableWrapper);
+
+      // ====== Event delegation para editar ventas inline ======
+      const ventasTable = tableWrapper.querySelector('table');
+      if (ventasTable) {
+        ventasTable.addEventListener('click', async (e) => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+
+          const tr = btn.closest('tr');
+          const documentId = tr.dataset.documentId;
+          const currentComercialId = tr.dataset.comercialId;
+          const currentComercialNombre = tr.dataset.comercialNombre;
+
+          // Verificar permisos del usuario
+          const allowedUsers = [
+            'daniel.cardona@sentiretaller.com',
+            'alex.lopez@sentiretaller.com',
+            'yicela.agudelo@sentiretaller.com',
+            'ana.quintero@sentiretaller.com'
+          ];
+
+          const userEmail = USER_EMAIL || '';
+          if (!allowedUsers.includes(userEmail.toLowerCase())) {
+            alert('⚠️ No tienes permisos para editar ventas.\n\nSolo los siguientes usuarios pueden editar:\n\n' + allowedUsers.join('\n'));
+            return;
+          }
+
+          if (btn.classList.contains('edit-venta-btn')) {
+            // ====== MODO EDICIÓN ======
+            if (!documentId) {
+              alert('⚠️ No se pudo obtener el ID del registro');
+              return;
+            }
+
+            // Deshabilitar otros botones de edición mientras se edita
+            ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = true);
+
+            // Mostrar loading
+            const colComercial = tr.querySelector('.col-comercial');
+            colComercial.innerHTML = 'Cargando comerciales...';
+
+            try {
+              // Fetch comerciales
+              const comerciales = await api.getComerciales();
+
+              if (!comerciales || comerciales.length === 0) {
+                alert('❌ No hay comerciales disponibles');
+                colComercial.innerHTML = currentComercialNombre || '';
+                ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+                return;
+              }
+
+              // Crear select con comerciales
+              let selectHTML = '<select class="inp-comercial" style="width:100%; padding:4px;">';
+              comerciales.forEach(com => {
+                const selected = String(com.id) === String(currentComercialId) ? ' selected' : '';
+                selectHTML += `<option value="${com.id}"${selected}>${com.nombre || 'Comercial ' + com.id}</option>`;
+              });
+              selectHTML += '</select>';
+
+              colComercial.innerHTML = selectHTML;
+
+              // Cambiar botón a guardar/cancelar
+              tr.querySelector('.col-edit-venta').innerHTML =
+                '<button class="save-venta-btn" title="Guardar">💾</button> ' +
+                '<button class="cancel-venta-btn" title="Cancelar">❌</button>';
+
+            } catch (error) {
+              console.error('❌ Error al cargar comerciales:', error);
+              alert('❌ Error al cargar la lista de comerciales');
+              colComercial.innerHTML = currentComercialNombre || '';
+              ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+            }
+
+          } else if (btn.classList.contains('save-venta-btn')) {
+            // ====== GUARDAR CAMBIOS ======
+            const selectComercial = tr.querySelector('.inp-comercial');
+            const nuevoComercialId = selectComercial?.value;
+
+            if (!nuevoComercialId) {
+              alert('⚠️ Por favor selecciona un comercial');
+              return;
+            }
+
+            // Si no cambió nada, solo cancelar
+            if (String(nuevoComercialId) === String(currentComercialId)) {
+              // Restaurar vista normal
+              tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
+              tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+              ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+              return;
+            }
+
+            // Deshabilitar controles durante guardado
+            selectComercial.disabled = true;
+            btn.disabled = true;
+            tr.querySelector('.cancel-venta-btn').disabled = true;
+            tr.querySelector('.col-comercial').innerHTML = '⌛ Guardando...';
+
+            try {
+              const result = await api.updateVentaComercial(documentId, nuevoComercialId);
+
+              if (result.success) {
+                // Obtener el nombre del nuevo comercial
+                const nuevoComercialNombre = selectComercial.options[selectComercial.selectedIndex].text;
+
+                // Actualizar data attributes
+                tr.dataset.comercialId = nuevoComercialId;
+                tr.dataset.comercialNombre = nuevoComercialNombre;
+
+                // Restaurar vista con nuevo valor
+                tr.querySelector('.col-comercial').textContent = nuevoComercialNombre;
+                tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+
+                // Mostrar mensaje temporal de éxito
+                const originalText = tr.querySelector('.col-comercial').textContent;
+                tr.querySelector('.col-comercial').innerHTML = '✅ ' + originalText;
+                setTimeout(() => {
+                  tr.querySelector('.col-comercial').textContent = originalText;
+                }, 2000);
+
+              } else {
+                alert(`❌ Error al actualizar: ${result.error || 'Error desconocido'}`);
+                // Restaurar valor original
+                tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
+                tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+              }
+
+            } catch (error) {
+              console.error('❌ Error al actualizar:', error);
+              alert(`❌ Error de conexión: ${error.message}`);
+              // Restaurar valor original
+              tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
+              tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+            } finally {
+              // Re-habilitar otros botones de edición
+              ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+            }
+
+          } else if (btn.classList.contains('cancel-venta-btn')) {
+            // ====== CANCELAR EDICIÓN ======
+            // Restaurar vista normal
+            tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
+            tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+            ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+          }
+        });
+      }
 
       // ====== Guardamos matriz para análisis (ahora con "Categoria" al final):
       // ['Año','Mes','Día','Transacción','Comercial','Producto','Valor neto','Fecha inicio','Paz y salvo','Acuerdo','Valor acordado','Acuerdo firmado?','Ya sumó en confianza?','Venta','Marca','Sub categoría','Categoria']

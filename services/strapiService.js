@@ -499,6 +499,102 @@ async function fetchCarteraByAcuerdo(nroAcuerdo) {
   }
 }
 
+/**
+ * Get all comerciales from Strapi
+ * @returns {Promise<Array>} Array of comerciales with id and nombre
+ */
+async function getComerciales() {
+  const url = `${STRAPI_BASE_URL}/api/comerciales?pagination[pageSize]=200&sort=nombre:asc`;
+
+  try {
+    console.log('📋 Fetching comerciales from Strapi...');
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`
+      }
+    });
+
+    if (response.status !== 200) {
+      console.error('❌ Error fetching comerciales:', response.status);
+      return [];
+    }
+
+    const raw = Array.isArray(response.data.data) ? response.data.data : [];
+    const comerciales = raw.map(item => {
+      const attributes = item.attributes || item;
+      return {
+        id: item.id,
+        documentId: item.documentId,
+        nombre: attributes.nombre || `Comercial ${item.id}`
+      };
+    });
+
+    console.log(`✅ Fetched ${comerciales.length} comerciales`);
+    return comerciales;
+
+  } catch (error) {
+    console.error('❌ Error fetching comerciales:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Update comercial field of a facturacion
+ * @param {string} documentId - Document ID of the facturacion
+ * @param {number} comercialId - ID of the new comercial
+ * @returns {Promise<Object>} Update result
+ */
+async function updateFacturacionComercial(documentId, comercialId) {
+  const url = `${STRAPI_BASE_URL}/api/facturaciones/${documentId}`;
+
+  try {
+    console.log(`📝 Updating facturacion ${documentId} with comercial ${comercialId}...`);
+
+    const payload = {
+      data: {
+        comercial: comercialId
+      }
+    };
+
+    const response = await axios.put(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200) {
+      console.log('✅ Facturacion updated successfully');
+      return {
+        success: true,
+        data: response.data
+      };
+    } else {
+      console.error('❌ Unexpected response status:', response.status);
+      return {
+        success: false,
+        error: `Unexpected status: ${response.status}`
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating facturacion:', error.message);
+
+    if (error.response) {
+      return {
+        success: false,
+        error: error.response.data?.error?.message || error.message,
+        status: error.response.status
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -511,5 +607,7 @@ module.exports = {
   sincronizarCrmPorNumeroDocumento,
   crearAcuerdo,
   fetchUdea2026Facturaciones,
-  fetchCarteraByAcuerdo
+  fetchCarteraByAcuerdo,
+  getComerciales,
+  updateFacturacionComercial
 };

@@ -254,8 +254,20 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchVentas(args[0]);
         break;
 
+      case 'fetchFacturaciones':
+        result = await strapiService.fetchVentas(args[0]);
+        break;
+
       case 'fetchAcuerdos':
         result = await strapiService.fetchAcuerdos(args[0]);
+        break;
+
+      case 'getComerciales':
+        result = await strapiService.getComerciales();
+        break;
+
+      case 'updateVentaComercial':
+        result = await strapiService.updateFacturacionComercial(args[0], args[1]);
         break;
 
       case 'processSinglePayment':
@@ -312,7 +324,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
-            'fetchVentas', 'fetchAcuerdos', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
+            'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
             'createClickUpTask'

@@ -142,8 +142,20 @@ class FR360ApiClient {
     return this._call('fetchVentas', uid);
   }
 
+  async fetchFacturaciones(uid) {
+    return this._call('fetchFacturaciones', uid);
+  }
+
   async fetchAcuerdos(uid) {
     return this._call('fetchAcuerdos', uid);
+  }
+
+  async getComerciales() {
+    return this._call('getComerciales');
+  }
+
+  async updateVentaComercial(documentId, comercialId) {
+    return this._call('updateVentaComercial', documentId, comercialId);
   }
 
   async processSinglePayment(formData) {
