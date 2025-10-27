@@ -1826,6 +1826,88 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   }
 }
 
+/* === Botones de Edición Inline (Membresías y Ventas) === */
+/* Estilos unificados para todos los botones de edición */
+.edit-membership-btn,
+.edit-venta-btn,
+.freeze-membership-btn {
+  background-color: #fff;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-membership-btn:hover,
+.edit-venta-btn:hover {
+  background-color: #f0f0f0;
+  border-color: #999;
+  transform: scale(1.05);
+}
+
+.freeze-membership-btn:hover {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+  transform: scale(1.05);
+}
+
+.edit-membership-btn:disabled,
+.edit-venta-btn:disabled,
+.freeze-membership-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-membership-btn,
+.save-venta-btn {
+  background-color: #fff;
+  border: 2px solid #28a745;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-membership-btn:hover,
+.save-venta-btn:hover {
+  background-color: #28a745;
+  color: white;
+  transform: scale(1.05);
+}
+
+.save-membership-btn:disabled,
+.save-venta-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-membership-btn,
+.cancel-venta-btn {
+  background-color: #fff;
+  border: 2px solid #dc3545;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-membership-btn:hover,
+.cancel-venta-btn:hover {
+  background-color: #dc3545;
+  color: white;
+  transform: scale(1.05);
+}
+
+.cancel-membership-btn:disabled,
+.cancel-venta-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* === UDEA 2026 Styles === */
 .udea-header {
   display: flex;

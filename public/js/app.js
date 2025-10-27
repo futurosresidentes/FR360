@@ -3270,9 +3270,10 @@
         td.style.whiteSpace = 'nowrap';
 
         // ✏️ Editar
-        const edit = document.createElement('span');
+        const edit = document.createElement('button');
           edit.textContent = '✏️';
           edit.style.cursor = 'pointer';
+          edit.className = 'edit-membership-btn';
           edit.title = enableEdit
           ? 'Editar esta membresía'
           : 'Edición no disponible';
@@ -3285,10 +3286,11 @@
         });
         td.appendChild(edit);
 
-        // —🥶 Congelar— solo si permitimos freeze Y el <tr> tiene clase “active”
+        // —🥶 Congelar— solo si permitimos freeze Y el <tr> tiene clase "active"
         if (enableFreeze && tr.classList.contains('active')) {
-          const freeze = document.createElement('span');
+          const freeze = document.createElement('button');
           freeze.textContent = '🥶';
+          freeze.className = 'freeze-membership-btn';
           freeze.style.cursor = 'pointer';
           freeze.title = 'Congelar esta membresía';
           freeze.addEventListener('click', () => {
@@ -3343,7 +3345,8 @@
       const accTd = cells[idxAcc];
       accTd.innerHTML = '';
       const save = document.createElement('button');
-      save.textContent = '✅';
+      save.textContent = '💾';
+      save.className = 'save-membership-btn';
       save.title = 'Guardar cambios';
       save.addEventListener('click', () => {
       // 1) Obtener el membershipId de la primera celda
@@ -3447,6 +3450,7 @@
 
       const cancel = document.createElement('button');
       cancel.textContent = '❌';
+      cancel.className = 'cancel-membership-btn';
       cancel.title = 'Cancelar edición';
       cancel.style.marginLeft = '8px';
       cancel.addEventListener('click', () => {
