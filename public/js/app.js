@@ -1730,7 +1730,7 @@
 
           const userEmail = USER_EMAIL || '';
           if (!allowedUsers.includes(userEmail.toLowerCase())) {
-            alert('⚠️ No tienes permisos para editar ventas.\n\nSolo los siguientes usuarios pueden editar:\n\n' + allowedUsers.join('\n'));
+            alert('⚠️ No tienes permisos para editar ventas.');
             return;
           }
 
