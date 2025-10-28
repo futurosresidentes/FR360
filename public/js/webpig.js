@@ -305,12 +305,14 @@ function getStageStatus(webhook, columnName, isAccepted) {
 
   // CASO 2: Producto no requiere membresías - mostrar N/A verde
   if (columnName === 'FRAPP') {
-    // Buscar en el log "completed" si dice "NO requiere membresías"
+    // Buscar en el log "completed" si dice "NO requiere membresías" o "NO se añadió membresía"
     const noMembershipRequired = webhook.logs.all.some(log =>
       (log.stage === 'completed' || log.stage === 'membership_check') &&
       (log.details?.includes('NO requiere membresías') ||
        log.details?.includes('no requiere membresías') ||
-       log.details?.includes('Producto no requiere membresías'))
+       log.details?.includes('Producto no requiere membresías') ||
+       log.details?.includes('NO se añadió membresía') ||
+       log.details?.includes('no se añadió membresía'))
     );
     if (noMembershipRequired) {
       return { status: 'not-required', icon: 'N/A', logs };
