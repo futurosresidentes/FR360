@@ -293,8 +293,9 @@ function getStageStatus(webhook, columnName, isAccepted) {
   );
 
   // CASO 1: DIAN desactivado por configuración - no mostrar como warning
-  if (columnName === 'DIAN' && hasSkipped) {
+  if (columnName === 'DIAN') {
     const isDianDisabled = logs.some(log =>
+      log.details?.includes('WORLDOFFICE_DIAN_ENABLED=false') ||
       log.response_data?.reason?.includes('WORLDOFFICE_DIAN_ENABLED=false')
     );
     if (isDianDisabled) {
@@ -305,8 +306,8 @@ function getStageStatus(webhook, columnName, isAccepted) {
   // CASO 2: Producto no requiere membresías - mostrar N/A verde
   if (columnName === 'FRAPP') {
     const noMembershipRequired = logs.some(log =>
-      log.stage === 'membership_check' &&
-      log.details?.includes('Producto no requiere membresías')
+      log.details?.includes('Producto no requiere membresías') ||
+      log.details?.includes('no requiere membresías')
     );
     if (noMembershipRequired) {
       return { status: 'not-required', icon: 'N/A', logs };
@@ -316,7 +317,7 @@ function getStageStatus(webhook, columnName, isAccepted) {
   // CASO 3: Acuerdo de contado - no se valida en cartera - mostrar N/A verde
   if (columnName === 'Cartera') {
     const isContado = logs.some(log =>
-      log.details?.includes('Acuerdo: Contado') &&
+      (log.details?.includes('Acuerdo: Contado') || log.details?.includes('acuerdo de contado')) &&
       log.details?.includes('no se valida en cartera')
     );
     if (isContado) {
