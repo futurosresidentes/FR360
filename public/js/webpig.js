@@ -281,6 +281,52 @@ function getStageStatus(webhook, columnName, isAccepted) {
     relevantStages.includes(log.stage)
   );
 
+  // CASO 2: Producto no requiere membresías - mostrar N/A verde (ANTES de verificar logs.length)
+  if (columnName === 'FRAPP') {
+    // Buscar si existe un log de membership_check que dice que no requiere membresías
+    const membershipCheckLog = webhook.logs?.all?.find(log => log.stage === 'membership_check');
+
+    if (membershipCheckLog) {
+      const details = (membershipCheckLog.details || '').toLowerCase();
+      const hasNoRequiere = details.includes('no requiere membresías') || details.includes('no requiere membresias');
+
+      if (hasNoRequiere) {
+        return { status: 'not-required', icon: 'N/A', logs: [] };
+      }
+    }
+
+    // Si llegamos aquí, buscamos en los logs filtrados de FRAPP
+    // Si hay membership_creation con success, mostrará ✅ (flujo normal)
+    // Si no hay logs, mostrará ⛔ (flujo normal)
+  }
+
+  // CASO 3: Cartera - verificar nroAcuerdo null (ANTES de verificar logs.length)
+  if (columnName === 'Cartera') {
+    // Verificar si existe stage strapi_cartera_update con success
+    const hasCarteraSuccess = webhook.logs?.all?.some(log =>
+      log.stage === 'strapi_cartera_update' && log.status === 'success'
+    );
+
+    if (hasCarteraSuccess) {
+      // Continuar con flujo normal para mostrar ✅
+    } else {
+      // NO existe strapi_cartera_update, verificar nroAcuerdo null
+      // Buscar nroAcuerdo en los logs de by_status.success (que tienen response_data completo)
+      const fr360QueryLog = webhook.logs?.by_status?.success?.find(log =>
+        log.stage === 'fr360_query'
+      );
+
+      const hasNullAcuerdo = fr360QueryLog?.response_data?.nroAcuerdo === null ||
+                             fr360QueryLog?.response_data?.agreementId === null;
+
+      if (hasNullAcuerdo) {
+        return { status: 'not-required', icon: 'N/A', logs: [] };
+      }
+
+      // Si no tiene cartera success Y no tiene nroAcuerdo null → ⛔
+    }
+  }
+
   if (logs.length === 0) {
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
@@ -300,40 +346,6 @@ function getStageStatus(webhook, columnName, isAccepted) {
     );
     if (isDianDisabled) {
       return { status: 'not-applicable', icon: '-', logs };
-    }
-  }
-
-  // CASO 2: Producto no requiere membresías - mostrar N/A verde
-  if (columnName === 'FRAPP') {
-    // Buscar si existe un log de membership_check que dice que no requiere membresías
-    const hasMembershipCheck = webhook.logs.all.some(log =>
-      log.stage === 'membership_check' &&
-      (log.details?.includes('Producto no requiere membresías') ||
-       log.details?.includes('no requiere membresías'))
-    );
-
-    if (hasMembershipCheck) {
-      return { status: 'not-required', icon: 'N/A', logs: [] };
-    }
-
-    // Si llegamos aquí, buscamos en los logs filtrados de FRAPP
-    // Si hay membership_creation con success, mostrará ✅ (flujo normal)
-    // Si no hay logs, mostrará ⛔ (flujo normal)
-  }
-
-  // CASO 3: Acuerdo de contado - no se valida en cartera - mostrar N/A verde
-  if (columnName === 'Cartera') {
-    // Si no hay logs de cartera Y el webhook tiene acuerdo "Contado"
-    const hasCarteraLogs = logs.length > 0;
-
-    // Buscar "Contado" en cualquier log (especialmente en strapi_facturacion_creation)
-    const isContado = webhook.logs.all.some(log =>
-      log.details?.includes('Acuerdo: Contado') ||
-      log.request_payload?.acuerdo === 'Contado'
-    );
-
-    if (!hasCarteraLogs && isContado) {
-      return { status: 'not-required', icon: 'N/A', logs: [] };
     }
   }
 
