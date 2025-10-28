@@ -292,6 +292,38 @@ function getStageStatus(webhook, columnName, isAccepted) {
     (log.response_data.reason.includes('_ENABLED=false') || log.response_data.reason.includes('feature flag'))
   );
 
+  // CASO 1: DIAN desactivado por configuración - no mostrar como warning
+  if (columnName === 'DIAN' && hasSkipped) {
+    const isDianDisabled = logs.some(log =>
+      log.response_data?.reason?.includes('WORLDOFFICE_DIAN_ENABLED=false')
+    );
+    if (isDianDisabled) {
+      return { status: 'not-applicable', icon: '-', logs };
+    }
+  }
+
+  // CASO 2: Producto no requiere membresías - mostrar N/A verde
+  if (columnName === 'FRAPP') {
+    const noMembershipRequired = logs.some(log =>
+      log.stage === 'membership_check' &&
+      log.details?.includes('Producto no requiere membresías')
+    );
+    if (noMembershipRequired) {
+      return { status: 'not-required', icon: 'N/A', logs };
+    }
+  }
+
+  // CASO 3: Acuerdo de contado - no se valida en cartera - mostrar N/A verde
+  if (columnName === 'Cartera') {
+    const isContado = logs.some(log =>
+      log.details?.includes('Acuerdo: Contado') &&
+      log.details?.includes('no se valida en cartera')
+    );
+    if (isContado) {
+      return { status: 'not-required', icon: 'N/A', logs };
+    }
+  }
+
   const hasError = logs.some(log => log.status === 'error');
   const hasSuccess = logs.some(log => log.status === 'success');
   const hasProcessing = logs.some(log => log.status === 'processing');

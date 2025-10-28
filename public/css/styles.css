@@ -1577,6 +1577,17 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: none;
 }
 
+.stage-icon.not-required {
+  color: #28a745;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stage-icon.not-required:hover {
+  transform: scale(1.15);
+}
+
 /* Failed stage highlighting */
 .stage-col.failed-stage {
   background-color: #fff3cd;
