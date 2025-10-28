@@ -305,18 +305,20 @@ function getStageStatus(webhook, columnName, isAccepted) {
 
   // CASO 2: Producto no requiere membresías - mostrar N/A verde
   if (columnName === 'FRAPP') {
-    // Buscar en el log "completed" si dice "NO requiere membresías" o "NO se añadió membresía"
-    const noMembershipRequired = webhook.logs.all.some(log =>
-      (log.stage === 'completed' || log.stage === 'membership_check') &&
-      (log.details?.includes('NO requiere membresías') ||
-       log.details?.includes('no requiere membresías') ||
-       log.details?.includes('Producto no requiere membresías') ||
-       log.details?.includes('NO se añadió membresía') ||
-       log.details?.includes('no se añadió membresía'))
+    // Buscar si existe un log de membership_check que dice que no requiere membresías
+    const hasMembershipCheck = webhook.logs.all.some(log =>
+      log.stage === 'membership_check' &&
+      (log.details?.includes('Producto no requiere membresías') ||
+       log.details?.includes('no requiere membresías'))
     );
-    if (noMembershipRequired) {
-      return { status: 'not-required', icon: 'N/A', logs };
+
+    if (hasMembershipCheck) {
+      return { status: 'not-required', icon: 'N/A', logs: [] };
     }
+
+    // Si llegamos aquí, buscamos en los logs filtrados de FRAPP
+    // Si hay membership_creation con success, mostrará ✅ (flujo normal)
+    // Si no hay logs, mostrará ⛔ (flujo normal)
   }
 
   // CASO 3: Acuerdo de contado - no se valida en cartera - mostrar N/A verde
