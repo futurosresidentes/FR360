@@ -305,9 +305,12 @@ function getStageStatus(webhook, columnName, isAccepted) {
 
   // CASO 2: Producto no requiere membresías - mostrar N/A verde
   if (columnName === 'FRAPP') {
-    const noMembershipRequired = logs.some(log =>
-      log.details?.includes('Producto no requiere membresías') ||
-      log.details?.includes('no requiere membresías')
+    // Buscar en el log "completed" si dice "NO requiere membresías"
+    const noMembershipRequired = webhook.logs.all.some(log =>
+      (log.stage === 'completed' || log.stage === 'membership_check') &&
+      (log.details?.includes('NO requiere membresías') ||
+       log.details?.includes('no requiere membresías') ||
+       log.details?.includes('Producto no requiere membresías'))
     );
     if (noMembershipRequired) {
       return { status: 'not-required', icon: 'N/A', logs };
@@ -316,12 +319,17 @@ function getStageStatus(webhook, columnName, isAccepted) {
 
   // CASO 3: Acuerdo de contado - no se valida en cartera - mostrar N/A verde
   if (columnName === 'Cartera') {
-    const isContado = logs.some(log =>
-      (log.details?.includes('Acuerdo: Contado') || log.details?.includes('acuerdo de contado')) &&
-      log.details?.includes('no se valida en cartera')
+    // Si no hay logs de cartera Y el webhook tiene acuerdo "Contado"
+    const hasCarteraLogs = logs.length > 0;
+
+    // Buscar "Contado" en cualquier log (especialmente en strapi_facturacion_creation)
+    const isContado = webhook.logs.all.some(log =>
+      log.details?.includes('Acuerdo: Contado') ||
+      log.request_payload?.acuerdo === 'Contado'
     );
-    if (isContado) {
-      return { status: 'not-required', icon: 'N/A', logs };
+
+    if (!hasCarteraLogs && isContado) {
+      return { status: 'not-required', icon: 'N/A', logs: [] };
     }
   }
 
