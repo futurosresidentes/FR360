@@ -327,6 +327,27 @@ function getStageStatus(webhook, columnName, isAccepted) {
     }
   }
 
+  // CASO 4: DIAN - verificar si está desactivado por configuración (ANTES de verificar logs.length)
+  if (columnName === 'DIAN') {
+    // Buscar si hay un log de worldoffice_dian_emission
+    const dianLog = webhook.logs?.all?.find(log => log.stage === 'worldoffice_dian_emission');
+
+    if (dianLog) {
+      // Si el log tiene "Emisión DIAN desactivada por configuración" → ⚠️
+      if (dianLog.details?.includes('Emisión DIAN desactivada por configuración') ||
+          dianLog.details?.includes('WORLDOFFICE_DIAN_ENABLED=false')) {
+        return { status: 'skipped', icon: '⚠️', logs: [dianLog] };
+      }
+
+      // Si el log tiene status success → ✅ (flujo normal)
+      if (dianLog.status === 'success') {
+        // Continuar con flujo normal para mostrar ✅
+      }
+    }
+
+    // Si no hay log de DIAN o no es ninguno de los casos anteriores → ⛔ (flujo normal)
+  }
+
   if (logs.length === 0) {
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
@@ -337,17 +358,6 @@ function getStageStatus(webhook, columnName, isAccepted) {
     log.response_data?.reason &&
     (log.response_data.reason.includes('_ENABLED=false') || log.response_data.reason.includes('feature flag'))
   );
-
-  // CASO 1: DIAN desactivado por configuración - no mostrar como warning
-  if (columnName === 'DIAN') {
-    const isDianDisabled = logs.some(log =>
-      log.details?.includes('WORLDOFFICE_DIAN_ENABLED=false') ||
-      log.response_data?.reason?.includes('WORLDOFFICE_DIAN_ENABLED=false')
-    );
-    if (isDianDisabled) {
-      return { status: 'not-applicable', icon: '-', logs };
-    }
-  }
 
   const hasError = logs.some(log => log.status === 'error');
   const hasSuccess = logs.some(log => log.status === 'success');
