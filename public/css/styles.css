@@ -1442,6 +1442,17 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   vertical-align: middle;
 }
 
+#webhooksTable td.date-col {
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+  min-width: 100px;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #webhooksTable td.id-col {
   font-family: monospace;
   font-size: 0.85rem;
@@ -1564,6 +1575,138 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 
 .stage-icon.not-applicable:hover {
   transform: none;
+}
+
+/* Failed stage highlighting */
+.stage-col.failed-stage {
+  background-color: #fff3cd;
+  border-left: 3px solid #dc3545;
+  animation: pulse-failed 2s ease-in-out infinite;
+}
+
+@keyframes pulse-failed {
+  0%, 100% {
+    background-color: #fff3cd;
+  }
+  50% {
+    background-color: #ffe69c;
+  }
+}
+
+/* Retry status badges */
+.retry-status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.retry-status-badge.retry-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.retry-status-badge.retry-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.retry-status-badge.retry-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Retry button */
+.btn-retry {
+  background-color: #fff;
+  border: 2px solid #007bff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #007bff;
+  font-weight: 500;
+}
+
+.btn-retry:hover {
+  background-color: #007bff;
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.btn-retry:active {
+  transform: scale(0.98);
+}
+
+/* Checkpoint info in modal */
+.checkpoint-info {
+  background-color: #e7f3ff;
+  border: 2px solid #b3d9ff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.checkpoint-info h4 {
+  margin: 0 0 12px 0;
+  color: #0056b3;
+  font-size: 1rem;
+}
+
+.checkpoint-item {
+  background-color: #fff;
+  border-left: 3px solid #007bff;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.checkpoint-item:last-child {
+  margin-bottom: 0;
+}
+
+.checkpoint-stage-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  font-size: 0.95rem;
+}
+
+.checkpoint-time {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.checkpoint-item details {
+  margin-top: 8px;
+}
+
+.checkpoint-item summary {
+  cursor: pointer;
+  color: #007bff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+.checkpoint-item summary:hover {
+  text-decoration: underline;
+}
+
+.checkpoint-item pre {
+  margin-top: 8px;
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  overflow-x: auto;
 }
 
 .webhook-empty {

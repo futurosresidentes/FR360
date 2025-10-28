@@ -11,8 +11,14 @@ const FLAG_PERMISSIONS = {
   'WORLDOFFICE_DIAN_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com']
 };
 
+// Retry button permissions
+const RETRY_PERMISSIONS = ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'];
+
 // Stage mapping to columns
 const STAGE_COLUMNS = {
+  'invoice_extraction': 'Datos',
+  'fr360_query': 'FR360',
+  'callbell_notification': 'WhatsApp',
   'membership_creation': 'FRAPP',
   'crm_management': 'CRM',
   'crm_upsert': 'CRM',
@@ -188,6 +194,78 @@ function isTransactionAccepted(webhook) {
   return webhook.response === 'Aceptada';
 }
 
+// Get retry status for webhook
+function getRetryStatus(webhook) {
+  if (!webhook.retry_count || webhook.retry_count === 0) {
+    return { icon: '-', tooltip: 'Sin reintentos', cssClass: '' };
+  }
+
+  if (webhook.status === 'completed') {
+    return {
+      icon: `🔄${webhook.retry_count}✅`,
+      tooltip: `Completado después de ${webhook.retry_count} reintento(s)`,
+      cssClass: 'retry-success'
+    };
+  }
+
+  if (webhook.status === 'retrying') {
+    return {
+      icon: `⏳${webhook.retry_count}`,
+      tooltip: `Reintentando... (intento ${webhook.retry_count})`,
+      cssClass: 'retry-warning'
+    };
+  }
+
+  if (webhook.status === 'requires_manual_intervention') {
+    return {
+      icon: `🚨${webhook.retry_count}`,
+      tooltip: `Requiere intervención manual después de ${webhook.retry_count} intentos`,
+      cssClass: 'retry-error'
+    };
+  }
+
+  return {
+    icon: `⚠️${webhook.retry_count}`,
+    tooltip: `${webhook.retry_count} reintento(s)`,
+    cssClass: 'retry-warning'
+  };
+}
+
+// Retry webhook manually
+async function retryWebhook(webhookId) {
+  // Check permissions
+  if (!RETRY_PERMISSIONS.includes(window.userEmail)) {
+    alert('⚠️ No tienes permisos para reintentar webhooks.');
+    return;
+  }
+
+  if (!confirm(`¿Reintentar procesamiento del webhook ${webhookId}?\n\nSe continuará desde el último checkpoint guardado.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/webpig/webhooks/${webhookId}/retry`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        force_restart: false,
+        max_retries: 3
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert(`✅ Webhook ${webhookId} en cola para reprocesamiento.\n\nStages completados: ${result.retry_config?.completed_stages?.join(', ') || 'ninguno'}`);
+      loadWebhooks(); // Recargar tabla
+    } else {
+      alert(`❌ Error: ${result.error || 'Error desconocido'}`);
+    }
+  } catch (error) {
+    alert(`❌ Error al reintentar: ${error.message}`);
+  }
+}
+
 // Get stage status for a specific column
 function getStageStatus(webhook, columnName, isAccepted) {
   // If transaction was rejected, don't show stages
@@ -224,9 +302,19 @@ function getStageStatus(webhook, columnName, isAccepted) {
   } else if (hasError) {
     return { status: 'error', icon: '⛔', logs };
   } else if (hasSuccess) {
-    return { status: 'success', icon: '✅', logs };
+    // Check if stage has checkpoint saved
+    const hasCheckpoint = webhook.completed_stages &&
+      relevantStages.some(stage => webhook.completed_stages.includes(stage));
+
+    const icon = hasCheckpoint ? '✅💾' : '✅';
+    return { status: 'success', icon, logs };
   } else if (hasInfo) {
-    return { status: 'success', icon: '✅', logs };
+    // Check if stage has checkpoint saved
+    const hasCheckpoint = webhook.completed_stages &&
+      relevantStages.some(stage => webhook.completed_stages.includes(stage));
+
+    const icon = hasCheckpoint ? '✅💾' : '✅';
+    return { status: 'success', icon, logs };
   } else if (hasProcessing) {
     return { status: 'pending', icon: '⏳', logs };
   }
@@ -234,7 +322,7 @@ function getStageStatus(webhook, columnName, isAccepted) {
   return { status: 'not-run', icon: '⛔', logs };
 }
 
-// Format date
+// Format date (full format for modal)
 function formatDate(dateString) {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat('es-CO', {
@@ -245,6 +333,17 @@ function formatDate(dateString) {
     minute: '2-digit',
     second: '2-digit'
   }).format(date);
+}
+
+// Format date compact (for table)
+function formatDateCompact(dateString) {
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 // Show stage details modal
@@ -258,7 +357,41 @@ function showStageDetails(columnName, logs, webhookData) {
   if (!logs || logs.length === 0) {
     body.innerHTML = '<div class="no-logs">No hay logs disponibles para este stage</div>';
   } else {
-    body.innerHTML = logs.map(log => {
+    // Get checkpoint info for this column
+    const webhook = webhookData.webhook;
+    const relevantStages = Object.entries(STAGE_COLUMNS)
+      .filter(([_, col]) => col === columnName)
+      .map(([stage, _]) => stage);
+
+    let checkpointInfo = '';
+    if (webhook && webhook.processing_context && webhook.processing_context.checkpoints) {
+      const relevantCheckpoints = relevantStages.filter(stage =>
+        webhook.processing_context.checkpoints[stage]
+      );
+
+      if (relevantCheckpoints.length > 0) {
+        checkpointInfo = '<div class="checkpoint-info">';
+        checkpointInfo += '<h4>💾 Checkpoints Guardados</h4>';
+        relevantCheckpoints.forEach(stage => {
+          const checkpoint = webhook.processing_context.checkpoints[stage];
+          checkpointInfo += `
+            <div class="checkpoint-item">
+              <div class="checkpoint-stage-name">${stage}</div>
+              ${checkpoint.completed_at ? `<div class="checkpoint-time">Completado: ${formatDate(checkpoint.completed_at)}</div>` : ''}
+              ${checkpoint.data ? `
+                <details>
+                  <summary>Ver datos guardados</summary>
+                  <pre>${JSON.stringify(checkpoint.data, null, 2)}</pre>
+                </details>
+              ` : ''}
+            </div>
+          `;
+        });
+        checkpointInfo += '</div>';
+      }
+    }
+
+    body.innerHTML = checkpointInfo + logs.map(log => {
       const statusClass = log.status === 'success' || log.status === 'info' ? 'success' :
                          log.status === 'error' ? 'error' : 'info';
 
@@ -321,16 +454,28 @@ function renderWebhooks(webhooks) {
     return;
   }
 
+  // Filter only accepted webhooks
+  const acceptedWebhooks = webhooks.filter(webhook => isTransactionAccepted(webhook));
+
+  if (acceptedWebhooks.length === 0) {
+    container.innerHTML = '<div class="webhook-empty">No hay transacciones aceptadas disponibles</div>';
+    return;
+  }
+
   // Create single table
   const table = document.createElement('table');
   table.id = 'webhooksTable';
   table.innerHTML = `
     <thead>
       <tr>
+        <th>Fecha</th>
         <th>ID</th>
         <th>Cliente</th>
         <th>Producto</th>
         <th>Estado</th>
+        <th>Datos</th>
+        <th>FR360</th>
+        <th>WhatsApp</th>
         <th>FRAPP</th>
         <th>CRM</th>
         <th>WO</th>
@@ -338,6 +483,8 @@ function renderWebhooks(webhooks) {
         <th>DIAN</th>
         <th>Cartera</th>
         <th>Ventas</th>
+        <th>Retry</th>
+        <th>Acciones</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -346,7 +493,7 @@ function renderWebhooks(webhooks) {
   const tbody = table.querySelector('tbody');
 
   // Table rows
-  webhooks.forEach(webhook => {
+  acceptedWebhooks.forEach(webhook => {
     const row = document.createElement('tr');
 
     const invoiceId = extractInvoiceId(webhook);
@@ -359,6 +506,10 @@ function renderWebhooks(webhooks) {
     // Estado icon
     const estadoIcon = isAccepted ? '✅' : '🚫';
 
+    // Calcular status de todos los stages
+    const datosStatus = getStageStatus(webhook, 'Datos', isAccepted);
+    const fr360Status = getStageStatus(webhook, 'FR360', isAccepted);
+    const whatsappStatus = getStageStatus(webhook, 'WhatsApp', isAccepted);
     const frappStatus = getStageStatus(webhook, 'FRAPP', isAccepted);
     const crmStatus = getStageStatus(webhook, 'CRM', isAccepted);
     const woStatus = getStageStatus(webhook, 'WO', isAccepted);
@@ -367,7 +518,20 @@ function renderWebhooks(webhooks) {
     const carteraStatus = getStageStatus(webhook, 'Cartera', isAccepted);
     const ventasStatus = getStageStatus(webhook, 'Ventas', isAccepted);
 
+    // Calcular retry status
+    const retryStatus = getRetryStatus(webhook);
+
+    // Helper function to check if stage is the failed one
+    const getFailedClass = (columnName) => {
+      if (!webhook.failed_stage) return '';
+      const relevantStages = Object.entries(STAGE_COLUMNS)
+        .filter(([_, col]) => col === columnName)
+        .map(([stage, _]) => stage);
+      return relevantStages.includes(webhook.failed_stage) ? 'failed-stage' : '';
+    };
+
     row.innerHTML = `
+      <td class="date-col">${formatDateCompact(webhook.created_at)}</td>
       <td class="id-col">${webhook.id}</td>
       <td class="customer-col">
         <div class="customer-name" title="${customer}">${customer}</div>
@@ -377,54 +541,88 @@ function renderWebhooks(webhooks) {
       </td>
       <td class="product-col" title="${product}">${product}</td>
       <td class="estado-col">${estadoIcon}</td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('Datos')}" data-column="Datos">
+        <span class="stage-icon ${datosStatus.status}" data-column="Datos" data-webhook-id="${webhook.id}">
+          ${datosStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('FR360')}" data-column="FR360">
+        <span class="stage-icon ${fr360Status.status}" data-column="FR360" data-webhook-id="${webhook.id}">
+          ${fr360Status.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('WhatsApp')}" data-column="WhatsApp">
+        <span class="stage-icon ${whatsappStatus.status}" data-column="WhatsApp" data-webhook-id="${webhook.id}">
+          ${whatsappStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('FRAPP')}" data-column="FRAPP">
         <span class="stage-icon ${frappStatus.status}" data-column="FRAPP" data-webhook-id="${webhook.id}">
           ${frappStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('CRM')}" data-column="CRM">
         <span class="stage-icon ${crmStatus.status}" data-column="CRM" data-webhook-id="${webhook.id}">
           ${crmStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('WO')}" data-column="WO">
         <span class="stage-icon ${woStatus.status}" data-column="WO" data-webhook-id="${webhook.id}">
           ${woStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('Factura')}" data-column="Factura">
         <span class="stage-icon ${facturaStatus.status}" data-column="Factura" data-webhook-id="${webhook.id}">
           ${facturaStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('DIAN')}" data-column="DIAN">
         <span class="stage-icon ${dianStatus.status}" data-column="DIAN" data-webhook-id="${webhook.id}">
           ${dianStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('Cartera')}" data-column="Cartera">
         <span class="stage-icon ${carteraStatus.status}" data-column="Cartera" data-webhook-id="${webhook.id}">
           ${carteraStatus.icon}
         </span>
       </td>
-      <td class="stage-col">
+      <td class="stage-col ${getFailedClass('Ventas')}" data-column="Ventas">
         <span class="stage-icon ${ventasStatus.status}" data-column="Ventas" data-webhook-id="${webhook.id}">
           ${ventasStatus.icon}
         </span>
       </td>
+      <td class="retry-col">
+        <span class="retry-status-badge ${retryStatus.cssClass}" title="${retryStatus.tooltip}">
+          ${retryStatus.icon}
+        </span>
+      </td>
+      <td class="actions-col">
+        ${(webhook.status === 'error' || webhook.status === 'requires_manual_intervention') && RETRY_PERMISSIONS.includes(window.userEmail)
+          ? `<button onclick="retryWebhook(${webhook.id})" class="btn-retry">🔄 Reintentar</button>`
+          : ''
+        }
+      </td>
     `;
+
+    // Store webhook status and failed_stage for later use
+    row.dataset.status = webhook.status || 'completed';
+    row.dataset.failedStage = webhook.failed_stage || '';
 
     tbody.appendChild(row);
 
     // Store webhook data for later retrieval
     row.dataset.webhookData = JSON.stringify({
+      Datos: datosStatus,
+      FR360: fr360Status,
+      WhatsApp: whatsappStatus,
       FRAPP: frappStatus,
       CRM: crmStatus,
       WO: woStatus,
       Factura: facturaStatus,
       DIAN: dianStatus,
       Cartera: carteraStatus,
-      Ventas: ventasStatus
+      Ventas: ventasStatus,
+      webhook: webhook  // Store full webhook for modal
     });
   });
 

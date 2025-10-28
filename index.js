@@ -78,6 +78,8 @@ app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
 // GET recent webhooks
 app.get('/api/webpig/webhooks', ensureAuthenticated, ensureDomain, async (req, res) => {
   try {
+    console.log(`[WebPig] Fetching webhooks from: ${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent`);
+
     const response = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent`, {
       method: 'GET',
       headers: {
@@ -86,10 +88,14 @@ app.get('/api/webpig/webhooks', ensureAuthenticated, ensureDomain, async (req, r
       }
     });
 
+    console.log(`[WebPig] Response status: ${response.status}`);
+
     const data = await response.json();
+    console.log(`[WebPig] Response data:`, JSON.stringify(data).substring(0, 200));
+
     res.json(data);
   } catch (error) {
-    console.error('Error fetching webhooks:', error);
+    console.error('[WebPig] Error fetching webhooks:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -147,6 +153,46 @@ app.post('/api/webpig/feature-flags/:flagKey', ensureAuthenticated, ensureDomain
     res.json(data);
   } catch (error) {
     console.error('[WebPig] Error updating feature flag:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST retry webhook
+app.post('/api/webpig/webhooks/:id/retry', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { id } = req.params;
+  const { force_restart = false, max_retries = 3 } = req.body;
+
+  console.log(`[WebPig] Retrying webhook ID: ${id} (force_restart: ${force_restart}, max_retries: ${max_retries})`);
+
+  try {
+    const response = await fetch(
+      `${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/${id}/retry`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.FACTURADOR_WEBHOOK_BEARER_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          force_restart,
+          max_retries
+        })
+      }
+    );
+
+    console.log(`[WebPig] Retry response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[WebPig] Retry error: ${errorText}`);
+      return res.status(response.status).json({ success: false, error: errorText });
+    }
+
+    const data = await response.json();
+    console.log(`[WebPig] Retry success:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('[WebPig] Error retrying webhook:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
