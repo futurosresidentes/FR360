@@ -257,7 +257,7 @@ select {
 
 .callbell-icon {
   position: absolute;
-  right: 8px;
+  right: 32px; /* Move left to make room for copy button */
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
@@ -2036,6 +2036,67 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 .save-venta-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* === Copy to clipboard tooltip === */
+.copy-tooltip {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10000;
+  white-space: nowrap;
+  animation: fadeInOut 1.2s ease-in-out;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+/* Copy icon styles (similar to callbell icon) */
+.copy-icon {
+  position: absolute;
+  right: 8px; /* Default: right edge */
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.copy-icon:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.15);
+}
+
+.copy-icon:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .cancel-membership-btn,

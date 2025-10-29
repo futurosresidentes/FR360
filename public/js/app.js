@@ -102,6 +102,99 @@
     // ===== Datos de membresías actuales =====
     let currentMembershipsData = null; // Para almacenar las membresías del usuario actual
 
+    // ===== Copy to clipboard for input fields =====
+    function showCopyTooltip(event, text) {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'copy-tooltip';
+      tooltip.textContent = '✓ Copiado';
+      tooltip.style.left = `${event.clientX}px`;
+      tooltip.style.top = `${event.clientY - 30}px`;
+
+      document.body.appendChild(tooltip);
+
+      setTimeout(() => {
+        tooltip.remove();
+      }, 1200);
+    }
+
+    // Copy icons functionality
+    const copyIcons = {
+      nombres: document.getElementById('copyNombres'),
+      apellidos: document.getElementById('copyApellidos'),
+      correo: document.getElementById('copyCorreo'),
+      celular: document.getElementById('copyCelular')
+    };
+
+    // Function to show/hide copy icons based on field value
+    window.updateCopyIconVisibility = function(fieldId) {
+      const field = document.getElementById(fieldId);
+      const icon = copyIcons[fieldId];
+
+      if (field && icon) {
+        if (field.value && field.value.trim()) {
+          icon.style.display = 'block';
+        } else {
+          icon.style.display = 'none';
+        }
+      }
+    };
+
+    // Handle copy icon clicks
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('copy-icon')) {
+        const fieldId = e.target.getAttribute('data-copy-target');
+        const field = document.getElementById(fieldId);
+
+        if (field && field.value && field.value.trim()) {
+          const value = field.value.trim();
+
+          // Try clipboard API
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(value).then(() => {
+              showCopyTooltip(e, value);
+            }).catch(err => {
+              console.error('Error copying:', err);
+              fallbackCopyToClipboard(value, field, e);
+            });
+          } else {
+            fallbackCopyToClipboard(value, field, e);
+          }
+        }
+      }
+    });
+
+    // Fallback copy method for browsers without clipboard API
+    function fallbackCopyToClipboard(text, field, event) {
+      const wasDisabled = field.disabled;
+      const wasReadOnly = field.readOnly;
+
+      try {
+        // Temporarily enable the field to allow selection
+        field.disabled = false;
+        field.readOnly = false;
+        field.select();
+        field.setSelectionRange(0, 99999); // For mobile devices
+
+        const successful = document.execCommand('copy');
+
+        // Restore original state
+        field.disabled = wasDisabled;
+        field.readOnly = wasReadOnly;
+
+        if (successful) {
+          console.log('✅ Copied using fallback method:', text);
+          showCopyTooltip(event, text);
+        } else {
+          console.error('❌ Fallback copy failed');
+        }
+      } catch (err) {
+        console.error('❌ Error in fallback copy:', err);
+        // Restore original state
+        field.disabled = wasDisabled;
+        field.readOnly = wasReadOnly;
+      }
+    }
+
     // ===== Estado del Plan de pagos =====
     let planState = [];        // [{nro, date:Date, amount:Number, editable:Boolean}]
     let planTotal = 0;
@@ -459,6 +552,12 @@
       [nombres, apellidos, correo, celular, valorInput].forEach((e) => e.value = '');
       producto.value = '';
 
+      // Ocultar iconos de copiar
+      updateCopyIconVisibility('nombres');
+      updateCopyIconVisibility('apellidos');
+      updateCopyIconVisibility('correo');
+      updateCopyIconVisibility('celular');
+
       // Limpiar campos de inicio plataforma
       inicioTipo.value = '';
       inicio.value = '';
@@ -599,6 +698,12 @@
             if (apellidos.value) apellidos.disabled = true;
             if (correo.value)    correo.disabled    = true;
             if (celular.value)   celular.disabled   = true;
+
+            // Mostrar iconos de copiar
+            updateCopyIconVisibility('nombres');
+            updateCopyIconVisibility('apellidos');
+            updateCopyIconVisibility('correo');
+            updateCopyIconVisibility('celular');
 
             // Verificar callbell después de llenar el campo celular
             if (celular.value) checkCallbellAvailability();
@@ -1337,6 +1442,10 @@
             nombres.disabled = true;
             apellidos.disabled = true;
 
+            // Mostrar iconos de copiar
+            updateCopyIconVisibility('nombres');
+            updateCopyIconVisibility('apellidos');
+
             // También llenar campos de Venta en confianza
             const nombresConfianza = document.getElementById('nombresConfianza');
             const apellidosConfianza = document.getElementById('apellidosConfianza');
@@ -1367,6 +1476,10 @@
               celular.value = strapi.celular || '';
               if (strapi.correo)  correo.disabled = true;
               if (strapi.celular) celular.disabled = true;
+
+              // Mostrar iconos de copiar
+              updateCopyIconVisibility('correo');
+              updateCopyIconVisibility('celular');
 
               // Verificar callbell después de llenar el campo celular
               if (celular.value) checkCallbellAvailability();
@@ -1414,6 +1527,10 @@
             const att = rec.attributes   || rec;
             if (att.correo)  { correo.value = att.correo;   correo.disabled = true; }
             if (att.celular) { celular.value = att.celular; celular.disabled = true; }
+
+            // Mostrar iconos de copiar
+            if (att.correo) updateCopyIconVisibility('correo');
+            if (att.celular) updateCopyIconVisibility('celular');
 
             // Verificar callbell después de llenar el campo celular
             if (att.celular) checkCallbellAvailability();

@@ -59,21 +59,31 @@
             <h3 style="margin-top: 0; margin-bottom: 20px; color: #075183;">Venta normal</h3>
             <div class="form-row">
               <span class="label">Nombres:</span>
-              <input id="nombres" class="input gray"/>
+              <div class="input-wrapper">
+                <input id="nombres" class="input gray"/>
+                <button type="button" id="copyNombres" class="copy-icon" data-copy-target="nombres" style="display:none;" title="Copiar">📋</button>
+              </div>
             </div>
             <div class="form-row">
               <span class="label">Apellidos:</span>
-              <input id="apellidos" class="input gray"/>
+              <div class="input-wrapper">
+                <input id="apellidos" class="input gray"/>
+                <button type="button" id="copyApellidos" class="copy-icon" data-copy-target="apellidos" style="display:none;" title="Copiar">📋</button>
+              </div>
             </div>
             <div class="form-row">
               <span class="label">Correo:</span>
-              <input id="correo" class="input" />
+              <div class="input-wrapper">
+                <input id="correo" class="input" />
+                <button type="button" id="copyCorreo" class="copy-icon" data-copy-target="correo" style="display:none;" title="Copiar">📋</button>
+              </div>
             </div>
             <div class="form-row">
               <span class="label">Celular:</span>
               <div class="input-wrapper">
                 <input id="celular" class="input" />
                 <span id="callbellIcon" class="callbell-icon" style="display:none;">🛎️</span>
+                <button type="button" id="copyCelular" class="copy-icon" data-copy-target="celular" style="display:none;" title="Copiar">📋</button>
               </div>
             </div>
             <div class="form-row">
