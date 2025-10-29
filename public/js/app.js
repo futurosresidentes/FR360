@@ -2139,26 +2139,41 @@
       const MAX_RESOLVE_ATTEMPTS = 3;   // cuántas veces reintentamos cada fila
       const RETRY_BASE_MS        = 600; // ms base para backoff exponencial
       // setea celdas y data-attributes desde la respuesta del servidor
-      // Verifica si una cuota está vencida comparando fecha límite con hoy
+      // Verifica si una cuota está vencida comparando fecha límite con hoy (zona horaria Colombia)
       function checkIfOverdue(tr) {
         const estadoActual = (tr.dataset.estadoPago || '').toLowerCase();
 
-        // Solo recalcular si está "al_dia" (no tocar "pagado" ni "en_mora" ya establecidos)
-        if (estadoActual !== 'al_dia') return;
+        // NO recalcular si ya está "pagado" (eso es definitivo)
+        if (estadoActual === 'pagado') return;
 
         const fechaLimite = tr.dataset.fechaLimite; // formato "YYYY-MM-DD"
         if (!fechaLimite || fechaLimite === '1970-01-01') return;
 
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
+        // Calcular "hoy" en zona horaria de Colombia (UTC-5)
+        const now = new Date();
+        const colombiaOffset = -5 * 60; // UTC-5 en minutos
+        const localOffset = now.getTimezoneOffset(); // Offset del navegador
+        const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
 
-        const limite = new Date(fechaLimite + 'T00:00:00');
+        const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
+        const limite = new Date(fechaLimite + 'T00:00:00-05:00');
 
-        // Si la fecha límite ya pasó, cambiar a "En mora"
+        // Recalcular estado basándose en la fecha
         if (limite < hoy) {
-          tr.dataset.estadoPago = 'en_mora';
-          const cE = tr.querySelector('.estado-cell');
-          if (cE) cE.textContent = 'En mora';
+          // La fecha límite YA pasó → En mora
+          if (estadoActual !== 'en_mora') {
+            tr.dataset.estadoPago = 'en_mora';
+            const cE = tr.querySelector('.estado-cell');
+            if (cE) cE.textContent = 'En mora';
+          }
+        } else {
+          // La fecha límite NO ha pasado → Al día
+          if (estadoActual === 'en_mora') {
+            // Autocorrección: estaba marcado "en_mora" pero NO debería
+            tr.dataset.estadoPago = 'al_dia';
+            const cE = tr.querySelector('.estado-cell');
+            if (cE) cE.textContent = 'Al día';
+          }
         }
       }
 
@@ -2190,8 +2205,11 @@
         const idPagoMora = tr.dataset.idPagoMora || '';
         if (idPago || idPagoMora) return false; // Necesita resolución
 
-        // Si no tiene links de pago, verificar si ya tiene estado
+        // Si el estado es "en_mora", SIEMPRE recalcular (para autocorregir errores de zona horaria)
         const est = (tr.dataset.estadoPago || '').toLowerCase();
+        if (est === 'en_mora') return false; // Necesita recalcular
+
+        // Si ya tiene estado "al_dia" o "pagado", está resuelto
         if (est) return true;
 
         // Si no vino, pero la marcamos como Pagado por "Paz y salvo"
@@ -2212,6 +2230,10 @@
         const fechaPagoActual = tr.dataset.fechaPago || '';
         const valorPagadoActual = tr.dataset.valorPagado || '';
 
+        // Si el estado es "en_mora" y no hay fecha de pago (no encontró pagos en Ventas),
+        // NO enviar estado_pago_calculado para forzar recálculo en backend
+        const debeRecalcular = estadoPagoActual === 'en_mora' && !fechaPagoActual;
+
         const payload = {
           documentId:      tr.dataset.documentId,
           id_pago:         tr.dataset.idPago || '',
@@ -2221,10 +2243,10 @@
           nro_acuerdo:     tr.dataset.nroAcuerdo || '',
           producto_nombre: tr.dataset.productoNombre || '',
           cuota_nro:       tr.dataset.cuotaNro || '',
-          // NUEVO: Enviar los datos ya calculados desde Ventas
-          estado_pago_calculado: estadoPagoActual,
-          fecha_pago_calculada: fechaPagoActual,
-          valor_pagado_calculado: valorPagadoActual ? Number(valorPagadoActual) : null
+          // NUEVO: Enviar los datos ya calculados desde Ventas, EXCEPTO si debe recalcular
+          estado_pago_calculado: debeRecalcular ? '' : estadoPagoActual,
+          fecha_pago_calculada: debeRecalcular ? '' : fechaPagoActual,
+          valor_pagado_calculado: debeRecalcular ? null : (valorPagadoActual ? Number(valorPagadoActual) : null)
         };
 
         api.resolvePagoYActualizarCartera(payload)

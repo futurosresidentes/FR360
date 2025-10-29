@@ -478,13 +478,22 @@ async function resolvePagoYActualizarCartera(payload) {
       };
     }
 
-    // Si no hay datos calculados, calcular basándose solo en la fecha límite
+    // Si no hay datos calculados desde Ventas, verificar si necesita recalcular estado
+    // Esto sirve como autocorrección si una cuota fue marcada "en_mora" incorrectamente
     const fechaLimite = payload.fecha_limite || '';
     if (fechaLimite && fechaLimite !== '1970-01-01') {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const limite = new Date(fechaLimite + 'T00:00:00');
+      // Usar zona horaria de Colombia (UTC-5) para calcular "hoy"
+      const now = new Date();
+      const colombiaOffset = -5 * 60; // UTC-5 en minutos
+      const localOffset = now.getTimezoneOffset(); // Offset del servidor en minutos
+      const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
+
+      const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
+      const limite = new Date(fechaLimite + 'T00:00:00-05:00'); // Fecha límite en zona Colombia
+
       const estadoPago = limite < hoy ? 'en_mora' : 'al_dia';
+
+      console.log(`📅 Recalculando estado: fecha_limite=${fechaLimite}, hoy=${hoy.toISOString().split('T')[0]}, estado=${estadoPago}`);
 
       const urlUpdate = `${STRAPI_BASE_URL}/api/carteras/${payload.documentId}`;
       const updateData = {
