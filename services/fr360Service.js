@@ -368,14 +368,18 @@ async function processSinglePayment(formData) {
  * @returns {Promise<Object>} Result object
  */
 async function deletePaymentLink(linkId) {
-  const url = `${FR360_BASE_URL}/api/v1/payment-links/${linkId}`;
+  const url = `${FR360_BASE_URL}/api/v1/payment-links/`;
 
   console.log(`🗑️ Eliminando link de pago con ID: ${linkId}`);
 
   try {
     const response = await axios.delete(url, {
       headers: {
-        'Authorization': `Bearer ${FR360_TOKEN}`
+        'Authorization': `Bearer ${FR360_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      data: {
+        id: parseInt(linkId)
       }
     });
 

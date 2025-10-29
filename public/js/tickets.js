@@ -146,6 +146,4 @@
     }
   }
 
-  console.log('🎫 Sistema de tickets cargado correctamente');
-
 })();

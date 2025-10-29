@@ -58,27 +58,80 @@
 
   // Process facturaciones and fetch cartera data for financed ones
   async function processFacturacionesWithCartera() {
-    for (let facturacion of facturacionesData) {
+    // 1. Separar acuerdos de contado vs financiado
+    const contadoFacturaciones = [];
+    const financiadoAcuerdos = [];
+
+    facturacionesData.forEach(facturacion => {
       const acuerdo = facturacion.acuerdo || '';
 
       if (acuerdo.toLowerCase() === 'contado') {
         facturacion.valorVenta = facturacion.valor_neto;
-      } else {
-        // Fetch cartera data using API client
-        try {
-          const carteraData = await api.legacy('fetchCarteraByAcuerdo', acuerdo);
+        contadoFacturaciones.push(facturacion);
+      } else if (acuerdo) {
+        financiadoAcuerdos.push(acuerdo);
+      }
+    });
 
-          if (carteraData && carteraData.valor_total_acuerdo) {
-            facturacion.valorVenta = carteraData.valor_total_acuerdo;
-          } else {
-            facturacion.valorVenta = facturacion.valor_neto;
-          }
-        } catch (error) {
-          console.error(`Error fetching cartera for acuerdo ${acuerdo}:`, error);
+    // 2. Si no hay acuerdos financiados, terminar aquí
+    if (financiadoAcuerdos.length === 0) {
+      console.log('✅ Todas las facturaciones son de contado');
+      return;
+    }
+
+    console.log(`📊 Obteniendo carteras para ${financiadoAcuerdos.length} acuerdos financiados...`);
+
+    // 3. Obtener TODAS las carteras de Udea 2026 en una sola consulta
+    let allCarteras = [];
+    try {
+      const response = await fetch('/api/carteras-udea2026', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          allCarteras = result.data || [];
+          console.log(`✅ Total carteras Udea 2026: ${allCarteras.length}`);
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching carteras:', error);
+      // Fallback: usar valor_neto para todos
+      facturacionesData.forEach(f => {
+        if (!f.valorVenta) f.valorVenta = f.valor_neto;
+      });
+      return;
+    }
+
+    // 4. Crear un mapa de acuerdo -> cartera
+    const carteraMap = new Map();
+    allCarteras.forEach(cartera => {
+      if (cartera.nro_acuerdo) {
+        carteraMap.set(cartera.nro_acuerdo, cartera);
+      }
+    });
+
+    // 5. Asignar valorVenta a cada facturación financiada
+    facturacionesData.forEach(facturacion => {
+      if (!facturacion.valorVenta) { // Solo procesar los que no son contado
+        const acuerdo = facturacion.acuerdo || '';
+        const cartera = carteraMap.get(acuerdo);
+
+        if (cartera && cartera.valor_total_acuerdo) {
+          facturacion.valorVenta = cartera.valor_total_acuerdo;
+        } else {
           facturacion.valorVenta = facturacion.valor_neto;
         }
       }
-    }
+    });
+
+    console.log('✅ Carteras procesadas correctamente');
   }
 
   // Render table

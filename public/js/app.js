@@ -5249,6 +5249,7 @@
         <table style="width:100%;font-size:0.9em">
           <thead>
             <tr>
+              <th>ID</th>
               <th>Comercial</th>
               <th>Tipo de ID</th>
               <th>Nro ID</th>
@@ -5263,6 +5264,7 @@
               <th>Transacción</th>
               <th>Acuerdo de pago</th>
               <th>Inicio plataforma</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -5302,8 +5304,11 @@
 
         // aplicar clase expired si venció
         const isExpired = item.expiryDate && new Date(item.expiryDate) < hoy;
+        const linkId = item.id || '';
+
         html += `
           <tr${isExpired?' class="expired-link"':''}>
+            <td><strong>${linkId}</strong></td>
             <td>${comercial}</td>
             <td>${tipoId}</td>
             <td>${nroId}</td>
@@ -5318,6 +5323,9 @@
             <td>${transaccion}</td>
             <td>${acuerdoPago}</td>
             <td>${inicioPlat}</td>
+            <td style="text-align:center">
+              <button class="delete-link-btn" data-link-id="${linkId}" title="Eliminar link" style="background:none;border:none;cursor:pointer;font-size:1.2em;padding:4px 8px;">🗑️</button>
+            </td>
           </tr>
         `;
       });
@@ -5327,6 +5335,55 @@
         </table>
       `;
       tableWrap.innerHTML = html;
+
+      // 7) Event listener para botones de eliminar
+      const deleteButtons = tableWrap.querySelectorAll('.delete-link-btn');
+      deleteButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const linkId = e.target.getAttribute('data-link-id');
+
+          // Verificar que el usuario sea daniel.cardona@sentiretaller.com
+          if (USER_EMAIL !== 'daniel.cardona@sentiretaller.com') {
+            alert('Solo daniel.cardona@sentiretaller.com puede eliminar links de pago.');
+            return;
+          }
+
+          // Confirmar eliminación
+          const confirmDelete = confirm(`¿Estás seguro de que quieres eliminar el link ID ${linkId}?`);
+          if (!confirmDelete) return;
+
+          try {
+            // Deshabilitar botón mientras se procesa
+            btn.disabled = true;
+            btn.textContent = '⏳';
+
+            // Llamar al endpoint DELETE
+            const response = await fetch('/api/payment-link/' + linkId, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              alert('Link eliminado exitosamente');
+              // Refrescar la tabla
+              const uid = document.getElementById('searchId').value.replace(/\D/g,'');
+              const newData = await api.getLinksByIdentityDocument(uid);
+              renderLinks(newData);
+            } else {
+              throw new Error(result.error || 'Error al eliminar el link');
+            }
+          } catch (error) {
+            console.error('Error eliminando link:', error);
+            alert('Error al eliminar el link: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = '🗑️';
+          }
+        });
+      });
     }
 
     // ===== Modal de Editar Usuario FRAPP =====

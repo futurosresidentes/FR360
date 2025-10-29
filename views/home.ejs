@@ -34,6 +34,7 @@
         <li class="nav-section-title">Utilidades</li>
         <li data-tab="webpig">Web Pig 🐷</li>
         <li data-tab="udea2026">Udea2026</li>
+        <li data-tab="retomas-udea">Retomas Udea</li>
       </ul>
     </nav>
   </aside>
@@ -332,6 +333,18 @@
           </div>
         </div>
         <div id="udeaTableContainer"></div>
+      </div>
+
+      <!-- RETOMAS UDEA -->
+      <div class="pane right" id="retomas-udea">
+        <div class="udea-header">
+          <h2>Retomas Udea 🔄</h2>
+          <button id="refreshRetomasBtn" class="btn-primary">🔄 Cargar Retomas</button>
+        </div>
+        <div id="retomasStatusContainer" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; display: none;">
+          <p id="retomasStatus" style="margin: 0; color: #333;"></p>
+        </div>
+        <div id="retomasTableContainer"></div>
       </div>
     </div>
   </div>
@@ -663,6 +676,8 @@
   <script src="/js/webpig.js"></script>
   <!-- UDEA 2026 module -->
   <script src="/js/udea2026.js"></script>
+  <!-- Retomas UDEA module -->
+  <script src="/js/retomas-udea.js"></script>
   <!-- Ticket system module -->
   <script src="/js/tickets.js"></script>
 </body>
