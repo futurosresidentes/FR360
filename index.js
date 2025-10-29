@@ -583,6 +583,301 @@ app.delete('/api/payment-link/:linkId', async (req, res) => {
   }
 });
 
+// Retomas Udea - Obtener links de pago no pagados para Udea 2026
+app.get('/api/retomas-udea', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const axios = require('axios');
+
+    // 1. Obtener todos los payment links de Udea 2026
+    console.log('📋 Fetching payment links for Udea 2026...');
+    let allPaymentLinks = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await axios.get('https://fr360-7cwi.onrender.com/api/v1/payment-links/list', {
+        params: {
+          pageSize: 100,
+          productStartsWith: 'Curso Intensivo UDEA 2026',
+          page
+        },
+        headers: {
+          'Authorization': `Bearer ${process.env.FR360_BEARER_TOKEN}`
+        }
+      });
+
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        allPaymentLinks = allPaymentLinks.concat(response.data.data);
+        page++;
+        // Si recibimos menos de 100, ya no hay más páginas
+        if (response.data.data.length < 100) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`✅ Total payment links fetched: ${allPaymentLinks.length}`);
+
+    // 2. Filtrar solo los productos específicos
+    const targetProducts = [
+      'Élite - 12 meses - Cuota 1',
+      'Curso Intensivo UDEA 2026'
+    ];
+
+    const filteredLinks = allPaymentLinks.filter(link =>
+      targetProducts.includes(link.product)
+    );
+
+    console.log(`🔍 Filtered to target products: ${filteredLinks.length}`);
+
+    // 3. Obtener TODAS las facturaciones de Udea 2026 de Strapi en una sola consulta
+    console.log('📊 Obteniendo facturaciones de Udea 2026 desde Strapi...');
+    let allFacturaciones = [];
+    let strapiPage = 1;
+    let hasMoreFacturaciones = true;
+
+    while (hasMoreFacturaciones) {
+      try {
+        const strapiResponse = await axios.get(
+          `https://strapi-project-d3p7.onrender.com/api/facturaciones`,
+          {
+            params: {
+              'filters[producto][nombre][$contains]': 'UDEA 2026',
+              'pagination[page]': strapiPage,
+              'pagination[pageSize]': 100
+            },
+            headers: {
+              'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+            }
+          }
+        );
+
+        const data = strapiResponse.data.data || [];
+        allFacturaciones = allFacturaciones.concat(data);
+
+        const pagination = strapiResponse.data.meta?.pagination;
+        if (pagination && strapiPage < pagination.pageCount) {
+          strapiPage++;
+        } else {
+          hasMoreFacturaciones = false;
+        }
+      } catch (error) {
+        console.error('❌ Error fetching facturaciones from Strapi:', error.message);
+        hasMoreFacturaciones = false;
+      }
+    }
+
+    console.log(`✅ Total facturaciones Udea 2026 en Strapi: ${allFacturaciones.length}`);
+
+    // 4. Crear un Set con todos los invoiceIds que SÍ están pagados
+    const paidInvoiceIds = new Set(
+      allFacturaciones
+        .map(f => f.transaccion)
+        .filter(Boolean)
+    );
+
+    console.log(`💰 Total invoiceIds pagados: ${paidInvoiceIds.size}`);
+
+    // 5. Filtrar links que NO están en el Set de pagados
+    const unpaidLinks = filteredLinks.filter(link => {
+      if (!link.invoiceId) {
+        console.log(`⚠️ Link sin invoiceId: ${link.identityDocument} - ${link.givenName}`);
+        return false;
+      }
+
+      const isPaid = paidInvoiceIds.has(link.invoiceId);
+
+      if (!isPaid) {
+        console.log(`✅ Link NO pagado encontrado: ${link.invoiceId} - ${link.identityDocument}`);
+      }
+
+      return !isPaid;
+    });
+
+    console.log(`💰 Unpaid links found: ${unpaidLinks.length}`);
+
+    // 6. Extraer cédulas únicas de los links no pagados
+    const uniqueIdentityDocuments = [...new Set(
+      unpaidLinks
+        .map(link => link.identityDocument)
+        .filter(Boolean)
+    )];
+
+    console.log(`📋 Cédulas únicas con links no pagados: ${uniqueIdentityDocuments.length}`);
+
+    // 7. Verificar si estas cédulas YA compraron "Curso Intensivo UDEA 2026" con otro link
+    console.log('🔍 Verificando si las cédulas ya compraron Curso Intensivo UDEA 2026 con otro link...');
+
+    const documentosQueYaCompraron = new Set();
+
+    // Strapi tiene límite de longitud en URL, así que hacemos batch de 50 cédulas a la vez
+    const batchSize = 50;
+    for (let i = 0; i < uniqueIdentityDocuments.length; i += batchSize) {
+      const batch = uniqueIdentityDocuments.slice(i, i + batchSize);
+
+      let batchPage = 1;
+      let hasMoreBatch = true;
+
+      while (hasMoreBatch) {
+        try {
+          const verificacionResponse = await axios.get(
+            `https://strapi-project-d3p7.onrender.com/api/facturaciones`,
+            {
+              params: {
+                'filters[numero_documento][$in]': batch,
+                'filters[producto][nombre][$startsWith]': 'Curso Intensivo UDEA 2026',
+                'pagination[page]': batchPage,
+                'pagination[pageSize]': 100
+              },
+              headers: {
+                'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+              }
+            }
+          );
+
+          const facturaciones = verificacionResponse.data.data || [];
+
+          // Agregar las cédulas que encontramos al Set
+          facturaciones.forEach(f => {
+            if (f.numero_documento) {
+              documentosQueYaCompraron.add(f.numero_documento);
+            }
+          });
+
+          const pagination = verificacionResponse.data.meta?.pagination;
+          if (pagination && batchPage < pagination.pageCount) {
+            batchPage++;
+          } else {
+            hasMoreBatch = false;
+          }
+        } catch (error) {
+          console.error(`❌ Error verificando batch de cédulas:`, error.message);
+          hasMoreBatch = false;
+        }
+      }
+    }
+
+    console.log(`❌ Cédulas que YA compraron con otro link: ${documentosQueYaCompraron.size}`);
+
+    // 8. Filtrar links excluyendo las cédulas que ya compraron
+    const linksRealesmenteNoComprados = unpaidLinks.filter(link => {
+      return !documentosQueYaCompraron.has(link.identityDocument);
+    });
+
+    console.log(`✅ Links realmente no comprados (sin falsos positivos): ${linksRealesmenteNoComprados.length}`);
+
+    // 9. Extraer identityDocument únicos con información completa
+    const uniqueContacts = new Map();
+
+    linksRealesmenteNoComprados.forEach(link => {
+      const doc = link.identityDocument;
+      if (doc && !uniqueContacts.has(doc)) {
+        uniqueContacts.set(doc, {
+          identityDocument: doc,
+          givenName: link.givenName || '',
+          familyName: link.familyName || '',
+          email: link.email || '',
+          phone: link.phone || '',
+          product: link.product,
+          invoiceId: link.invoiceId,
+          createdAt: link.createdAt
+        });
+      }
+    });
+
+    const result = Array.from(uniqueContacts.values());
+
+    console.log(`👥 Contactos finales para retoma (sin falsos positivos): ${result.length}`);
+
+    res.json({
+      success: true,
+      data: result,
+      summary: {
+        totalLinks: allPaymentLinks.length,
+        filteredLinks: filteredLinks.length,
+        unpaidLinks: unpaidLinks.length,
+        documentosYaCompraron: documentosQueYaCompraron.size,
+        linksReales: linksRealesmenteNoComprados.length,
+        uniqueContacts: result.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in retomas-udea:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint optimizado para traer TODAS las carteras de Udea 2026 en batch
+app.get('/api/carteras-udea2026', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const axios = require('axios');
+
+    console.log('📊 Fetching ALL Udea 2026 carteras from Strapi...');
+
+    let allCarteras = [];
+    let page = 1;
+    let hasMore = true;
+
+    // Fetch all pages of carteras with producto containing "UDEA 2026"
+    while (hasMore) {
+      const response = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/carteras`,
+        {
+          params: {
+            'filters[producto][nombre][$contains]': 'UDEA 2026',
+            'pagination[page]': page,
+            'pagination[pageSize]': 100
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+
+      const data = response.data.data || [];
+
+      // Extract cartera data from Strapi response structure
+      const carteras = data.map(item => ({
+        id: item.id,
+        nro_acuerdo: item.nro_acuerdo,
+        valor_total_acuerdo: item.valor_total_acuerdo,
+        numero_documento: item.numero_documento,
+        producto: item.producto
+      }));
+
+      allCarteras = allCarteras.concat(carteras);
+
+      const pagination = response.data.meta?.pagination;
+      if (pagination && page < pagination.pageCount) {
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`✅ Total carteras Udea 2026 encontradas: ${allCarteras.length}`);
+
+    res.json({
+      success: true,
+      data: allCarteras,
+      total: allCarteras.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching carteras Udea 2026:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Obtener CRM por UID
 app.get('/api/crm/:uid', async (req, res) => {
   try {
