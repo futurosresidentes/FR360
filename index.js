@@ -244,6 +244,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await frappService.getActiveMembershipPlans();
         break;
 
+      case 'getProductHandleFromFRAPP':
+        result = await frappService.getProductHandleFromFRAPP(args[0]);
+        break;
+
       // === CALLBELL ===
       case 'getCallbellContact':
         result = await callbellService.getCallbellContact(args[0]);
@@ -292,7 +296,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         break;
 
       case 'saveConfianzaRecord':
-        result = await frappService.saveConfianzaRecord(args[0]);
+        result = await strapiService.saveConfianzaRecord(args[0]);
         break;
 
       // === SALES & AGREEMENTS ===
@@ -367,7 +371,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           error: `Function '${functionName}' not found`,
           availableFunctions: [
             'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
-            'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans',
+            'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans', 'getProductHandleFromFRAPP',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',

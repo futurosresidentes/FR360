@@ -319,19 +319,80 @@ async function fetchCrmByEmail(email) {
 }
 
 /**
- * Save a confianza record to Google Sheets
- * NOTE: This function still uses Google Apps Script-specific APIs
- * and would need to be adapted for Node.js environment
+ * Save confianza record to Strapi
  * @param {Object} data - Confianza record data
  * @returns {Promise<Object>} Result object
  */
 async function saveConfianzaRecord(data) {
-  // This function would need to be reimplemented using Google Sheets API for Node.js
-  // or another storage mechanism depending on your requirements
-  console.log('⚠️ saveConfianzaRecord needs to be reimplemented for Node.js');
-  console.log('📝 Data to save:', data);
+  const ENDPOINT = `${STRAPI_BASE_URL}/api/confianzas`;
 
-  throw new Error('saveConfianzaRecord not implemented for Node.js - requires Google Sheets API integration');
+  console.log('📝 Guardando registro de confianza en Strapi:', data);
+
+  try {
+    // Obtener fecha actual en zona horaria de Colombia
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1; // 1-based
+    const day = now.getDate();
+    const fecha = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // Obtener productos y comerciales dinámicamente desde Strapi
+    const [productos, comerciales] = await Promise.all([
+      getProducts({ mode: 'catalog' }),
+      getComerciales()
+    ]);
+
+    // Buscar producto por nombre
+    const producto = productos.find(p => p.nombre === data.producto);
+    const productoId = producto ? producto.id : null;
+
+    // Buscar comercial por nombre
+    const comercial = comerciales.find(c => c.nombre === data.comercial);
+    const comercialId = comercial ? comercial.id : null;
+
+    if (!productoId) {
+      console.warn(`⚠️ Producto no encontrado en Strapi: "${data.producto}"`);
+    }
+    if (!comercialId) {
+      console.warn(`⚠️ Comercial no encontrado en Strapi: "${data.comercial}"`);
+    }
+
+    // Construir payload para Strapi
+    const payload = {
+      data: {
+        fecha: fecha,
+        nombres: data.nombres || '',
+        apelidos: data.apellidos || '',
+        numero_documento: data.cedula || '',
+        celular: data.celular || '',
+        correo: data.correo || '',
+        producto: productoId ? { id: productoId } : null,
+        comercial: comercialId ? { id: comercialId } : null,
+        nro_acuerdo: data.nroAcuerdo || '',
+        inicio_plataforma: data.fechaInicio || ''
+      }
+    };
+
+    console.log('📤 Payload para Strapi:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.post(ENDPOINT, payload, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('✅ Registro guardado exitosamente en Strapi:', response.status);
+    return { success: true, data: response.data };
+
+  } catch (error) {
+    console.error('❌ Error guardando registro de confianza en Strapi:', error.message);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
+    return { success: false, error: error.message };
+  }
 }
 
 /**

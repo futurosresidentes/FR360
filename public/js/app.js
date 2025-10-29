@@ -4560,46 +4560,35 @@
           console.log('No se encontraron membresías élite con status "active" o "scheduled". Procediendo sin validación de traslape.');
         }
 
-        // 4. Obtener handle del producto
-        console.log('Obteniendo handle para producto:', producto);
-
-        const productHandle = await new Promise((resolve, reject) => {
-          api.getProductHandleFromFRAPP(producto)
-            .then((result) => {
-              console.log('Resultado raw del servidor:', result);
-              console.log('Tipo de resultado:', typeof result);
-              console.log('Resultado es null?', result === null);
-              console.log('Resultado es undefined?', result === undefined);
-              console.log('Resultado convertido a string:', String(result));
-              resolve(result);
-            })
-            .catch((error) => {
-              console.error('Error del servidor:', error);
-              reject(error);
-            });
-        });
-
-        console.log('Handle procesado:', productHandle);
-
-        if (!productHandle || productHandle === 'null' || productHandle === null) {
-          throw new Error(`No se pudo obtener el handle para el producto: ${producto}. Respuesta del servidor: ${productHandle} (tipo: ${typeof productHandle})`);
-        }
-
-        console.log('Handle válido encontrado:', productHandle);
-
-        // 5. Calcular fecha de expiración según el producto
-        const startDate = new Date(fechaInicio + 'T00:00:00');
-        let expiryDate;
+        // 4. Determinar membershipPlanId y duración según el producto
+        let membershipPlanId;
+        let durationDays;
 
         if (producto.includes('9 meses')) {
-          expiryDate = new Date(startDate);
-          expiryDate.setDate(expiryDate.getDate() + 288);
+          membershipPlanId = 3;
+          durationDays = 288;
         } else if (producto.includes('6 meses')) {
-          expiryDate = new Date(startDate);
-          expiryDate.setDate(expiryDate.getDate() + 188);
+          membershipPlanId = 4;
+          durationDays = 188;
         } else {
           throw new Error('Tipo de producto no reconocido. Solo se permiten productos de 6 o 9 meses.');
         }
+
+        // 5. Calcular fechas usando las funciones de formato de membresía
+        const membershipStartDate = getMembershipStartDate(fechaInicio);
+
+        // Calcular fecha de fin sumando los días de duración
+        const startDateObj = parseLocalDate(fechaInicio);
+        startDateObj.setDate(startDateObj.getDate() + durationDays);
+        const endDateString = formatLocalDate(startDateObj);
+        const membershipEndDate = getMembershipExpiryDate(endDateString);
+
+        console.log('Producto:', producto);
+        console.log('MembershipPlanId:', membershipPlanId);
+        console.log('Duración en días:', durationDays);
+        console.log('Fecha inicio (input):', fechaInicio);
+        console.log('Fecha inicio (formateada):', membershipStartDate);
+        console.log('Fecha fin (formateada):', membershipEndDate);
 
         // 6. Crear payload para registrar membresía
         const payload = {
@@ -4609,10 +4598,9 @@
           phone: celular,
           identityType: 'CC',
           identityDocument: cedula,
-          role: 'elite',
-          productHandle: productHandle,
-          membershipStartDate: startDate.toISOString().replace('T', ' ').substring(0, 19),
-          membershipExpiryDate: expiryDate.toISOString().replace('T', ' ').substring(0, 19)
+          membershipPlanId: membershipPlanId,
+          membershipStartDate: membershipStartDate,
+          membershipEndDate: membershipEndDate
         };
 
         // 7. Registrar la nueva membresía
@@ -4698,10 +4686,9 @@
             // Crear nuevo payload para usuario existente
             const payloadExistingUser = {
               email: correo,
-              productHandle: productHandle,
-              role: 'elite',
-              membershipStartDate: startDate.toISOString().replace('T', ' ').substring(0, 19),
-              membershipExpiryDate: expiryDate.toISOString().replace('T', ' ').substring(0, 19),
+              membershipPlanId: membershipPlanId,
+              membershipStartDate: membershipStartDate,
+              membershipEndDate: membershipEndDate,
               createMembershipIfUserExists: true
             };
 

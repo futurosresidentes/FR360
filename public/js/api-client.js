@@ -82,6 +82,10 @@ class FR360ApiClient {
     return this._call('getActiveMembershipPlans');
   }
 
+  async getProductHandleFromFRAPP(productName) {
+    return this._call('getProductHandleFromFRAPP', productName);
+  }
+
   // ===== CALLBELL =====
 
   async getCallbellContact(celular) {
