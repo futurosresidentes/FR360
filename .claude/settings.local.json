@@ -12,7 +12,11 @@
       "Bash(git commit:*)",
       "Bash(powershell -Command \"(Get-Content ''C:\\Sitios\\FR360\\public\\css\\styles.css'' | Measure-Object -Line).Lines\")",
       "Bash(powershell -Command \"Get-Content ''C:\\Sitios\\FR360\\public\\css\\styles.css'' | Select-Object -Last 5\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(git push:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(del nul)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
