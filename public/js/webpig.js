@@ -364,24 +364,21 @@ function getStageStatus(webhook, columnName, isAccepted) {
   const hasProcessing = logs.some(log => log.status === 'processing');
   const hasInfo = logs.some(log => log.status === 'info' && !log.response_data?.skipped);
 
+  // Check if stage has checkpoint saved (manual patch or completed)
+  const hasCheckpoint = webhook.completed_stages &&
+    relevantStages.some(stage => webhook.completed_stages.includes(stage));
+
   if (hasSkipped) {
     return { status: 'skipped', icon: '⚠️', logs };
+  } else if (hasCheckpoint) {
+    // PRIORIDAD: Si hay checkpoint (parche manual), mostrar éxito aunque haya errores previos
+    return { status: 'success', icon: '✅💾', logs };
   } else if (hasError) {
     return { status: 'error', icon: '⛔', logs };
   } else if (hasSuccess) {
-    // Check if stage has checkpoint saved
-    const hasCheckpoint = webhook.completed_stages &&
-      relevantStages.some(stage => webhook.completed_stages.includes(stage));
-
-    const icon = hasCheckpoint ? '✅💾' : '✅';
-    return { status: 'success', icon, logs };
+    return { status: 'success', icon: '✅', logs };
   } else if (hasInfo) {
-    // Check if stage has checkpoint saved
-    const hasCheckpoint = webhook.completed_stages &&
-      relevantStages.some(stage => webhook.completed_stages.includes(stage));
-
-    const icon = hasCheckpoint ? '✅💾' : '✅';
-    return { status: 'success', icon, logs };
+    return { status: 'success', icon: '✅', logs };
   } else if (hasProcessing) {
     return { status: 'pending', icon: '⏳', logs };
   }
