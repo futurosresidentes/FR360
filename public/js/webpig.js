@@ -348,6 +348,16 @@ function getStageStatus(webhook, columnName, isAccepted) {
     // Si no hay log de DIAN o no es ninguno de los casos anteriores → ⛔ (flujo normal)
   }
 
+  // Check if stage has checkpoint saved (manual patch or completed)
+  // IMPORTANTE: Verificar ANTES de logs.length === 0
+  const hasCheckpoint = webhook.completed_stages &&
+    relevantStages.some(stage => webhook.completed_stages.includes(stage));
+
+  // Si hay checkpoint pero no hay logs naturales, es un parche manual
+  if (hasCheckpoint && logs.length === 0) {
+    return { status: 'success', icon: '✅💾', logs: [] };
+  }
+
   if (logs.length === 0) {
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
@@ -363,10 +373,6 @@ function getStageStatus(webhook, columnName, isAccepted) {
   const hasSuccess = logs.some(log => log.status === 'success');
   const hasProcessing = logs.some(log => log.status === 'processing');
   const hasInfo = logs.some(log => log.status === 'info' && !log.response_data?.skipped);
-
-  // Check if stage has checkpoint saved (manual patch or completed)
-  const hasCheckpoint = webhook.completed_stages &&
-    relevantStages.some(stage => webhook.completed_stages.includes(stage));
 
   if (hasSkipped) {
     return { status: 'skipped', icon: '⚠️', logs };
