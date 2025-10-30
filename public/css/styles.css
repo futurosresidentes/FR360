@@ -1981,30 +1981,22 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 }
 
 /* === Botones de Edición Inline (Membresías y Ventas) === */
-/* Estilos unificados para todos los botones de edición */
+/* Estilos unificados para todos los botones de edición - Sin recuadro, fondo transparente */
 .edit-membership-btn,
 .edit-venta-btn,
 .freeze-membership-btn {
-  background-color: #fff;
-  border: 2px solid #ddd;
-  border-radius: 4px;
+  background: none;
+  border: none;
   padding: 4px 8px;
-  font-size: 16px;
+  font-size: 1.2em;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .edit-membership-btn:hover,
-.edit-venta-btn:hover {
-  background-color: #f0f0f0;
-  border-color: #999;
-  transform: scale(1.05);
-}
-
+.edit-venta-btn:hover,
 .freeze-membership-btn:hover {
-  background-color: #e3f2fd;
-  border-color: #2196f3;
-  transform: scale(1.05);
+  transform: scale(1.2);
 }
 
 .edit-membership-btn:disabled,
