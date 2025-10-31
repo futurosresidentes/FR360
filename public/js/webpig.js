@@ -529,7 +529,31 @@ function renderWebhooks(webhooks) {
 
   if (acceptedWebhooks.length === 0) {
     container.innerHTML = '<div class="webhook-empty">No hay transacciones aceptadas disponibles</div>';
+    // Clear effectiveness display
+    const effectivenessSpan = document.getElementById('webpigEffectiveness');
+    if (effectivenessSpan) effectivenessSpan.textContent = '';
     return;
+  }
+
+  // Calculate and display effectiveness percentage
+  const perfectTransactions = acceptedWebhooks.filter(webhook =>
+    webhook.status === 'completed' &&
+    (webhook.retry_count === 0 || !webhook.retry_count) &&
+    !webhook.failed_stage
+  ).length;
+
+  const effectivenessPercent = ((perfectTransactions / acceptedWebhooks.length) * 100).toFixed(1);
+  const effectivenessSpan = document.getElementById('webpigEffectiveness');
+
+  if (effectivenessSpan) {
+    // Color based on effectiveness: green >95%, yellow 90-95%, red <90%
+    let color = '#dc3545'; // red (default for <90%)
+    if (effectivenessPercent >= 95) color = '#28a745'; // green
+    else if (effectivenessPercent >= 90) color = '#ffc107'; // yellow
+
+    effectivenessSpan.textContent = `(${effectivenessPercent}% ✓)`;
+    effectivenessSpan.style.color = color;
+    effectivenessSpan.title = `${perfectTransactions} de ${acceptedWebhooks.length} transacciones sin errores ni reintentos`;
   }
 
   // Create single table
