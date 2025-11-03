@@ -2087,6 +2087,65 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: translateY(-50%) scale(1.15);
 }
 
+/* === Carteras Masivo Styles === */
+.carteras-masivo-header {
+  margin-bottom: 1.5rem;
+}
+
+.carteras-masivo-header h2 {
+  margin: 0 0 1rem 0;
+  color: #075183;
+  font-size: 1.5rem;
+}
+
+.carteras-masivo-controls {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220,53,69,0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.carteras-acuerdo-card {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .copy-icon:active {
   transform: translateY(-50%) scale(0.95);
 }

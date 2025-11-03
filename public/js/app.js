@@ -2462,7 +2462,32 @@
         const total = Number(tr.dataset.nroCuotas || 0);
         const acc   = (tr.dataset.nroAcuerdo || '').trim();
         const base  = (tr.dataset.productoNombre || '').trim();
-        const ventas = findVentasFor(acc, base, cuota, total);
+        const idPago = (tr.dataset.idPago || '').trim();
+        const idPagoMora = (tr.dataset.idPagoMora || '').trim();
+
+        let ventas = [];
+
+        // PASO 1: Buscar PRIMERO por id_pago (más confiable)
+        if (idPago && Array.isArray(lastFactRows)) {
+          ventas = lastFactRows.filter(r => String(r[3] || '').trim() === idPago); // Columna 3 = Transacción
+          if (ventas.length > 0) {
+            console.log(`🎯 Cuota ${cuota} encontrada por id_pago: ${idPago}`);
+          }
+        }
+
+        // PASO 2: Si no encontró por id_pago, buscar por id_pago_mora
+        if (ventas.length === 0 && idPagoMora && Array.isArray(lastFactRows)) {
+          ventas = lastFactRows.filter(r => String(r[3] || '').trim() === idPagoMora);
+          if (ventas.length > 0) {
+            console.log(`🎯 Cuota ${cuota} encontrada por id_pago_mora: ${idPagoMora}`);
+          }
+        }
+
+        // PASO 3: Si no encontró por IDs, buscar por nombre de producto (fallback)
+        if (ventas.length === 0) {
+          ventas = findVentasFor(acc, base, cuota, total);
+        }
+
         if (!ventas.length) return false;
 
         // Si es la última cuota y hay "Paz y salvo", se considera pagada

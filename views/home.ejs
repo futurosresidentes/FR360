@@ -35,6 +35,9 @@
         <li data-tab="webpig">Web Pig 🐷</li>
         <li data-tab="udea2026">Udea2026</li>
         <li data-tab="retomas-udea">Retomas Udea</li>
+        <% if (typeof userEmail !== 'undefined' && userEmail === 'daniel.cardona@sentiretaller.com') { %>
+        <li data-tab="carteras-masivo">Carteras Masivo 📊</li>
+        <% } %>
       </ul>
     </nav>
   </aside>
@@ -346,6 +349,30 @@
         </div>
         <div id="retomasTableContainer"></div>
       </div>
+
+      <!-- ACTUALIZACIÓN MASIVA DE CARTERAS (solo visible para daniel.cardona@sentiretaller.com) -->
+      <% if (typeof userEmail !== 'undefined' && userEmail === 'daniel.cardona@sentiretaller.com') { %>
+      <div class="pane right" id="carteras-masivo">
+        <div class="carteras-masivo-header">
+          <h2>Actualización Masiva de Carteras 📊</h2>
+          <div class="carteras-masivo-controls">
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <label for="carterasCantidad" style="font-weight: 500;">Cantidad de acuerdos a procesar:</label>
+              <input type="number" id="carterasCantidad" min="1" max="500" value="10" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+              <button id="startCarterasMasivoBtn" class="btn-primary">▶️ Iniciar Procesamiento</button>
+              <button id="stopCarterasMasivoBtn" class="btn-danger" style="display: none;">⏹️ Detener</button>
+            </div>
+            <div id="carterasProgress" style="margin-top: 12px; display: none;">
+              <div style="background: #e9ecef; border-radius: 8px; height: 24px; overflow: hidden; position: relative;">
+                <div id="carterasProgressBar" style="background: linear-gradient(90deg, #28a745, #20c997); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                <span id="carterasProgressText" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: 600; font-size: 0.85em; color: #333;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="carterasResultsContainer" style="margin-top: 20px; max-height: 600px; overflow-y: auto;"></div>
+      </div>
+      <% } %>
     </div>
   </div>
 
@@ -678,6 +705,8 @@
   <script src="/js/udea2026.js"></script>
   <!-- Retomas UDEA module -->
   <script src="/js/retomas-udea.js"></script>
+  <!-- Carteras Masivo module -->
+  <script src="/js/carteras-masivo.js"></script>
   <!-- Ticket system module -->
   <script src="/js/tickets.js"></script>
 </body>

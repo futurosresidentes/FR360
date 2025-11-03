@@ -197,6 +197,321 @@ app.post('/api/webpig/webhooks/:id/retry', ensureAuthenticated, ensureDomain, as
   }
 });
 
+// Endpoint: Actualización Masiva de Carteras (MUST BE BEFORE GENERIC HANDLER)
+// Procesa N acuerdos con estado_pago null y los actualiza usando la lógica de Acuerdos
+app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const axios = require('axios');
+    const cantidad = parseInt(req.query.cantidad) || 10;
+
+    // Validar que solo daniel.cardona@sentiretaller.com pueda usar este endpoint
+    const userEmail = req.user?.email || '';
+    console.log(`📊 Usuario intentando acceso: ${userEmail}`);
+
+    if (userEmail !== 'daniel.cardona@sentiretaller.com') {
+      console.warn(`⚠️ Acceso denegado para: ${userEmail}`);
+      return res.status(403).json({
+        success: false,
+        error: 'No tienes permisos para usar esta funcionalidad'
+      });
+    }
+
+    console.log(`📊 Iniciando actualización masiva de ${cantidad} acuerdos...`);
+
+    // 1. Obtener carteras con estado_pago null para identificar acuerdos pendientes
+    console.log('🔍 Consultando carteras con estado_pago null...');
+    const carterasNullResponse = await axios.get(
+      `https://strapi-project-d3p7.onrender.com/api/carteras`,
+      {
+        params: {
+          'filters[estado_pago][$null]': true,
+          'pagination[page]': 1,
+          'pagination[pageSize]': cantidad * 10, // Traer más registros para encontrar N acuerdos únicos
+          'populate': 'producto'
+        },
+        headers: {
+          'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+        }
+      }
+    );
+
+    const carterasNull = carterasNullResponse.data.data || [];
+    console.log(`✅ Encontradas ${carterasNull.length} carteras con estado_pago null`);
+
+    if (carterasNull.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No hay carteras pendientes de actualizar',
+        acuerdos_procesados: 0,
+        cuotas_actualizadas: 0,
+        acuerdos: []
+      });
+    }
+
+    // 2. Identificar acuerdos únicos (numero_documento + nro_acuerdo)
+    const acuerdosUnicos = new Map();
+    carterasNull.forEach(item => {
+      const nroAcuerdo = item.nro_acuerdo;
+      const numeroDocumento = item.numero_documento;
+
+      if (!nroAcuerdo || !numeroDocumento) return;
+
+      const key = `${numeroDocumento}-${nroAcuerdo}`;
+      if (!acuerdosUnicos.has(key)) {
+        acuerdosUnicos.set(key, {
+          numero_documento: numeroDocumento,
+          nro_acuerdo: nroAcuerdo,
+          producto: item.producto?.nombre || 'Sin producto'
+        });
+      }
+    });
+
+    // Limitar a la cantidad solicitada de acuerdos
+    const acuerdosAProcesar = Array.from(acuerdosUnicos.values()).slice(0, cantidad);
+    console.log(`📋 Identificados ${acuerdosAProcesar.length} acuerdos únicos a procesar`);
+
+    // 3. Para cada acuerdo, traer TODAS sus cuotas de Strapi
+    const acuerdosMap = new Map();
+
+    for (const acuerdo of acuerdosAProcesar) {
+      console.log(`🔍 Obteniendo todas las cuotas del acuerdo ${acuerdo.nro_acuerdo}...`);
+
+      const todasLasCuotasResponse = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/carteras`,
+        {
+          params: {
+            'filters[numero_documento]': acuerdo.numero_documento,
+            'filters[nro_acuerdo]': acuerdo.nro_acuerdo,
+            'pagination[pageSize]': 100,
+            'populate': 'producto'
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+
+      const todasLasCuotas = todasLasCuotasResponse.data.data || [];
+      console.log(`  ✅ Encontradas ${todasLasCuotas.length} cuotas`);
+
+      const key = `${acuerdo.numero_documento}-${acuerdo.nro_acuerdo}`;
+      acuerdosMap.set(key, {
+        numero_documento: acuerdo.numero_documento,
+        nro_acuerdo: acuerdo.nro_acuerdo,
+        producto: acuerdo.producto,
+        cuotas: todasLasCuotas.map(item => ({
+          documentId: item.documentId || item.id,
+          cuota_nro: item.cuota_nro,
+          valor_cuota: item.valor_cuota,
+          fecha_limite: item.fecha_limite,
+          id_pago: item.id_pago,
+          id_pago_mora: item.id_pago_mora,
+          estado_pago: item.estado_pago,
+          fecha_de_pago: item.fecha_de_pago,
+          valor_pagado: item.valor_pagado
+        }))
+      });
+    }
+
+    console.log(`📋 Acuerdos completos listos para procesar: ${acuerdosMap.size}`);
+
+    // 3. Procesar cada acuerdo (verificar estado de cuotas)
+    const acuerdosProcessed = [];
+    let cuotasActualizadas = 0;
+
+    for (const [key, acuerdo] of acuerdosMap) {
+      console.log(`\n🔄 Procesando acuerdo ${acuerdo.nro_acuerdo} - ${acuerdo.numero_documento}`);
+
+      // Ordenar cuotas por número
+      acuerdo.cuotas.sort((a, b) => (a.cuota_nro || 0) - (b.cuota_nro || 0));
+
+      // 4. Obtener TODAS las ventas (facturaciones) del numero_documento para cruzar
+      console.log(`📊 Obteniendo facturaciones de ${acuerdo.numero_documento}...`);
+      const facturacionesResponse = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/facturaciones`,
+        {
+          params: {
+            'filters[numero_documento]': acuerdo.numero_documento,
+            'pagination[pageSize]': 100,
+            'populate': 'producto'
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+
+      const facturaciones = facturacionesResponse.data.data || [];
+      console.log(`  ✅ Encontradas ${facturaciones.length} facturaciones`);
+
+      // Procesar cada cuota del acuerdo
+      const nroCuotas = acuerdo.cuotas.length;
+
+      for (const cuota of acuerdo.cuotas) {
+        try {
+          const baseProducto = acuerdo.producto;
+          const cuotaNro = cuota.cuota_nro;
+          const esUltimaCuota = cuotaNro === nroCuotas;
+          let ventasMatch = [];
+
+          // PASO 1: Buscar PRIMERO por id_pago (más confiable y directo)
+          if (cuota.id_pago) {
+            ventasMatch = facturaciones.filter(f => {
+              const transaccion = String(f.transaccion || '').trim();
+              return transaccion === String(cuota.id_pago).trim();
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago: ${cuota.id_pago}`);
+            }
+          }
+
+          // PASO 2: Si no encontró por id_pago, buscar por id_pago_mora (pagos tardíos)
+          if (ventasMatch.length === 0 && cuota.id_pago_mora) {
+            ventasMatch = facturaciones.filter(f => {
+              const transaccion = String(f.transaccion || '').trim();
+              return transaccion === String(cuota.id_pago_mora).trim();
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago_mora: ${cuota.id_pago_mora}`);
+            }
+          }
+
+          // PASO 3: Si no encontró por IDs, buscar por nombre de producto (fallback)
+          if (ventasMatch.length === 0) {
+            ventasMatch = facturaciones.filter(f => {
+              const productoNombre = f.producto?.nombre || '';
+              const nroAcuerdoFactura = String(f.acuerdo || '').trim();
+              const nroAcuerdoEsperado = String(acuerdo.nro_acuerdo).trim();
+
+              // El acuerdo debe coincidir
+              if (nroAcuerdoFactura !== nroAcuerdoEsperado) return false;
+
+              // Buscar por nombre de producto
+              const targetNames = [
+                `${baseProducto} - Cuota ${cuotaNro}`,
+                `${baseProducto} - Cuota ${cuotaNro} (Mora)`
+              ];
+
+              // Si es la última cuota, también buscar "Paz y salvo"
+              if (esUltimaCuota) {
+                targetNames.push(`${baseProducto} - Paz y salvo`);
+              }
+
+              return targetNames.some(name => {
+                const normName = productoNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const normTarget = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                return normName === normTarget;
+              });
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  💰 Cuota ${cuotaNro} encontrada por nombre de producto: ${ventasMatch[0].producto?.nombre}`);
+            }
+          }
+
+          // Si encontró match en ventas (por cualquier método), marcar como pagado
+          if (ventasMatch.length > 0) {
+            // Usar la primera venta encontrada
+            const venta = ventasMatch[0];
+            const fechaPago = venta.fecha || '';
+            const valorPagado = venta.valor_neto || 0;
+
+            // Actualizar en Strapi
+            await axios.put(
+              `https://strapi-project-d3p7.onrender.com/api/carteras/${cuota.documentId}`,
+              {
+                data: {
+                  estado_pago: 'pagado',
+                  fecha_de_pago: fechaPago,
+                  valor_pagado: valorPagado
+                }
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+
+            cuota.estado_pago = 'pagado';
+            cuota.fecha_de_pago = fechaPago;
+            cuota.valor_pagado = valorPagado;
+            cuotasActualizadas++;
+            console.log(`  ✅ Cuota ${cuotaNro}: Pagado (${fechaPago})`);
+          } else {
+            // PASO 2: Si NO encontró en ventas, verificar estado según fecha límite
+            const fechaLimite = cuota.fecha_limite;
+            if (fechaLimite && fechaLimite !== '1970-01-01') {
+              const now = new Date();
+              const colombiaOffset = -5 * 60;
+              const localOffset = now.getTimezoneOffset();
+              const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
+              const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
+              const limite = new Date(fechaLimite + 'T00:00:00-05:00');
+
+              const estadoPago = limite < hoy ? 'en_mora' : 'al_dia';
+
+              // Actualizar en Strapi
+              await axios.put(
+                `https://strapi-project-d3p7.onrender.com/api/carteras/${cuota.documentId}`,
+                {
+                  data: {
+                    estado_pago: estadoPago,
+                    fecha_de_pago: null,
+                    valor_pagado: null
+                  }
+                },
+                {
+                  headers: {
+                    'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+
+              cuota.estado_pago = estadoPago;
+              cuota.fecha_de_pago = '';
+              cuota.valor_pagado = null;
+              cuotasActualizadas++;
+              console.log(`  ✅ Cuota ${cuotaNro}: ${estadoPago}`);
+            }
+          }
+
+        } catch (error) {
+          console.error(`  ❌ Error procesando cuota ${cuota.cuota_nro}:`, error.message);
+          cuota.estado_pago = 'error';
+          cuota.error = error.message;
+        }
+      }
+
+      acuerdosProcessed.push(acuerdo);
+    }
+
+    console.log(`\n✅ Procesamiento completado:`);
+    console.log(`   • Acuerdos procesados: ${acuerdosProcessed.length}`);
+    console.log(`   • Cuotas actualizadas: ${cuotasActualizadas}`);
+
+    res.json({
+      success: true,
+      acuerdos_procesados: acuerdosProcessed.length,
+      cuotas_actualizadas: cuotasActualizadas,
+      acuerdos: acuerdosProcessed,
+      procesados: cuotasActualizadas,
+      errores: 0
+    });
+
+  } catch (error) {
+    console.error('❌ Error in carteras-masivo:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
 app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
