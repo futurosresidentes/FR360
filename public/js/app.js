@@ -3659,7 +3659,7 @@
       'daniel.cardona@sentiretaller.com',
       'juan.pelaez@sentiretaller.com',
       'eliana.montilla@sentiretaller.com',
-      'janeth.cardona@sentiretaller.com',
+      'pablo.bustamante@sentiretaller.com',
       'david.cardona@sentiretaller.com'
     ];
 
