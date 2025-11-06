@@ -138,14 +138,15 @@ function extractProduct(webhook) {
   // Fix encoding issues: "Ãlite" → "Élite"
   let product = webhook.product || 'N/A';
 
-  // Normalizar caracteres mal codificados
+  // Normalizar caracteres mal codificados UTF-8
   product = product.replace(/Ã©/g, 'é')
                    .replace(/Ã¡/g, 'á')
                    .replace(/Ã­/g, 'í')
                    .replace(/Ã³/g, 'ó')
                    .replace(/Ãº/g, 'ú')
                    .replace(/Ã±/g, 'ñ')
-                   .replace(/Ã/g, 'É'); // "Ãlite" → "Élite"
+                   .replace(/Ã\s/g, 'É')  // "Ã lite" → "É lite"
+                   .replace(/^Ã/g, 'É');  // "Ãlite" al inicio → "Élite"
 
   return product;
 }
@@ -262,6 +263,35 @@ function getStageStatus(webhook, columnName, isAccepted) {
   const relevantStages = Object.entries(STAGE_COLUMNS)
     .filter(([_, col]) => col === columnName)
     .map(([stage, _]) => stage);
+
+  // CASO ESPECIAL: FRAPP - verificar si no requiere membresías
+  if (columnName === 'FRAPP') {
+    const successLogs = webhook.logs?.by_status?.success || [];
+    const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
+
+    // Si el producto no requiere membresías (campo específico en response_data)
+    if (fr360Log?.response_data?.product) {
+      const product = fr360Log.response_data.product.toLowerCase();
+      // Productos que NO requieren membresías (pagos únicos, servicios, etc.)
+      const noMembershipProducts = ['worldoffice', 'reporte', 'paquete', 'curso', 'taller'];
+      const requiresNoMembership = noMembershipProducts.some(p => product.includes(p));
+
+      if (requiresNoMembership) {
+        return { status: 'not-required', icon: 'N/A', logs: [] };
+      }
+    }
+  }
+
+  // CASO ESPECIAL: Cartera - verificar si es pago de contado (no requiere cartera)
+  if (columnName === 'Cartera') {
+    const successLogs = webhook.logs?.by_status?.success || [];
+    const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
+
+    // Si nroAcuerdo es null, es pago de contado y no requiere actualizar cartera
+    if (fr360Log?.response_data?.nroAcuerdo === null || fr360Log?.response_data?.agreementId === null) {
+      return { status: 'not-required', icon: 'N/A', logs: [] };
+    }
+  }
 
   // PRIORIDAD 1: Buscar en logs.by_status.success (más directo)
   const successLogs = webhook.logs?.by_status?.success || [];
