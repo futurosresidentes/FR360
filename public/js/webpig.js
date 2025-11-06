@@ -116,8 +116,9 @@ function extractCedula(webhook) {
   const cedula = webhook.processing_context?.fr360Data?.identityDocument;
   if (cedula) return cedula;
 
-  // Fallback to logs if needed
-  const fr360Log = webhook.logs?.find(log => log.stage === 'fr360_query' && log.status === 'success');
+  // Fallback to logs if needed (handle both array and nested structure)
+  const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
+  const fr360Log = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
   if (fr360Log?.response_data?.identityDocument) {
     return fr360Log.response_data.identityDocument;
   }
@@ -133,9 +134,10 @@ function extractPhone(webhook) {
   // Try from processing_context first
   let phone = webhook.processing_context?.fr360Data?.phone;
 
-  // Fallback to logs
+  // Fallback to logs (handle both array and nested structure)
   if (!phone) {
-    const fr360Log = webhook.logs?.find(log => log.stage === 'fr360_query' && log.status === 'success');
+    const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
+    const fr360Log = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
     phone = fr360Log?.response_data?.phone;
   }
 
@@ -240,9 +242,11 @@ function getStageStatus(webhook, columnName, isAccepted) {
     .filter(([_, col]) => col === columnName)
     .map(([stage, _]) => stage);
 
-  const logs = webhook.logs?.filter(log =>
+  // Handle both array and nested structure for logs
+  const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
+  const logs = logsArray.filter(log =>
     relevantStages.includes(log.stage)
-  ) || [];
+  );
 
   // ✅ PRIORIDAD 1: Verificar completed_stages array (acceso O(1))
   const hasCompleted = webhook.completed_stages &&
