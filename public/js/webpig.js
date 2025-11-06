@@ -147,6 +147,7 @@ function extractProduct(webhook) {
                    .replace(/Ã³/g, 'ó')
                    .replace(/Ãº/g, 'ú')
                    .replace(/Ã±/g, 'ñ')
+                   .replace(/Ã‰/g, 'É')  // "Ã‰" → "É"
                    .replace(/Ã\s/g, 'É')  // "Ã lite" → "É lite"
                    .replace(/^Ã/g, 'É');  // "Ãlite" al inicio → "Élite"
 
@@ -266,35 +267,6 @@ function getStageStatus(webhook, columnName, isAccepted) {
     .filter(([_, col]) => col === columnName)
     .map(([stage, _]) => stage);
 
-  // CASO ESPECIAL: FRAPP - verificar si no requiere membresías
-  if (columnName === 'FRAPP') {
-    const successLogs = webhook.logs?.by_status?.success || [];
-    const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
-
-    // Si el producto no requiere membresías (campo específico en response_data)
-    if (fr360Log?.response_data?.product) {
-      const product = fr360Log.response_data.product.toLowerCase();
-      // Productos que NO requieren membresías (pagos únicos, servicios, etc.)
-      const noMembershipProducts = ['worldoffice', 'reporte', 'paquete', 'curso', 'taller'];
-      const requiresNoMembership = noMembershipProducts.some(p => product.includes(p));
-
-      if (requiresNoMembership) {
-        return { status: 'not-required', icon: 'N/A', logs: [] };
-      }
-    }
-  }
-
-  // CASO ESPECIAL: Cartera - verificar si es pago de contado (no requiere cartera)
-  if (columnName === 'Cartera') {
-    const successLogs = webhook.logs?.by_status?.success || [];
-    const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
-
-    // Si nroAcuerdo es null, es pago de contado y no requiere actualizar cartera
-    if (fr360Log?.response_data?.nroAcuerdo === null || fr360Log?.response_data?.agreementId === null) {
-      return { status: 'not-required', icon: 'N/A', logs: [] };
-    }
-  }
-
   // PRIORIDAD 1: Buscar en logs.by_status.success (más directo)
   const successLogs = webhook.logs?.by_status?.success || [];
   const hasSuccess = successLogs.some(log => relevantStages.includes(log.stage));
@@ -318,6 +290,33 @@ function getStageStatus(webhook, columnName, isAccepted) {
   const logs = logsAll.filter(log => relevantStages.includes(log.stage));
 
   if (logs.length === 0) {
+    // CASO ESPECIAL: FRAPP - verificar si no requiere membresías
+    if (columnName === 'FRAPP') {
+      const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
+
+      // Si el producto no requiere membresías (campo específico en response_data)
+      if (fr360Log?.response_data?.product) {
+        const product = fr360Log.response_data.product.toLowerCase();
+        // Productos que NO requieren membresías (pagos únicos, servicios, etc.)
+        const noMembershipProducts = ['worldoffice', 'reporte', 'paquete', 'curso', 'taller'];
+        const requiresNoMembership = noMembershipProducts.some(p => product.includes(p));
+
+        if (requiresNoMembership) {
+          return { status: 'not-required', icon: 'N/A', logs: [] };
+        }
+      }
+    }
+
+    // CASO ESPECIAL: Cartera - verificar si es pago de contado (no requiere cartera)
+    if (columnName === 'Cartera') {
+      const fr360Log = successLogs.find(log => log.stage === 'fr360_query');
+
+      // Si nroAcuerdo es null, es pago de contado y no requiere actualizar cartera
+      if (fr360Log?.response_data?.nroAcuerdo === null || fr360Log?.response_data?.agreementId === null) {
+        return { status: 'not-required', icon: 'N/A', logs: [] };
+      }
+    }
+
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
 
@@ -325,6 +324,18 @@ function getStageStatus(webhook, columnName, isAccepted) {
   const hasProcessing = logs.some(log => log.status === 'processing');
 
   if (hasSkipped) {
+    // Verificar si fue skipped por feature flag deshabilitado (N/A verde) o por lógica de negocio
+    const skippedLog = logs.find(log => log.status === 'skipped');
+    const skipReason = skippedLog?.message || skippedLog?.error || '';
+
+    // Si fue skipped por feature flag o porque no requiere el stage, mostrar N/A verde
+    if (skipReason.toLowerCase().includes('feature flag') ||
+        skipReason.toLowerCase().includes('disabled') ||
+        skipReason.toLowerCase().includes('no requiere') ||
+        skipReason.toLowerCase().includes('not required')) {
+      return { status: 'not-required', icon: 'N/A', logs };
+    }
+
     return { status: 'skipped', icon: '⚠️', logs };
   } else if (hasProcessing) {
     return { status: 'pending', icon: '⏳', logs };
