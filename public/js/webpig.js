@@ -411,6 +411,11 @@ function renderWebhooks(webhooks) {
     return;
   }
 
+  // DEBUG: Ver estructura real de datos
+  if (webhooks.length > 0) {
+    console.log('🐷 [WebPig] Primer webhook estructura:', JSON.stringify(webhooks[0], null, 2));
+  }
+
   // Filter only accepted webhooks
   const acceptedWebhooks = webhooks.filter(webhook => isTransactionAccepted(webhook));
 
