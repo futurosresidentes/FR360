@@ -4,11 +4,13 @@
 const WEBPIG_API_URL = '/api/webpig/webhooks';
 const WEBPIG_FEATURE_FLAGS_URL = '/api/webpig/feature-flags';
 
-// Permissions mapping
+// Permissions mapping (nombres reales de Supabase)
 const FLAG_PERMISSIONS = {
-  'MEMBERSHIPS_ENABLED': ['daniel.cardona@sentiretaller.com'],
+  'FRAPP_MEMBERSHIP_ENABLED': ['daniel.cardona@sentiretaller.com'],
   'WORLDOFFICE_INVOICE_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'],
-  'WORLDOFFICE_DIAN_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com']
+  'WORLDOFFICE_ACCOUNTING_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'],
+  'WORLDOFFICE_DIAN_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'],
+  'STRAPI_FACTURACION_ENABLED': ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com']
 };
 
 // Retry button permissions
