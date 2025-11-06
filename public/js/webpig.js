@@ -146,22 +146,38 @@ function extractProduct(webhook) {
     console.log('🔍 [DEBUG] Códigos de caracteres:', [...product].map(c => c.charCodeAt(0)));
   }
 
-  // Normalizar caracteres mal codificados UTF-8
-  // Primero: caracteres con tilde minúsculas
+  // Solución para doble encoding UTF-8
+  // Si viene "Ã‰lite" necesitamos convertir los bytes de vuelta
+  try {
+    // Convertir string a bytes UTF-8 y luego decodificar correctamente
+    const utf8Encoder = new TextEncoder();
+    const utf8Decoder = new TextDecoder('utf-8');
+
+    // Convertir a bytes asumiendo que cada carácter es un byte Latin-1
+    const bytes = new Uint8Array([...product].map(c => c.charCodeAt(0) & 0xFF));
+    const decoded = utf8Decoder.decode(bytes);
+
+    // Si la decodificación produjo algo diferente y válido, usarla
+    if (decoded !== product && !decoded.includes('�')) {
+      console.log('🔍 [DEBUG] Producto decodificado:', decoded);
+      product = decoded;
+    }
+  } catch (e) {
+    console.log('🔍 [DEBUG] Error al decodificar:', e);
+  }
+
+  // Fallback: reemplazos manuales por si la decodificación automática no funciona
   product = product.replace(/Ã©/g, 'é')
                    .replace(/Ã¡/g, 'á')
                    .replace(/Ã­/g, 'í')
                    .replace(/Ã³/g, 'ó')
                    .replace(/Ãº/g, 'ú')
-                   .replace(/Ã±/g, 'ñ');
-
-  // Segundo: É mayúscula (U+00C9)
-  // Puede venir como: "Â", "Ã", "Élite", etc.
-  product = product.replace(/Ã‰/g, 'É')    // Doble encoding UTF-8
-                   .replace(/Â/g, 'É')      // Otro tipo de mojibake
-                   .replace(/Ã\s/g, 'É ')    // "Ã lite" → "É lite"
-                   .replace(/^Ã/g, 'É')      // "Ãlite" al inicio → "Élite"
-                   .replace(/É/g, 'É');     // Fix si viene como HTML entity mal parseada
+                   .replace(/Ã±/g, 'ñ')
+                   .replace(/Ã‰/g, 'É')
+                   .replace(/Ãš/g, 'Ú')
+                   .replace(/Ã"/g, 'Ó')
+                   .replace(/Ã/g, 'Í')
+                   .replace(/Ã/g, 'Á');
 
   return product;
 }
