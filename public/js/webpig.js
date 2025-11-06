@@ -140,16 +140,28 @@ function extractProduct(webhook) {
   // Fix encoding issues: "Ãlite" → "Élite"
   let product = webhook.product || 'N/A';
 
+  // DEBUG: Ver qué está llegando exactamente
+  if (product.includes('lite')) {
+    console.log('🔍 [DEBUG] Producto original:', product);
+    console.log('🔍 [DEBUG] Códigos de caracteres:', [...product].map(c => c.charCodeAt(0)));
+  }
+
   // Normalizar caracteres mal codificados UTF-8
+  // Primero: caracteres con tilde minúsculas
   product = product.replace(/Ã©/g, 'é')
                    .replace(/Ã¡/g, 'á')
                    .replace(/Ã­/g, 'í')
                    .replace(/Ã³/g, 'ó')
                    .replace(/Ãº/g, 'ú')
-                   .replace(/Ã±/g, 'ñ')
-                   .replace(/Ã‰/g, 'É')  // "Ã‰" → "É"
-                   .replace(/Ã\s/g, 'É')  // "Ã lite" → "É lite"
-                   .replace(/^Ã/g, 'É');  // "Ãlite" al inicio → "Élite"
+                   .replace(/Ã±/g, 'ñ');
+
+  // Segundo: É mayúscula (U+00C9)
+  // Puede venir como: "Â", "Ã", "Élite", etc.
+  product = product.replace(/Ã‰/g, 'É')    // Doble encoding UTF-8
+                   .replace(/Â/g, 'É')      // Otro tipo de mojibake
+                   .replace(/Ã\s/g, 'É ')    // "Ã lite" → "É lite"
+                   .replace(/^Ã/g, 'É')      // "Ãlite" al inicio → "Élite"
+                   .replace(/É/g, 'É');     // Fix si viene como HTML entity mal parseada
 
   return product;
 }
