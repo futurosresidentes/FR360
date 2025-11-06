@@ -4167,16 +4167,8 @@
         el.readOnly = !!el.value;
       });
 
-      // 3) Calcular y fijar fecha inicio (1 día después de la activa, o hoy)
-      const startDate = activeMembershipFRAPP
-        ? (() => {
-            const [expiryISO] = activeMembershipFRAPP.expiryDate.split('T');
-            const [y,m,d]     = expiryISO.split('-').map(Number);
-            return sumarDias(new Date(y, m-1, d), 1);
-          })()
-        : new Date();
-
-      inpStart.value = formatLocalDate(startDate);
+      // 3) Fijar fecha inicio siempre como hoy
+      inpStart.value = formatLocalDate(new Date());
 
       // Limpiar valores residuales
       inpExpiry.value = '';

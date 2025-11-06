@@ -14,18 +14,16 @@ const FLAG_PERMISSIONS = {
 // Retry button permissions
 const RETRY_PERMISSIONS = ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'];
 
-// Stage mapping to columns
+// Stage mapping to columns (actualizado para Supabase)
 const STAGE_COLUMNS = {
-  'invoice_extraction': 'Datos',
   'fr360_query': 'FR360',
-  'callbell_notification': 'WhatsApp',
-  'membership_creation': 'FRAPP',
   'crm_management': 'CRM',
-  'crm_upsert': 'CRM',
-  'worldoffice_customer': 'WO',
-  'worldoffice_invoice_creation': 'Factura',
-  'worldoffice_invoice_accounting': 'Factura',
+  'membership_creation': 'FRAPP',
+  'worldoffice_customer': 'WO Cliente',
+  'worldoffice_invoice_creation': 'WO Factura',
+  'worldoffice_invoice_accounting': 'WO Contabilidad',
   'worldoffice_dian_emission': 'DIAN',
+  'callbell_notification': 'Callbell',
   'strapi_cartera_update': 'Cartera',
   'strapi_facturacion_creation': 'Ventas'
 };
@@ -104,83 +102,48 @@ function hasPermission(flagKey, userEmail) {
   return allowedUsers.includes(userEmail.toLowerCase());
 }
 
-// Extract invoice ID from logs
+// ✅ Extract data from structured fields (Supabase)
 function extractInvoiceId(webhook) {
-  const extractionLog = webhook.logs.all.find(log =>
-    log.stage === 'invoice_extraction' && log.status === 'success'
-  );
-
-  if (extractionLog && extractionLog.details) {
-    const match = extractionLog.details.match(/Invoice ID extraído:\s*(\S+)/);
-    if (match) return match[1];
-  }
-
   return webhook.invoice_id || 'N/A';
 }
 
-// Extract customer from fr360_query logs
 function extractCustomer(webhook) {
-  const fr360Log = webhook.logs.all.find(log =>
-    log.stage === 'fr360_query' && log.status === 'success'
-  );
-
-  if (fr360Log && fr360Log.details) {
-    const match = fr360Log.details.match(/Cliente:\s*([^,]+)/);
-    if (match) return match[1].trim();
-  }
-
-  return webhook.customer?.name || 'N/A';
+  return webhook.customer_name || 'N/A';
 }
 
-// Extract cedula from fr360_query logs
 function extractCedula(webhook) {
-  const fr360Log = webhook.logs.all.find(log =>
-    log.stage === 'fr360_query' && log.status === 'success'
-  );
+  // Try from processing_context first
+  const cedula = webhook.processing_context?.fr360Data?.identityDocument;
+  if (cedula) return cedula;
 
-  if (fr360Log && fr360Log.details) {
-    const match = fr360Log.details.match(/Cédula:\s*(\d+)/);
-    if (match) return match[1];
+  // Fallback to logs if needed
+  const fr360Log = webhook.logs?.find(log => log.stage === 'fr360_query' && log.status === 'success');
+  if (fr360Log?.response_data?.identityDocument) {
+    return fr360Log.response_data.identityDocument;
   }
 
   return 'N/A';
 }
 
-// Extract product from fr360_query logs
 function extractProduct(webhook) {
-  const fr360Log = webhook.logs.all.find(log =>
-    log.stage === 'fr360_query' && log.status === 'success'
-  );
-
-  if (fr360Log && fr360Log.details) {
-    const match = fr360Log.details.match(/Producto:\s*([^,]+)/);
-    if (match) return match[1].trim();
-  }
-
   return webhook.product || 'N/A';
 }
 
-// Extract phone from fr360_query logs
 function extractPhone(webhook) {
-  // Try to get phone from fr360_query response_data
-  const fr360Log = webhook.logs.all.find(log =>
-    log.stage === 'fr360_query' && log.status === 'success'
-  );
+  // Try from processing_context first
+  let phone = webhook.processing_context?.fr360Data?.phone;
 
-  if (fr360Log && fr360Log.response_data && fr360Log.response_data.phone) {
-    let phone = fr360Log.response_data.phone;
-    // Add 57 if it's a 10-digit Colombian number without country code
-    if (phone && !phone.startsWith('57') && phone.length === 10) {
-      phone = '57' + phone;
-    }
-    return phone;
+  // Fallback to logs
+  if (!phone) {
+    const fr360Log = webhook.logs?.find(log => log.stage === 'fr360_query' && log.status === 'success');
+    phone = fr360Log?.response_data?.phone;
   }
 
-  // Fallback to raw_data
-  if (webhook.raw_data?.x_customer_movil) {
-    let phone = webhook.raw_data.x_customer_movil;
+  // Format phone number
+  if (phone) {
+    phone = String(phone).trim();
     // Add 57 if it's a 10-digit Colombian number without country code
-    if (phone && !phone.startsWith('57') && phone.length === 10) {
+    if (!phone.startsWith('57') && phone.length === 10) {
       phone = '57' + phone;
     }
     return phone;
@@ -266,7 +229,7 @@ async function retryWebhook(webhookId) {
   }
 }
 
-// Get stage status for a specific column
+// ✅ Get stage status usando completed_stages array (Supabase)
 function getStageStatus(webhook, columnName, isAccepted) {
   // If transaction was rejected, don't show stages
   if (!isAccepted) {
@@ -277,114 +240,34 @@ function getStageStatus(webhook, columnName, isAccepted) {
     .filter(([_, col]) => col === columnName)
     .map(([stage, _]) => stage);
 
-  const logs = webhook.logs.all.filter(log =>
+  const logs = webhook.logs?.filter(log =>
     relevantStages.includes(log.stage)
-  );
+  ) || [];
 
-  // CASO 2: Producto no requiere membresías - mostrar N/A verde (ANTES de verificar logs.length)
-  if (columnName === 'FRAPP') {
-    // Buscar si existe un log de membership_check que dice que no requiere membresías
-    const membershipCheckLog = webhook.logs?.all?.find(log => log.stage === 'membership_check');
-
-    if (membershipCheckLog) {
-      const details = (membershipCheckLog.details || '').toLowerCase();
-      const hasNoRequiere = details.includes('no requiere membresías') || details.includes('no requiere membresias');
-
-      if (hasNoRequiere) {
-        return { status: 'not-required', icon: 'N/A', logs: [] };
-      }
-    }
-
-    // Si llegamos aquí, buscamos en los logs filtrados de FRAPP
-    // Si hay membership_creation con success, mostrará ✅ (flujo normal)
-    // Si no hay logs, mostrará ⛔ (flujo normal)
-  }
-
-  // CASO 3: Cartera - verificar nroAcuerdo null (ANTES de verificar logs.length)
-  if (columnName === 'Cartera') {
-    // Verificar si existe stage strapi_cartera_update con success
-    const hasCarteraSuccess = webhook.logs?.all?.some(log =>
-      log.stage === 'strapi_cartera_update' && log.status === 'success'
-    );
-
-    if (hasCarteraSuccess) {
-      // Continuar con flujo normal para mostrar ✅
-    } else {
-      // NO existe strapi_cartera_update, verificar nroAcuerdo null
-      // Buscar nroAcuerdo en los logs de by_status.success (que tienen response_data completo)
-      const fr360QueryLog = webhook.logs?.by_status?.success?.find(log =>
-        log.stage === 'fr360_query'
-      );
-
-      const hasNullAcuerdo = fr360QueryLog?.response_data?.nroAcuerdo === null ||
-                             fr360QueryLog?.response_data?.agreementId === null;
-
-      if (hasNullAcuerdo) {
-        return { status: 'not-required', icon: 'N/A', logs: [] };
-      }
-
-      // Si no tiene cartera success Y no tiene nroAcuerdo null → ⛔
-    }
-  }
-
-  // CASO 4: DIAN - verificar si está desactivado por configuración (ANTES de verificar logs.length)
-  if (columnName === 'DIAN') {
-    // Buscar si hay un log de worldoffice_dian_emission
-    const dianLog = webhook.logs?.all?.find(log => log.stage === 'worldoffice_dian_emission');
-
-    if (dianLog) {
-      // Si el log tiene "Emisión DIAN desactivada por configuración" → ⚠️
-      if (dianLog.details?.includes('Emisión DIAN desactivada por configuración') ||
-          dianLog.details?.includes('WORLDOFFICE_DIAN_ENABLED=false')) {
-        return { status: 'skipped', icon: '⚠️', logs: [dianLog] };
-      }
-
-      // Si el log tiene status success → ✅ (flujo normal)
-      if (dianLog.status === 'success') {
-        // Continuar con flujo normal para mostrar ✅
-      }
-    }
-
-    // Si no hay log de DIAN o no es ninguno de los casos anteriores → ⛔ (flujo normal)
-  }
-
-  // Check if stage has checkpoint saved (manual patch or completed)
-  // IMPORTANTE: Verificar ANTES de logs.length === 0
-  const hasCheckpoint = webhook.completed_stages &&
+  // ✅ PRIORIDAD 1: Verificar completed_stages array (acceso O(1))
+  const hasCompleted = webhook.completed_stages &&
     relevantStages.some(stage => webhook.completed_stages.includes(stage));
 
-  // Si hay checkpoint pero no hay logs naturales, es un parche manual
-  if (hasCheckpoint && logs.length === 0) {
-    return { status: 'success', icon: '✅💾', logs: [] };
+  if (hasCompleted) {
+    // Stage completado exitosamente
+    return { status: 'success', icon: '✅', logs };
   }
 
+  // PRIORIDAD 2: Verificar logs para detectar skipped o errores
   if (logs.length === 0) {
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
 
   // Check if stage was skipped due to feature flag
-  const hasSkipped = logs.some(log =>
-    log.response_data?.skipped === true &&
-    log.response_data?.reason &&
-    (log.response_data.reason.includes('_ENABLED=false') || log.response_data.reason.includes('feature flag'))
-  );
+  const hasSkipped = logs.some(log => log.status === 'skipped');
 
   const hasError = logs.some(log => log.status === 'error');
-  const hasSuccess = logs.some(log => log.status === 'success');
   const hasProcessing = logs.some(log => log.status === 'processing');
-  const hasInfo = logs.some(log => log.status === 'info' && !log.response_data?.skipped);
 
   if (hasSkipped) {
     return { status: 'skipped', icon: '⚠️', logs };
-  } else if (hasCheckpoint) {
-    // PRIORIDAD: Si hay checkpoint (parche manual), mostrar éxito aunque haya errores previos
-    return { status: 'success', icon: '✅💾', logs };
   } else if (hasError) {
     return { status: 'error', icon: '⛔', logs };
-  } else if (hasSuccess) {
-    return { status: 'success', icon: '✅', logs };
-  } else if (hasInfo) {
-    return { status: 'success', icon: '✅', logs };
   } else if (hasProcessing) {
     return { status: 'pending', icon: '⏳', logs };
   }
@@ -567,14 +450,14 @@ function renderWebhooks(webhooks) {
         <th>Cliente</th>
         <th>Producto</th>
         <th>Estado</th>
-        <th>Datos</th>
         <th>FR360</th>
-        <th>WhatsApp</th>
-        <th>FRAPP</th>
         <th>CRM</th>
-        <th>WO</th>
-        <th>Factura</th>
+        <th>FRAPP</th>
+        <th>WO Cliente</th>
+        <th>WO Factura</th>
+        <th>WO Conta</th>
         <th>DIAN</th>
+        <th>Callbell</th>
         <th>Cartera</th>
         <th>Ventas</th>
         <th>Retry</th>
@@ -600,15 +483,15 @@ function renderWebhooks(webhooks) {
     // Estado icon
     const estadoIcon = isAccepted ? '✅' : '🚫';
 
-    // Calcular status de todos los stages
-    const datosStatus = getStageStatus(webhook, 'Datos', isAccepted);
+    // Calcular status de todos los stages (nuevas columnas)
     const fr360Status = getStageStatus(webhook, 'FR360', isAccepted);
-    const whatsappStatus = getStageStatus(webhook, 'WhatsApp', isAccepted);
-    const frappStatus = getStageStatus(webhook, 'FRAPP', isAccepted);
     const crmStatus = getStageStatus(webhook, 'CRM', isAccepted);
-    const woStatus = getStageStatus(webhook, 'WO', isAccepted);
-    const facturaStatus = getStageStatus(webhook, 'Factura', isAccepted);
+    const frappStatus = getStageStatus(webhook, 'FRAPP', isAccepted);
+    const woClienteStatus = getStageStatus(webhook, 'WO Cliente', isAccepted);
+    const woFacturaStatus = getStageStatus(webhook, 'WO Factura', isAccepted);
+    const woContabilidadStatus = getStageStatus(webhook, 'WO Contabilidad', isAccepted);
     const dianStatus = getStageStatus(webhook, 'DIAN', isAccepted);
+    const callbellStatus = getStageStatus(webhook, 'Callbell', isAccepted);
     const carteraStatus = getStageStatus(webhook, 'Cartera', isAccepted);
     const ventasStatus = getStageStatus(webhook, 'Ventas', isAccepted);
 
@@ -630,29 +513,14 @@ function renderWebhooks(webhooks) {
       <td class="customer-col">
         <div class="customer-name" title="${customer}">${customer}</div>
         <div class="customer-cedula">CC ${cedula}</div>
-        <div class="customer-email" title="${webhook.customer?.email || 'N/A'}">${webhook.customer?.email || 'N/A'}</div>
+        <div class="customer-email" title="${webhook.customer_email || 'N/A'}">${webhook.customer_email || 'N/A'}</div>
         <div class="customer-phone" title="${phone}">${phone}</div>
       </td>
       <td class="product-col" title="${product}">${product}</td>
       <td class="estado-col">${estadoIcon}</td>
-      <td class="stage-col ${getFailedClass('Datos')}" data-column="Datos">
-        <span class="stage-icon ${datosStatus.status}" data-column="Datos" data-webhook-id="${webhook.id}">
-          ${datosStatus.icon}
-        </span>
-      </td>
       <td class="stage-col ${getFailedClass('FR360')}" data-column="FR360">
         <span class="stage-icon ${fr360Status.status}" data-column="FR360" data-webhook-id="${webhook.id}">
           ${fr360Status.icon}
-        </span>
-      </td>
-      <td class="stage-col ${getFailedClass('WhatsApp')}" data-column="WhatsApp">
-        <span class="stage-icon ${whatsappStatus.status}" data-column="WhatsApp" data-webhook-id="${webhook.id}">
-          ${whatsappStatus.icon}
-        </span>
-      </td>
-      <td class="stage-col ${getFailedClass('FRAPP')}" data-column="FRAPP">
-        <span class="stage-icon ${frappStatus.status}" data-column="FRAPP" data-webhook-id="${webhook.id}">
-          ${frappStatus.icon}
         </span>
       </td>
       <td class="stage-col ${getFailedClass('CRM')}" data-column="CRM">
@@ -660,19 +528,34 @@ function renderWebhooks(webhooks) {
           ${crmStatus.icon}
         </span>
       </td>
-      <td class="stage-col ${getFailedClass('WO')}" data-column="WO">
-        <span class="stage-icon ${woStatus.status}" data-column="WO" data-webhook-id="${webhook.id}">
-          ${woStatus.icon}
+      <td class="stage-col ${getFailedClass('FRAPP')}" data-column="FRAPP">
+        <span class="stage-icon ${frappStatus.status}" data-column="FRAPP" data-webhook-id="${webhook.id}">
+          ${frappStatus.icon}
         </span>
       </td>
-      <td class="stage-col ${getFailedClass('Factura')}" data-column="Factura">
-        <span class="stage-icon ${facturaStatus.status}" data-column="Factura" data-webhook-id="${webhook.id}">
-          ${facturaStatus.icon}
+      <td class="stage-col ${getFailedClass('WO Cliente')}" data-column="WO Cliente">
+        <span class="stage-icon ${woClienteStatus.status}" data-column="WO Cliente" data-webhook-id="${webhook.id}">
+          ${woClienteStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('WO Factura')}" data-column="WO Factura">
+        <span class="stage-icon ${woFacturaStatus.status}" data-column="WO Factura" data-webhook-id="${webhook.id}">
+          ${woFacturaStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('WO Contabilidad')}" data-column="WO Contabilidad">
+        <span class="stage-icon ${woContabilidadStatus.status}" data-column="WO Contabilidad" data-webhook-id="${webhook.id}">
+          ${woContabilidadStatus.icon}
         </span>
       </td>
       <td class="stage-col ${getFailedClass('DIAN')}" data-column="DIAN">
         <span class="stage-icon ${dianStatus.status}" data-column="DIAN" data-webhook-id="${webhook.id}">
           ${dianStatus.icon}
+        </span>
+      </td>
+      <td class="stage-col ${getFailedClass('Callbell')}" data-column="Callbell">
+        <span class="stage-icon ${callbellStatus.status}" data-column="Callbell" data-webhook-id="${webhook.id}">
+          ${callbellStatus.icon}
         </span>
       </td>
       <td class="stage-col ${getFailedClass('Cartera')}" data-column="Cartera">
@@ -706,14 +589,14 @@ function renderWebhooks(webhooks) {
 
     // Store webhook data for later retrieval
     row.dataset.webhookData = JSON.stringify({
-      Datos: datosStatus,
       FR360: fr360Status,
-      WhatsApp: whatsappStatus,
-      FRAPP: frappStatus,
       CRM: crmStatus,
-      WO: woStatus,
-      Factura: facturaStatus,
+      FRAPP: frappStatus,
+      'WO Cliente': woClienteStatus,
+      'WO Factura': woFacturaStatus,
+      'WO Contabilidad': woContabilidadStatus,
       DIAN: dianStatus,
+      Callbell: callbellStatus,
       Cartera: carteraStatus,
       Ventas: ventasStatus,
       webhook: webhook  // Store full webhook for modal
