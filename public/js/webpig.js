@@ -102,43 +102,64 @@ function hasPermission(flagKey, userEmail) {
   return allowedUsers.includes(userEmail.toLowerCase());
 }
 
-// ✅ Extract data from structured fields (Supabase)
+// ✅ Extract data from structured fields (Supabase - estructura real)
 function extractInvoiceId(webhook) {
   return webhook.invoice_id || 'N/A';
 }
 
 function extractCustomer(webhook) {
-  return webhook.customer_name || 'N/A';
+  // Estructura real: webhook.customer.name
+  return webhook.customer?.name || 'N/A';
+}
+
+function extractEmail(webhook) {
+  // Estructura real: webhook.customer.email
+  return webhook.customer?.email || 'N/A';
 }
 
 function extractCedula(webhook) {
-  // Try from processing_context first
-  const cedula = webhook.processing_context?.fr360Data?.identityDocument;
-  if (cedula) return cedula;
-
-  // Fallback to logs if needed (handle both array and nested structure)
-  const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
-  const fr360Log = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
+  // Buscar en logs.by_status.success
+  const fr360Log = webhook.logs?.by_status?.success?.find(log => log.stage === 'fr360_query');
   if (fr360Log?.response_data?.identityDocument) {
     return fr360Log.response_data.identityDocument;
+  }
+
+  // Fallback a logs.all
+  const logsArray = webhook.logs?.all || [];
+  const fr360LogAll = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
+  if (fr360LogAll?.response_data?.identityDocument) {
+    return fr360LogAll.response_data.identityDocument;
   }
 
   return 'N/A';
 }
 
 function extractProduct(webhook) {
-  return webhook.product || 'N/A';
+  // Fix encoding issues: "Ãlite" → "Élite"
+  let product = webhook.product || 'N/A';
+
+  // Normalizar caracteres mal codificados
+  product = product.replace(/Ã©/g, 'é')
+                   .replace(/Ã¡/g, 'á')
+                   .replace(/Ã­/g, 'í')
+                   .replace(/Ã³/g, 'ó')
+                   .replace(/Ãº/g, 'ú')
+                   .replace(/Ã±/g, 'ñ')
+                   .replace(/Ã/g, 'É'); // "Ãlite" → "Élite"
+
+  return product;
 }
 
 function extractPhone(webhook) {
-  // Try from processing_context first
-  let phone = webhook.processing_context?.fr360Data?.phone;
+  // Buscar en logs.by_status.success primero
+  const fr360Log = webhook.logs?.by_status?.success?.find(log => log.stage === 'fr360_query');
+  let phone = fr360Log?.response_data?.phone;
 
-  // Fallback to logs (handle both array and nested structure)
+  // Fallback a logs.all
   if (!phone) {
-    const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
-    const fr360Log = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
-    phone = fr360Log?.response_data?.phone;
+    const logsArray = webhook.logs?.all || [];
+    const fr360LogAll = logsArray.find(log => log.stage === 'fr360_query' && log.status === 'success');
+    phone = fr360LogAll?.response_data?.phone;
   }
 
   // Format phone number
@@ -231,7 +252,7 @@ async function retryWebhook(webhookId) {
   }
 }
 
-// ✅ Get stage status usando completed_stages array (Supabase)
+// ✅ Get stage status usando logs.by_status (estructura real de Supabase)
 function getStageStatus(webhook, columnName, isAccepted) {
   // If transaction was rejected, don't show stages
   if (!isAccepted) {
@@ -242,36 +263,37 @@ function getStageStatus(webhook, columnName, isAccepted) {
     .filter(([_, col]) => col === columnName)
     .map(([stage, _]) => stage);
 
-  // Handle both array and nested structure for logs
-  const logsArray = Array.isArray(webhook.logs) ? webhook.logs : (webhook.logs?.all || []);
-  const logs = logsArray.filter(log =>
-    relevantStages.includes(log.stage)
-  );
+  // PRIORIDAD 1: Buscar en logs.by_status.success (más directo)
+  const successLogs = webhook.logs?.by_status?.success || [];
+  const hasSuccess = successLogs.some(log => relevantStages.includes(log.stage));
 
-  // ✅ PRIORIDAD 1: Verificar completed_stages array (acceso O(1))
-  const hasCompleted = webhook.completed_stages &&
-    relevantStages.some(stage => webhook.completed_stages.includes(stage));
-
-  if (hasCompleted) {
-    // Stage completado exitosamente
+  if (hasSuccess) {
+    const logs = successLogs.filter(log => relevantStages.includes(log.stage));
     return { status: 'success', icon: '✅', logs };
   }
 
-  // PRIORIDAD 2: Verificar logs para detectar skipped o errores
+  // PRIORIDAD 2: Buscar en logs.by_status.error
+  const errorLogs = webhook.logs?.by_status?.error || [];
+  const hasError = errorLogs.some(log => relevantStages.includes(log.stage));
+
+  if (hasError) {
+    const logs = errorLogs.filter(log => relevantStages.includes(log.stage));
+    return { status: 'error', icon: '⛔', logs };
+  }
+
+  // PRIORIDAD 3: Buscar en logs.all para processing/skipped
+  const logsAll = webhook.logs?.all || [];
+  const logs = logsAll.filter(log => relevantStages.includes(log.stage));
+
   if (logs.length === 0) {
     return { status: 'not-run', icon: '⛔', logs: [] };
   }
 
-  // Check if stage was skipped due to feature flag
   const hasSkipped = logs.some(log => log.status === 'skipped');
-
-  const hasError = logs.some(log => log.status === 'error');
   const hasProcessing = logs.some(log => log.status === 'processing');
 
   if (hasSkipped) {
     return { status: 'skipped', icon: '⚠️', logs };
-  } else if (hasError) {
-    return { status: 'error', icon: '⛔', logs };
   } else if (hasProcessing) {
     return { status: 'pending', icon: '⏳', logs };
   }
@@ -484,6 +506,7 @@ function renderWebhooks(webhooks) {
 
     const invoiceId = extractInvoiceId(webhook);
     const customer = extractCustomer(webhook);
+    const email = extractEmail(webhook);
     const cedula = extractCedula(webhook);
     const product = extractProduct(webhook);
     const phone = extractPhone(webhook);
@@ -522,7 +545,7 @@ function renderWebhooks(webhooks) {
       <td class="customer-col">
         <div class="customer-name" title="${customer}">${customer}</div>
         <div class="customer-cedula">CC ${cedula}</div>
-        <div class="customer-email" title="${webhook.customer_email || 'N/A'}">${webhook.customer_email || 'N/A'}</div>
+        <div class="customer-email" title="${email}">${email}</div>
         <div class="customer-phone" title="${phone}">${phone}</div>
       </td>
       <td class="product-col" title="${product}">${product}</td>
