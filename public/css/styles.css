@@ -2391,3 +2391,96 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     padding: 8px 4px;
   }
 }
+
+/* ===== EPAYCO STYLES ===== */
+/* Layout similar a Web Pig con sticky headers */
+#epayco.pane.active {
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100vh - 60px);
+}
+
+#epaycoContainer {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 0 1rem;
+  margin-top: 0;
+}
+
+/* Botón estilo Web Pig pero en negro */
+#refreshEpaycoBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#refreshEpaycoBtn:hover {
+  background: #333;
+}
+
+#refreshEpaycoBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Tabla con sticky headers y fuente Montserrat */
+.webpig-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+}
+
+.webpig-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.webpig-table thead th {
+  background: #000 !important;
+  color: #fff !important;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-family: 'Montserrat', sans-serif;
+}
+
+.webpig-table tbody td {
+  font-family: 'Montserrat', sans-serif;
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.webpig-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Responsive para móvil */
+@media (max-width: 768px) {
+  #refreshEpaycoBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .webpig-table {
+    font-size: 0.8rem;
+  }
+
+  .webpig-table thead th,
+  .webpig-table tbody td {
+    padding: 8px 4px;
+  }
+}

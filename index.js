@@ -197,6 +197,113 @@ app.post('/api/webpig/webhooks/:id/retry', ensureAuthenticated, ensureDomain, as
   }
 });
 
+// ===== EPAYCO PROXY ENDPOINTS =====
+
+// Helper function: Get ePayco auth token
+async function getEpaycoToken() {
+  try {
+    console.log('[ePayco] Obtaining authentication token...');
+
+    const username = '1a0a756de0fb2954415d616f54df0325';
+    const password = 'ba0e97bd6ca3e5d8bb360879d94eca8d';
+
+    // Crear credenciales Base64 para Basic Auth
+    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
+
+    const response = await fetch('https://apify.epayco.co/login', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`[ePayco] Login response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[ePayco] Login error: ${errorText}`);
+      throw new Error(`Failed to authenticate with ePayco: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('[ePayco] Login response token length:', data.token?.length || 0);
+
+    if (!data.token) {
+      throw new Error('Token not received from ePayco login');
+    }
+
+    console.log('[ePayco] Token obtained successfully');
+
+    return data.token;
+  } catch (error) {
+    console.error('[ePayco] Error obtaining token:', error);
+    throw error;
+  }
+}
+
+// GET recent ePayco transactions (últimas 100)
+app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    console.log('[ePayco] Fetching last 100 transactions (2 pages)');
+
+    // Paso 1: Obtener token dinámico
+    const token = await getEpaycoToken();
+
+    // Paso 2: Consultar múltiples páginas para obtener más transacciones
+    // La API limita a 50 por página, así que hacemos 2 requests
+    const page1Response = await fetch('https://apify.epayco.co/transaction?limit=50&page=1', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!page1Response.ok) {
+      const errorText = await page1Response.text();
+      console.error(`[ePayco] Error page 1: ${errorText}`);
+      return res.status(page1Response.status).json({ success: false, error: errorText });
+    }
+
+    const page1Data = await page1Response.json();
+    console.log(`[ePayco] Page 1 fetched: ${page1Data?.data?.data?.length || 0} transactions`);
+
+    // Página 2
+    const page2Response = await fetch('https://apify.epayco.co/transaction?limit=50&page=2', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!page2Response.ok) {
+      console.warn('[ePayco] Page 2 failed, returning only page 1');
+      return res.json(page1Data);
+    }
+
+    const page2Data = await page2Response.json();
+    console.log(`[ePayco] Page 2 fetched: ${page2Data?.data?.data?.length || 0} transactions`);
+
+    // Combinar ambas páginas
+    const combinedData = {
+      ...page1Data,
+      data: {
+        ...page1Data.data,
+        data: [...(page1Data.data?.data || []), ...(page2Data.data?.data || [])]
+      }
+    };
+
+    console.log(`[ePayco] Total transactions: ${combinedData.data.data.length}`);
+
+    res.json(combinedData);
+  } catch (error) {
+    console.error('[ePayco] Error fetching transactions:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Endpoint: Actualización Masiva de Carteras (MUST BE BEFORE GENERIC HANDLER)
 // Procesa N acuerdos con estado_pago null y los actualiza usando la lógica de Acuerdos
 app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, res) => {
