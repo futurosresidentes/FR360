@@ -1,6 +1,8 @@
 /**
  * Módulo: Actualización Masiva de Carteras
- * Procesa acuerdos con estado_pago null y los actualiza usando la lógica de Acuerdos
+ * Procesa TODAS las cuotas pendientes y vencidas:
+ * 1. Cuotas con estado_pago = null
+ * 2. Cuotas con estado_pago = 'al_dia' pero con fecha_limite < hoy
  */
 
 (function() {
@@ -9,7 +11,7 @@
   // Referencias DOM
   const startBtn = document.getElementById('startCarterasMasivoBtn');
   const stopBtn = document.getElementById('stopCarterasMasivoBtn');
-  const cantidadInput = document.getElementById('carterasCantidad');
+  const incluirMoraCheckbox = document.getElementById('incluirMoraCheckbox');
   const progressContainer = document.getElementById('carterasProgress');
   const progressBar = document.getElementById('carterasProgressBar');
   const progressText = document.getElementById('carterasProgressText');
@@ -151,11 +153,12 @@
   }
 
   /**
-   * Procesa un lote de acuerdos
+   * Procesa todas las carteras pendientes
    */
-  async function processBatch(cantidad) {
+  async function processBatch(incluirMora) {
     try {
-      const response = await fetch(`/api/carteras-masivo?cantidad=${cantidad}`, {
+      const queryParam = incluirMora ? '?incluir_mora=true' : '';
+      const response = await fetch(`/api/carteras-masivo${queryParam}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -179,12 +182,8 @@
    * Inicia el procesamiento masivo
    */
   async function startProcessing() {
-    // Validar cantidad
-    const cantidad = parseInt(cantidadInput.value);
-    if (isNaN(cantidad) || cantidad < 1 || cantidad > 500) {
-      alert('⚠️ Por favor ingresa una cantidad válida (1-500)');
-      return;
-    }
+    // Leer estado del checkbox
+    const incluirMora = incluirMoraCheckbox.checked;
 
     // Inicializar estado
     isProcessing = true;
@@ -193,8 +192,8 @@
     totalProcessed = 0;
     totalErrors = 0;
 
-    // UI: Deshabilitar input y botón iniciar, mostrar botón detener
-    cantidadInput.disabled = true;
+    // UI: Deshabilitar checkbox y botón iniciar, mostrar botón detener
+    incluirMoraCheckbox.disabled = true;
     startBtn.disabled = true;
     startBtn.style.display = 'none';
     stopBtn.style.display = 'inline-block';
@@ -211,18 +210,20 @@
       border-radius: 4px;
     `;
     startMessage.innerHTML = `
-      <strong>🚀 Iniciando procesamiento de ${cantidad} acuerdos...</strong><br>
-      <span style="font-size: 0.9em; color: #555;">Consultando carteras con estado_pago null...</span>
+      <strong>🚀 Iniciando procesamiento global de carteras...</strong><br>
+      <span style="font-size: 0.9em; color: #555;">
+        Consultando cuotas pendientes y vencidas${incluirMora ? ' (incluyendo mora)' : ''}...
+      </span>
     `;
     resultsContainer.appendChild(startMessage);
 
     // Iniciar procesamiento
-    updateProgress(0, cantidad);
+    updateProgress(0, 100);
 
     try {
-      console.log(`📊 Iniciando procesamiento de ${cantidad} acuerdos...`);
+      console.log(`📊 Iniciando procesamiento global de carteras ${incluirMora ? '(incluyendo mora)' : ''}...`);
 
-      const result = await processBatch(cantidad);
+      const result = await processBatch(incluirMora);
 
       if (!result.success) {
         throw new Error(result.error || 'Error desconocido');
@@ -233,7 +234,7 @@
       totalErrors = result.errores || 0;
 
       // Actualizar progreso
-      updateProgress(totalProcessed, cantidad);
+      updateProgress(100, 100);
 
       // Mostrar resultados por acuerdo
       if (result.acuerdos && result.acuerdos.length > 0) {
@@ -282,7 +283,7 @@
     } finally {
       // Restaurar UI
       isProcessing = false;
-      cantidadInput.disabled = false;
+      incluirMoraCheckbox.disabled = false;
       startBtn.disabled = false;
       startBtn.style.display = 'inline-block';
       stopBtn.style.display = 'none';

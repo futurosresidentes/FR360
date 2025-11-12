@@ -372,11 +372,21 @@
       <div class="pane right" id="carteras-masivo">
         <div class="carteras-masivo-header">
           <h2>Actualización Masiva de Carteras 📊</h2>
+          <p style="color: #666; margin-bottom: 16px;">
+            Procesa TODAS las cuotas pendientes y vencidas:<br>
+            • Cuotas con estado_pago = null<br>
+            • Cuotas con estado_pago = 'al_dia' pero con fecha_limite &lt; hoy<br>
+            • Opcionalmente: cuotas en mora para verificar si ya fueron pagadas
+          </p>
           <div class="carteras-masivo-controls">
+            <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="incluirMoraCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+                <span style="font-weight: 500;">Incluir cartera en mora</span>
+              </label>
+            </div>
             <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-              <label for="carterasCantidad" style="font-weight: 500;">Cantidad de acuerdos a procesar:</label>
-              <input type="number" id="carterasCantidad" min="1" max="500" value="10" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-              <button id="startCarterasMasivoBtn" class="btn-primary">▶️ Iniciar Procesamiento</button>
+              <button id="startCarterasMasivoBtn" class="btn-primary">▶️ Iniciar Procesamiento Global</button>
               <button id="stopCarterasMasivoBtn" class="btn-danger" style="display: none;">⏹️ Detener</button>
             </div>
             <div id="carterasProgress" style="margin-top: 12px; display: none;">
