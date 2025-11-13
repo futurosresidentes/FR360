@@ -13,7 +13,6 @@
   const stopBtn = document.getElementById('stopCarterasMasivoBtn');
   const incluirMoraCheckbox = document.getElementById('incluirMoraCheckbox');
   const progressContainer = document.getElementById('carterasProgress');
-  const progressBar = document.getElementById('carterasProgressBar');
   const progressText = document.getElementById('carterasProgressText');
   const resultsContainer = document.getElementById('carterasResultsContainer');
 
@@ -144,15 +143,6 @@
   }
 
   /**
-   * Actualiza la barra de progreso
-   */
-  function updateProgress(current, total) {
-    const percent = Math.round((current / total) * 100);
-    progressBar.style.width = `${percent}%`;
-    progressText.textContent = `${current} / ${total} (${percent}%)`;
-  }
-
-  /**
    * Procesa todas las carteras pendientes
    */
   async function processBatch(incluirMora) {
@@ -217,9 +207,6 @@
     `;
     resultsContainer.appendChild(startMessage);
 
-    // Iniciar procesamiento
-    updateProgress(0, 100);
-
     try {
       console.log(`📊 Iniciando procesamiento global de carteras ${incluirMora ? '(incluyendo mora)' : ''}...`);
 
@@ -232,9 +219,6 @@
       // Actualizar estadísticas globales
       totalProcessed = result.procesados || 0;
       totalErrors = result.errores || 0;
-
-      // Actualizar progreso
-      updateProgress(100, 100);
 
       // Mostrar resultados por acuerdo
       if (result.acuerdos && result.acuerdos.length > 0) {
