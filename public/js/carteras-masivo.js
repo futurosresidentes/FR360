@@ -271,6 +271,7 @@
       startBtn.disabled = false;
       startBtn.style.display = 'inline-block';
       stopBtn.style.display = 'none';
+      progressContainer.style.display = 'none';
     }
   }
 
