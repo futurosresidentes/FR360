@@ -4,7 +4,7 @@
 
 ### URL del Endpoint
 ```
-GET https://fr360.onrender.com/api/carteras-masivo/auto
+GET https://fr360-1ls4.onrender.com/api/carteras-masivo/auto
 ```
 
 ### Parámetros Query
@@ -23,12 +23,12 @@ CARTERAS_MASIVO_TOKEN=tu_token_personalizado_aqui
 
 **Sin incluir mora:**
 ```
-https://fr360.onrender.com/api/carteras-masivo/auto?token=FR360_carteras_masivo_2025
+https://fr360-1ls4.onrender.com/api/carteras-masivo/auto?token=FR360_carteras_masivo_2025
 ```
 
 **Incluyendo mora:**
 ```
-https://fr360.onrender.com/api/carteras-masivo/auto?token=FR360_carteras_masivo_2025&incluir_mora=true
+https://fr360-1ls4.onrender.com/api/carteras-masivo/auto?token=FR360_carteras_masivo_2025&incluir_mora=true
 ```
 
 ### Respuesta Exitosa
@@ -74,7 +74,7 @@ https://fr360.onrender.com/api/carteras-masivo/auto?token=FR360_carteras_masivo_
  */
 
 function actualizarCarterasDiario() {
-  const url = 'https://fr360.onrender.com/api/carteras-masivo/auto';
+  const url = 'https://fr360-1ls4.onrender.com/api/carteras-masivo/auto';
   const token = 'FR360_carteras_masivo_2025';
   const incluirMora = true; // Cambiar a false para no incluir mora
 
@@ -268,4 +268,4 @@ function testActualizarCarteras() {
 
 Para soporte o dudas:
 - **Email**: daniel.cardona@sentiretaller.com
-- **Sistema**: FR360 - https://fr360.onrender.com
+- **Sistema**: FR360 - https://fr360-1ls4.onrender.com
