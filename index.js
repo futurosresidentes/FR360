@@ -304,6 +304,35 @@ app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (re
   }
 });
 
+// Endpoint: Actualización Automática de Carteras (para triggers externos)
+// GET /api/carteras-masivo/auto?token=SECRET&incluir_mora=true
+// No requiere autenticación de usuario, usa token secreto para llamadas programadas
+app.get('/api/carteras-masivo/auto', (req, res, next) => {
+  const token = req.query.token;
+  const incluirMora = req.query.incluir_mora === 'true';
+
+  // Validar token secreto
+  const SECRET_TOKEN = process.env.CARTERAS_MASIVO_TOKEN || 'FR360_carteras_masivo_2025';
+  if (token !== SECRET_TOKEN) {
+    console.warn(`⚠️ [AUTO] Token inválido para carteras-masivo/auto`);
+    return res.status(401).json({
+      success: false,
+      error: 'Token inválido'
+    });
+  }
+
+  console.log(`🤖 [AUTO] Iniciando actualización automática de carteras ${incluirMora ? '(incluyendo mora)' : ''}...`);
+
+  // Simular usuario autenticado para bypass de middleware
+  req.user = { email: 'daniel.cardona@sentiretaller.com' };
+  req.isAuthenticated = () => true;
+  req.query.incluir_mora = incluirMora ? 'true' : 'false';
+
+  // Llamar al handler del endpoint POST manualmente
+  // El siguiente handler en la cadena será el POST /api/carteras-masivo
+  next();
+});
+
 // Endpoint: Actualización Masiva de Carteras (MUST BE BEFORE GENERIC HANDLER)
 // Procesa TODAS las cuotas pendientes y vencidas usando la lógica de Acuerdos:
 // 1. Cuotas con estado_pago = null
