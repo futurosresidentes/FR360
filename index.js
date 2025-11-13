@@ -307,30 +307,383 @@ app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (re
 // Endpoint: Actualización Automática de Carteras (para triggers externos)
 // GET /api/carteras-masivo/auto?token=SECRET&incluir_mora=true
 // No requiere autenticación de usuario, usa token secreto para llamadas programadas
-app.get('/api/carteras-masivo/auto', (req, res, next) => {
-  const token = req.query.token;
-  const incluirMora = req.query.incluir_mora === 'true';
+app.get('/api/carteras-masivo/auto', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const token = req.query.token;
+    const incluirMora = req.query.incluir_mora === 'true';
 
-  // Validar token secreto
-  const SECRET_TOKEN = process.env.CARTERAS_MASIVO_TOKEN || 'FR360_carteras_masivo_2025';
-  if (token !== SECRET_TOKEN) {
-    console.warn(`⚠️ [AUTO] Token inválido para carteras-masivo/auto`);
-    return res.status(401).json({
+    // Validar token secreto
+    const SECRET_TOKEN = process.env.CARTERAS_MASIVO_TOKEN || 'FR360_carteras_masivo_2025';
+    if (token !== SECRET_TOKEN) {
+      console.warn(`⚠️ [AUTO] Token inválido para carteras-masivo/auto`);
+      return res.status(401).json({
+        success: false,
+        error: 'Token inválido'
+      });
+    }
+
+    console.log(`🤖 [AUTO] Iniciando actualización automática de carteras ${incluirMora ? '(incluyendo mora)' : ''}...`);
+
+    // Calcular fecha de hoy en Colombia (UTC-5)
+    const now = new Date();
+    const colombiaOffset = -5 * 60;
+    const localOffset = now.getTimezoneOffset();
+    const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
+    const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
+    const hoyStr = hoy.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    console.log(`📅 Fecha de hoy (Colombia): ${hoyStr}`);
+
+    // 1. Obtener carteras con estado_pago null
+    console.log('🔍 Consultando carteras con estado_pago null...');
+    const carterasNullResponse = await axios.get(
+      `https://strapi-project-d3p7.onrender.com/api/carteras`,
+      {
+        params: {
+          'filters[estado_pago][$null]': true,
+          'pagination[page]': 1,
+          'pagination[pageSize]': 100,
+          'populate': 'producto'
+        },
+        headers: {
+          'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+        }
+      }
+    );
+
+    const carterasNull = carterasNullResponse.data.data || [];
+    console.log(`✅ Encontradas ${carterasNull.length} carteras con estado_pago null`);
+
+    // 2. Obtener carteras con estado_pago = 'al_dia' y fecha_limite < hoy
+    console.log('🔍 Consultando carteras al_dia con fecha vencida...');
+    const carterasAlDiaVencidasResponse = await axios.get(
+      `https://strapi-project-d3p7.onrender.com/api/carteras`,
+      {
+        params: {
+          'filters[estado_pago][$eq]': 'al_dia',
+          'filters[fecha_limite][$lt]': hoyStr,
+          'pagination[page]': 1,
+          'pagination[pageSize]': 100,
+          'populate': 'producto'
+        },
+        headers: {
+          'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+        }
+      }
+    );
+
+    const carterasAlDiaVencidas = carterasAlDiaVencidasResponse.data.data || [];
+    console.log(`✅ Encontradas ${carterasAlDiaVencidas.length} carteras al_dia con fecha vencida`);
+
+    // 3. Si incluir_mora=true, obtener también las carteras en mora
+    let carterasMora = [];
+    if (incluirMora) {
+      console.log('🔍 Consultando carteras en mora...');
+      const carterasMoraResponse = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/carteras`,
+        {
+          params: {
+            'filters[estado_pago][$eq]': 'en_mora',
+            'pagination[page]': 1,
+            'pagination[pageSize]': 100,
+            'populate': 'producto'
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+      carterasMora = carterasMoraResponse.data.data || [];
+      console.log(`✅ Encontradas ${carterasMora.length} carteras en mora`);
+    }
+
+    // 4. Combinar todos los arrays
+    const carterasAProcesar = [...carterasNull, ...carterasAlDiaVencidas, ...carterasMora];
+    console.log(`📊 Total de carteras a procesar: ${carterasAProcesar.length}`);
+
+    if (carterasAProcesar.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No hay carteras pendientes de actualizar',
+        acuerdos_procesados: 0,
+        cuotas_actualizadas: 0,
+        acuerdos: []
+      });
+    }
+
+    // 5. Identificar acuerdos únicos (numero_documento + nro_acuerdo)
+    const acuerdosUnicos = new Map();
+    carterasAProcesar.forEach(item => {
+      const nroAcuerdo = item.nro_acuerdo;
+      const numeroDocumento = item.numero_documento;
+
+      if (!nroAcuerdo || !numeroDocumento) return;
+
+      const key = `${numeroDocumento}-${nroAcuerdo}`;
+      if (!acuerdosUnicos.has(key)) {
+        acuerdosUnicos.set(key, {
+          numero_documento: numeroDocumento,
+          nro_acuerdo: nroAcuerdo,
+          producto: item.producto?.nombre || 'Sin producto'
+        });
+      }
+    });
+
+    // Procesar TODOS los acuerdos únicos (sin límite)
+    const acuerdosAProcesar = Array.from(acuerdosUnicos.values());
+    console.log(`📋 Identificados ${acuerdosAProcesar.length} acuerdos únicos a procesar`);
+
+    // 6. Para cada acuerdo, traer TODAS sus cuotas de Strapi
+    const acuerdosMap = new Map();
+
+    for (const acuerdo of acuerdosAProcesar) {
+      console.log(`🔍 Obteniendo todas las cuotas del acuerdo ${acuerdo.nro_acuerdo}...`);
+
+      const todasLasCuotasResponse = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/carteras`,
+        {
+          params: {
+            'filters[numero_documento]': acuerdo.numero_documento,
+            'filters[nro_acuerdo]': acuerdo.nro_acuerdo,
+            'pagination[pageSize]': 100,
+            'populate': 'producto'
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+
+      const todasLasCuotas = todasLasCuotasResponse.data.data || [];
+      console.log(`  ✅ Encontradas ${todasLasCuotas.length} cuotas`);
+
+      const key = `${acuerdo.numero_documento}-${acuerdo.nro_acuerdo}`;
+      acuerdosMap.set(key, {
+        numero_documento: acuerdo.numero_documento,
+        nro_acuerdo: acuerdo.nro_acuerdo,
+        producto: acuerdo.producto,
+        cuotas: todasLasCuotas.map(item => ({
+          documentId: item.documentId || item.id,
+          cuota_nro: item.cuota_nro,
+          valor_cuota: item.valor_cuota,
+          fecha_limite: item.fecha_limite,
+          id_pago: item.id_pago,
+          id_pago_mora: item.id_pago_mora,
+          estado_pago: item.estado_pago,
+          fecha_de_pago: item.fecha_de_pago,
+          valor_pagado: item.valor_pagado
+        }))
+      });
+    }
+
+    console.log(`📋 Acuerdos completos listos para procesar: ${acuerdosMap.size}`);
+
+    // 7. Procesar cada acuerdo (verificar estado de cuotas)
+    const acuerdosProcessed = [];
+    let cuotasActualizadas = 0;
+
+    for (const [key, acuerdo] of acuerdosMap) {
+      console.log(`\n🔄 Procesando acuerdo ${acuerdo.nro_acuerdo} - ${acuerdo.numero_documento}`);
+
+      // Ordenar cuotas por número
+      acuerdo.cuotas.sort((a, b) => (a.cuota_nro || 0) - (b.cuota_nro || 0));
+
+      // 8. Obtener TODAS las ventas (facturaciones) del numero_documento para cruzar
+      console.log(`📊 Obteniendo facturaciones de ${acuerdo.numero_documento}...`);
+      const facturacionesResponse = await axios.get(
+        `https://strapi-project-d3p7.onrender.com/api/facturaciones`,
+        {
+          params: {
+            'filters[numero_documento]': acuerdo.numero_documento,
+            'pagination[pageSize]': 100,
+            'populate': 'producto'
+          },
+          headers: {
+            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+          }
+        }
+      );
+
+      const facturaciones = facturacionesResponse.data.data || [];
+      console.log(`  ✅ Encontradas ${facturaciones.length} facturaciones`);
+
+      // Procesar cada cuota del acuerdo
+      const nroCuotas = acuerdo.cuotas.length;
+
+      for (const cuota of acuerdo.cuotas) {
+        try {
+          const baseProducto = acuerdo.producto;
+          const cuotaNro = cuota.cuota_nro;
+          const esUltimaCuota = cuotaNro === nroCuotas;
+          let ventasMatch = [];
+
+          // PASO 1: Buscar PRIMERO por id_pago (más confiable y directo)
+          if (cuota.id_pago) {
+            ventasMatch = facturaciones.filter(f => {
+              const transaccion = String(f.transaccion || '').trim();
+              return transaccion === String(cuota.id_pago).trim();
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago: ${cuota.id_pago}`);
+            }
+          }
+
+          // PASO 2: Si no encontró por id_pago, buscar por id_pago_mora (pagos tardíos)
+          if (ventasMatch.length === 0 && cuota.id_pago_mora) {
+            ventasMatch = facturaciones.filter(f => {
+              const transaccion = String(f.transaccion || '').trim();
+              return transaccion === String(cuota.id_pago_mora).trim();
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago_mora: ${cuota.id_pago_mora}`);
+            }
+          }
+
+          // PASO 3: Si no encontró por IDs, buscar por nombre de producto (fallback)
+          if (ventasMatch.length === 0) {
+            ventasMatch = facturaciones.filter(f => {
+              const productoNombre = f.producto?.nombre || '';
+              const nroAcuerdoFactura = String(f.acuerdo || '').trim();
+              const nroAcuerdoEsperado = String(acuerdo.nro_acuerdo).trim();
+
+              // El acuerdo debe coincidir
+              if (nroAcuerdoFactura !== nroAcuerdoEsperado) return false;
+
+              // Buscar por nombre de producto
+              const targetNames = [
+                `${baseProducto} - Cuota ${cuotaNro}`,
+                `${baseProducto} - Cuota ${cuotaNro} (Mora)`
+              ];
+
+              // Si es la última cuota, también buscar "Paz y salvo"
+              if (esUltimaCuota) {
+                targetNames.push(`${baseProducto} - Paz y salvo`);
+              }
+
+              return targetNames.some(name => {
+                const normName = productoNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const normTarget = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                return normName === normTarget;
+              });
+            });
+
+            if (ventasMatch.length > 0) {
+              console.log(`  💰 Cuota ${cuotaNro} encontrada por nombre de producto: ${ventasMatch[0].producto?.nombre}`);
+            }
+          }
+
+          // Si encontró match en ventas (por cualquier método), marcar como pagado
+          if (ventasMatch.length > 0) {
+            // Usar la primera venta encontrada
+            const venta = ventasMatch[0];
+            const fechaPago = venta.fecha || '';
+            const valorPagado = venta.valor_neto || 0;
+
+            // Solo actualizar si el estado cambió
+            if (cuota.estado_pago !== 'pagado' || cuota.fecha_de_pago !== fechaPago || cuota.valor_pagado !== valorPagado) {
+              // Actualizar en Strapi
+              await axios.put(
+                `https://strapi-project-d3p7.onrender.com/api/carteras/${cuota.documentId}`,
+                {
+                  data: {
+                    estado_pago: 'pagado',
+                    fecha_de_pago: fechaPago,
+                    valor_pagado: valorPagado
+                  }
+                },
+                {
+                  headers: {
+                    'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+
+              cuota.estado_pago = 'pagado';
+              cuota.fecha_de_pago = fechaPago;
+              cuota.valor_pagado = valorPagado;
+              cuotasActualizadas++;
+              console.log(`  ✅ Cuota ${cuotaNro}: Actualizada a Pagado (${fechaPago})`);
+            } else {
+              console.log(`  ⏭️ Cuota ${cuotaNro}: Ya estaba como Pagado (sin cambios)`);
+            }
+          } else {
+            // PASO 2: Si NO encontró en ventas, verificar estado según fecha límite
+            const fechaLimite = cuota.fecha_limite;
+            if (fechaLimite && fechaLimite !== '1970-01-01') {
+              const now = new Date();
+              const colombiaOffset = -5 * 60;
+              const localOffset = now.getTimezoneOffset();
+              const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
+              const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
+              const limite = new Date(fechaLimite + 'T00:00:00-05:00');
+
+              const estadoPago = limite < hoy ? 'en_mora' : 'al_dia';
+
+              // Solo actualizar si el estado cambió
+              if (cuota.estado_pago !== estadoPago) {
+                // Actualizar en Strapi
+                await axios.put(
+                  `https://strapi-project-d3p7.onrender.com/api/carteras/${cuota.documentId}`,
+                  {
+                    data: {
+                      estado_pago: estadoPago,
+                      fecha_de_pago: null,
+                      valor_pagado: null
+                    }
+                  },
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+                      'Content-Type': 'application/json'
+                    }
+                  }
+                );
+
+                cuota.estado_pago = estadoPago;
+                cuota.fecha_de_pago = '';
+                cuota.valor_pagado = null;
+                cuotasActualizadas++;
+                console.log(`  ✅ Cuota ${cuotaNro}: Actualizada a ${estadoPago}`);
+              } else {
+                console.log(`  ⏭️ Cuota ${cuotaNro}: Ya estaba como ${estadoPago} (sin cambios)`);
+              }
+            }
+          }
+
+        } catch (error) {
+          console.error(`  ❌ Error procesando cuota ${cuota.cuota_nro}:`, error.message);
+          cuota.estado_pago = 'error';
+          cuota.error = error.message;
+        }
+      }
+
+      acuerdosProcessed.push(acuerdo);
+    }
+
+    console.log(`\n✅ [AUTO] Procesamiento completado:`);
+    console.log(`   • Acuerdos procesados: ${acuerdosProcessed.length}`);
+    console.log(`   • Cuotas actualizadas: ${cuotasActualizadas}`);
+
+    res.json({
+      success: true,
+      acuerdos_procesados: acuerdosProcessed.length,
+      cuotas_actualizadas: cuotasActualizadas,
+      acuerdos: acuerdosProcessed,
+      procesados: cuotasActualizadas,
+      errores: 0
+    });
+
+  } catch (error) {
+    console.error('❌ [AUTO] Error in carteras-masivo/auto:', error);
+    res.status(500).json({
       success: false,
-      error: 'Token inválido'
+      error: error.message
     });
   }
-
-  console.log(`🤖 [AUTO] Iniciando actualización automática de carteras ${incluirMora ? '(incluyendo mora)' : ''}...`);
-
-  // Simular usuario autenticado para bypass de middleware
-  req.user = { email: 'daniel.cardona@sentiretaller.com' };
-  req.isAuthenticated = () => true;
-  req.query.incluir_mora = incluirMora ? 'true' : 'false';
-
-  // Llamar al handler del endpoint POST manualmente
-  // El siguiente handler en la cadena será el POST /api/carteras-masivo
-  next();
 });
 
 // Endpoint: Actualización Masiva de Carteras (MUST BE BEFORE GENERIC HANDLER)
