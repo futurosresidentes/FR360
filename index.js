@@ -5,6 +5,7 @@ const session = require('express-session');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 // Importar servicios
 const strapiService = require('./services/strapiService');
@@ -22,6 +23,12 @@ const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 // --- Middlewares básicos
 app.use(morgan('dev'));
@@ -193,6 +200,61 @@ app.post('/api/webpig/webhooks/:id/retry', ensureAuthenticated, ensureDomain, as
     res.json(data);
   } catch (error) {
     console.error('[WebPig] Error retrying webhook:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST mark stage as manually completed
+app.post('/api/webpig/webhooks/:id/mark-manual-completion', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { id } = req.params;
+  const { stage, column } = req.body;
+  const markedBy = req.user?.email || 'unknown';
+
+  console.log(`[WebPig] Marking stage ${stage} as manually completed for webhook ID: ${id} by ${markedBy}`);
+
+  try {
+    // Insertar un log de success manual en Supabase
+    const { data: logData, error: logError } = await supabase
+      .from('webhook_logs')
+      .insert([
+        {
+          webhook_id: parseInt(id),
+          stage: stage,
+          status: 'success',
+          details: `Marcado como completado manualmente por ${markedBy}`,
+          created_at: new Date().toISOString()
+        }
+      ])
+      .select();
+
+    if (logError) {
+      console.error('[WebPig] Error inserting log:', logError);
+      throw logError;
+    }
+
+    console.log('[WebPig] Log inserted successfully:', logData);
+
+    // Actualizar el webhook si todos los stages están completos
+    const { error: updateError } = await supabase
+      .from('webhooks')
+      .update({
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('[WebPig] Error updating webhook:', updateError);
+      // No fallar si solo falla la actualización del webhook
+    }
+
+    res.json({
+      success: true,
+      message: `${column} marcado como completado manualmente`,
+      log: logData
+    });
+
+  } catch (error) {
+    console.error('[WebPig] Error marking stage as manually completed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

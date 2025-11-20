@@ -1655,6 +1655,47 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: scale(0.98);
 }
 
+/* Manual completion section */
+.manual-completion-section {
+  background-color: #e8f5e9;
+  border: 2px solid #4caf50;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  text-align: center;
+}
+
+.btn-manual-completion {
+  background-color: #4caf50;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #fff;
+  font-weight: 600;
+  width: 100%;
+  max-width: 400px;
+}
+
+.btn-manual-completion:hover {
+  background-color: #45a049;
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.btn-manual-completion:active {
+  transform: scale(0.98);
+}
+
+.manual-completion-note {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+}
+
 /* Checkpoint info in modal */
 .checkpoint-info {
   background-color: #e7f3ff;

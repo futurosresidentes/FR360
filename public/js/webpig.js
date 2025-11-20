@@ -409,6 +409,10 @@ function showStageDetails(columnName, logs, webhookData) {
 
   title.textContent = `Detalles: ${columnName}`;
 
+  // Guardar datos del webhook en el modal para usar después
+  modal.dataset.columnName = columnName;
+  modal.dataset.webhookId = webhookData.webhook?.id;
+
   if (!logs || logs.length === 0) {
     body.innerHTML = '<div class="no-logs">No hay logs disponibles para este stage</div>';
   } else {
@@ -489,6 +493,19 @@ function showStageDetails(columnName, logs, webhookData) {
       content += '</div>';
       return content;
     }).join('');
+
+    // Agregar botón para marcar como completado manualmente (solo para DIAN con errores o skipped)
+    const stageStatus = webhookData[columnName];
+    if (columnName === 'DIAN' && stageStatus && (stageStatus.status === 'error' || stageStatus.status === 'skipped' || stageStatus.icon === '⛔')) {
+      body.innerHTML += `
+        <div class="manual-completion-section">
+          <button onclick="markStageAsManuallyCompleted('${columnName}', ${webhookData.webhook.id})" class="btn-manual-completion">
+            ✅ Marcar como completado manualmente
+          </button>
+          <p class="manual-completion-note">Usa este botón si ya emitiste a DIAN manualmente</p>
+        </div>
+      `;
+    }
   }
 
   modal.classList.remove('hidden');
@@ -498,6 +515,50 @@ function showStageDetails(columnName, logs, webhookData) {
 function closeStageDetails() {
   const modal = document.getElementById('stageDetailsModal');
   modal.classList.add('hidden');
+}
+
+// Mark stage as manually completed
+async function markStageAsManuallyCompleted(columnName, webhookId) {
+  if (!confirm(`¿Está seguro de marcar ${columnName} como completado manualmente para webhook #${webhookId}?`)) {
+    return;
+  }
+
+  try {
+    // Obtener el stage name correspondiente a la columna
+    const stageName = Object.entries(STAGE_COLUMNS).find(([_, col]) => col === columnName)?.[0];
+
+    if (!stageName) {
+      alert('Error: No se pudo determinar el stage');
+      return;
+    }
+
+    const response = await fetch(`/api/webpig/webhooks/${webhookId}/mark-manual-completion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        stage: stageName,
+        column: columnName
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Error al marcar como completado');
+    }
+
+    alert(`✅ ${columnName} marcado como completado manualmente`);
+
+    // Cerrar modal y recargar datos
+    closeStageDetails();
+    await loadWebhooks();
+
+  } catch (error) {
+    console.error('Error marking stage as manually completed:', error);
+    alert(`Error: ${error.message}`);
+  }
 }
 
 // Render webhooks table
