@@ -245,18 +245,18 @@ async function getEpaycoToken() {
 // GET recent ePayco transactions (últimas 100)
 app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (req, res) => {
   try {
-    console.log('[ePayco] Fetching transactions until 100 accepted...');
+    console.log('[ePayco] Fetching 80 transactions...');
 
     // Paso 1: Obtener token dinámico
     const token = await getEpaycoToken();
 
-    // Paso 2: Consultar múltiples páginas hasta obtener 100 transacciones ACEPTADAS
+    // Paso 2: Traer solo 80 transacciones (1 página con limit 80)
     const uniqueTxsMap = new Map();
     let acceptedCount = 0;
     let page = 1;
-    const maxPages = 50; // Límite de seguridad para evitar loops infinitos (con 200 por página, necesitamos más páginas)
+    const maxPages = 1; // Solo 1 página
 
-    while (acceptedCount < 100 && page <= maxPages) {
+    while (page <= maxPages) {
       console.log(`[ePayco] Fetching page ${page}...`);
 
       const pageResponse = await fetch('https://apify.epayco.co/transaction', {
@@ -268,7 +268,7 @@ app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (re
         body: JSON.stringify({
           pagination: {
             page: page,
-            limit: 200
+            limit: 80
           }
         })
       });
@@ -310,7 +310,7 @@ app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (re
 
       const newTxs = uniqueTxsMap.size - beforeSize;
       console.log(`[ePayco] New unique txs in page ${page}: ${newTxs}`);
-      console.log(`[ePayco] Accepted so far: ${acceptedCount}/100`);
+      console.log(`[ePayco] Accepted so far: ${acceptedCount}/80`);
 
       // Si no hay nuevas transacciones en 2 páginas consecutivas, la API está repitiendo
       if (newTxs === 0) {
