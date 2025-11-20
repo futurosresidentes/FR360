@@ -297,20 +297,57 @@ function getStageStatus(webhook, columnName, isAccepted) {
 
   // PRIORIDAD 1: Buscar en logs.by_status.success (más directo)
   const successLogs = webhook.logs?.by_status?.success || [];
-  const hasSuccess = successLogs.some(log => relevantStages.includes(log.stage));
-
-  if (hasSuccess) {
-    const logs = successLogs.filter(log => relevantStages.includes(log.stage));
-    return { status: 'success', icon: '✅', logs };
-  }
+  const relevantSuccessLogs = successLogs.filter(log => relevantStages.includes(log.stage));
+  const hasSuccess = relevantSuccessLogs.length > 0;
 
   // PRIORIDAD 2: Buscar en logs.by_status.error
   const errorLogs = webhook.logs?.by_status?.error || [];
-  const hasError = errorLogs.some(log => relevantStages.includes(log.stage));
+  const relevantErrorLogs = errorLogs.filter(log => relevantStages.includes(log.stage));
+  const hasError = relevantErrorLogs.length > 0;
 
+  // Debug para webhook 990
+  if (webhook.id === 990 && columnName === 'FRAPP') {
+    console.log(`[DEBUG 990 FRAPP] relevantStages:`, relevantStages);
+    console.log(`[DEBUG 990 FRAPP] hasSuccess:`, hasSuccess, 'count:', relevantSuccessLogs.length);
+    console.log(`[DEBUG 990 FRAPP] hasError:`, hasError, 'count:', relevantErrorLogs.length);
+    console.log(`[DEBUG 990 FRAPP] Success logs:`, relevantSuccessLogs);
+    console.log(`[DEBUG 990 FRAPP] Error logs:`, relevantErrorLogs);
+  }
+
+  // Si hay ambos (success y error), comparar fechas y mostrar el más reciente
+  if (hasSuccess && hasError) {
+    // Obtener el log más reciente de cada tipo
+    const latestSuccess = relevantSuccessLogs.sort((a, b) =>
+      new Date(b.created_at) - new Date(a.created_at)
+    )[0];
+
+    const latestError = relevantErrorLogs.sort((a, b) =>
+      new Date(b.created_at) - new Date(a.created_at)
+    )[0];
+
+    // Debug: Ver las fechas para el webhook 990
+    if (webhook.id === 990 && columnName === 'FRAPP') {
+      console.log(`[DEBUG 990 FRAPP] Latest Success Date:`, latestSuccess.created_at, new Date(latestSuccess.created_at));
+      console.log(`[DEBUG 990 FRAPP] Latest Error Date:`, latestError.created_at, new Date(latestError.created_at));
+      console.log(`[DEBUG 990 FRAPP] Success > Error?`, new Date(latestSuccess.created_at) > new Date(latestError.created_at));
+    }
+
+    // Si el success es más reciente que el error, mostrar success
+    if (new Date(latestSuccess.created_at) > new Date(latestError.created_at)) {
+      return { status: 'success', icon: '✅', logs: relevantSuccessLogs };
+    } else {
+      return { status: 'error', icon: '⛔', logs: relevantErrorLogs };
+    }
+  }
+
+  // Si solo hay success, mostrar success
+  if (hasSuccess) {
+    return { status: 'success', icon: '✅', logs: relevantSuccessLogs };
+  }
+
+  // Si solo hay error, mostrar error
   if (hasError) {
-    const logs = errorLogs.filter(log => relevantStages.includes(log.stage));
-    return { status: 'error', icon: '⛔', logs };
+    return { status: 'error', icon: '⛔', logs: relevantErrorLogs };
   }
 
   // PRIORIDAD 3: Buscar en logs.all para processing/skipped
@@ -413,8 +450,10 @@ function showStageDetails(columnName, logs, webhookData) {
   modal.dataset.columnName = columnName;
   modal.dataset.webhookId = webhookData.webhook?.id;
 
+  let bodyContent = '';
+
   if (!logs || logs.length === 0) {
-    body.innerHTML = '<div class="no-logs">No hay logs disponibles para este stage</div>';
+    bodyContent = '<div class="no-logs">No hay logs disponibles para este stage</div>';
   } else {
     // Get checkpoint info for this column
     const webhook = webhookData.webhook;
@@ -450,7 +489,7 @@ function showStageDetails(columnName, logs, webhookData) {
       }
     }
 
-    body.innerHTML = checkpointInfo + logs.map(log => {
+    bodyContent = checkpointInfo + logs.map(log => {
       const statusClass = log.status === 'success' || log.status === 'info' ? 'success' :
                          log.status === 'error' ? 'error' : 'info';
 
@@ -493,20 +532,29 @@ function showStageDetails(columnName, logs, webhookData) {
       content += '</div>';
       return content;
     }).join('');
-
-    // Agregar botón para marcar como completado manualmente (solo para DIAN con errores o skipped)
-    const stageStatus = webhookData[columnName];
-    if (columnName === 'DIAN' && stageStatus && (stageStatus.status === 'error' || stageStatus.status === 'skipped' || stageStatus.icon === '⛔')) {
-      body.innerHTML += `
-        <div class="manual-completion-section">
-          <button onclick="markStageAsManuallyCompleted('${columnName}', ${webhookData.webhook.id})" class="btn-manual-completion">
-            ✅ Marcar como completado manualmente
-          </button>
-          <p class="manual-completion-note">Usa este botón si ya emitiste a DIAN manualmente</p>
-        </div>
-      `;
-    }
   }
+
+  // Agregar botón para marcar como completado manualmente (DIAN y FRAPP con errores o skipped)
+  const stageStatus = webhookData[columnName];
+  const allowedColumns = ['DIAN', 'FRAPP'];
+
+  if (allowedColumns.includes(columnName) && stageStatus && (stageStatus.status === 'error' || stageStatus.status === 'skipped' || stageStatus.icon === '⛔')) {
+    const helpText = columnName === 'DIAN'
+      ? 'Usa este botón si ya emitiste a DIAN manualmente'
+      : 'Usa este botón si ya completaste este proceso manualmente';
+
+    bodyContent += `
+      <div class="manual-completion-section">
+        <button onclick="markStageAsManuallyCompleted('${columnName}', ${webhookData.webhook.id})" class="btn-manual-completion">
+          ✅ Marcar como completado manualmente
+        </button>
+        <p class="manual-completion-note">${helpText}</p>
+      </div>
+    `;
+  }
+
+  // Set the final body content
+  body.innerHTML = bodyContent;
 
   modal.classList.remove('hidden');
 }
