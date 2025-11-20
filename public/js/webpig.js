@@ -325,11 +325,16 @@ function getStageStatus(webhook, columnName, isAccepted) {
       // Si el producto no requiere membresías (campo específico en response_data)
       if (fr360Log?.response_data?.product) {
         const product = fr360Log.response_data.product.toLowerCase();
+
         // Productos que NO requieren membresías (pagos únicos, servicios, etc.)
         const noMembershipProducts = ['worldoffice', 'reporte', 'paquete', 'curso', 'taller'];
         const requiresNoMembership = noMembershipProducts.some(p => product.includes(p));
 
-        if (requiresNoMembership) {
+        // NUEVO: Detectar si es cuota > 1 (solo Cuota 1 crea membresía)
+        // Patrones: "- Cuota 2", "- Cuota 3", etc. o "(Mora)"
+        const isCuotaMayorQue1 = /- cuota [2-9]/i.test(product) || /- cuota 1[0-9]/i.test(product);
+
+        if (requiresNoMembership || isCuotaMayorQue1) {
           return { status: 'not-required', icon: 'N/A', logs: [] };
         }
       }

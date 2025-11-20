@@ -245,57 +245,93 @@ async function getEpaycoToken() {
 // GET recent ePayco transactions (últimas 100)
 app.get('/api/epayco/transactions', ensureAuthenticated, ensureDomain, async (req, res) => {
   try {
-    console.log('[ePayco] Fetching last 100 transactions (2 pages)');
+    console.log('[ePayco] Fetching transactions until 100 accepted...');
 
     // Paso 1: Obtener token dinámico
     const token = await getEpaycoToken();
 
-    // Paso 2: Consultar múltiples páginas para obtener más transacciones
-    // La API limita a 50 por página, así que hacemos 2 requests
-    const page1Response = await fetch('https://apify.epayco.co/transaction?limit=50&page=1', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Paso 2: Consultar múltiples páginas hasta obtener 100 transacciones ACEPTADAS
+    const uniqueTxsMap = new Map();
+    let acceptedCount = 0;
+    let page = 1;
+    const maxPages = 50; // Límite de seguridad para evitar loops infinitos (con 200 por página, necesitamos más páginas)
 
-    if (!page1Response.ok) {
-      const errorText = await page1Response.text();
-      console.error(`[ePayco] Error page 1: ${errorText}`);
-      return res.status(page1Response.status).json({ success: false, error: errorText });
+    while (acceptedCount < 100 && page <= maxPages) {
+      console.log(`[ePayco] Fetching page ${page}...`);
+
+      const pageResponse = await fetch('https://apify.epayco.co/transaction', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pagination: {
+            page: page,
+            limit: 200
+          }
+        })
+      });
+
+      if (!pageResponse.ok) {
+        console.warn(`[ePayco] Page ${page} failed, stopping pagination`);
+        break;
+      }
+
+      const pageData = await pageResponse.json();
+      const pageTxs = pageData.data?.data || [];
+
+      console.log(`[ePayco] Page ${page} fetched: ${pageTxs.length} transactions`);
+
+      // DEBUG: Mostrar primeras referencias para detectar si son las mismas
+      if (pageTxs.length > 0) {
+        const firstRefs = pageTxs.slice(0, 3).map(tx => tx.referencePayco);
+        console.log(`[ePayco] Page ${page} first 3 refs: ${firstRefs.join(', ')}`);
+      }
+
+      // Si no hay más transacciones, salir del loop
+      if (pageTxs.length === 0) {
+        console.log('[ePayco] No more transactions available');
+        break;
+      }
+
+      // Contar cuántas son nuevas antes de agregar
+      const beforeSize = uniqueTxsMap.size;
+
+      // Agregar transacciones únicas al Map y contar las aceptadas
+      pageTxs.forEach(tx => {
+        if (tx.referencePayco && !uniqueTxsMap.has(tx.referencePayco)) {
+          uniqueTxsMap.set(tx.referencePayco, tx);
+          if (tx.status === 'Aceptada') {
+            acceptedCount++;
+          }
+        }
+      });
+
+      const newTxs = uniqueTxsMap.size - beforeSize;
+      console.log(`[ePayco] New unique txs in page ${page}: ${newTxs}`);
+      console.log(`[ePayco] Accepted so far: ${acceptedCount}/100`);
+
+      // Si no hay nuevas transacciones en 2 páginas consecutivas, la API está repitiendo
+      if (newTxs === 0) {
+        console.warn('[ePayco] No new transactions found, API pagination may be broken. Stopping.');
+        break;
+      }
+
+      page++;
     }
 
-    const page1Data = await page1Response.json();
-    console.log(`[ePayco] Page 1 fetched: ${page1Data?.data?.data?.length || 0} transactions`);
+    const uniqueTxs = Array.from(uniqueTxsMap.values());
+    const finalAcceptedCount = uniqueTxs.filter(tx => tx.status === 'Aceptada').length;
 
-    // Página 2
-    const page2Response = await fetch('https://apify.epayco.co/transaction?limit=50&page=2', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    console.log(`[ePayco] Final stats: ${uniqueTxs.length} unique transactions, ${finalAcceptedCount} accepted (${page - 1} pages fetched)`);
 
-    if (!page2Response.ok) {
-      console.warn('[ePayco] Page 2 failed, returning only page 1');
-      return res.json(page1Data);
-    }
-
-    const page2Data = await page2Response.json();
-    console.log(`[ePayco] Page 2 fetched: ${page2Data?.data?.data?.length || 0} transactions`);
-
-    // Combinar ambas páginas
     const combinedData = {
-      ...page1Data,
+      success: true,
       data: {
-        ...page1Data.data,
-        data: [...(page1Data.data?.data || []), ...(page2Data.data?.data || [])]
+        data: uniqueTxs
       }
     };
-
-    console.log(`[ePayco] Total transactions: ${combinedData.data.data.length}`);
 
     res.json(combinedData);
   } catch (error) {
@@ -376,26 +412,42 @@ app.get('/api/carteras-masivo/auto', async (req, res) => {
     const carterasAlDiaVencidas = carterasAlDiaVencidasResponse.data.data || [];
     console.log(`✅ Encontradas ${carterasAlDiaVencidas.length} carteras al_dia con fecha vencida`);
 
-    // 3. Si incluir_mora=true, obtener también las carteras en mora
+    // 3. Si incluir_mora=true, obtener también las carteras en mora (CON PAGINACIÓN COMPLETA)
     let carterasMora = [];
     if (incluirMora) {
       console.log('🔍 Consultando carteras en mora...');
-      const carterasMoraResponse = await axios.get(
-        `https://strapi-project-d3p7.onrender.com/api/carteras`,
-        {
-          params: {
-            'filters[estado_pago][$eq]': 'en_mora',
-            'pagination[page]': 1,
-            'pagination[pageSize]': 100,
-            'populate': 'producto'
-          },
-          headers: {
-            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const carterasMoraResponse = await axios.get(
+          `https://strapi-project-d3p7.onrender.com/api/carteras`,
+          {
+            params: {
+              'filters[estado_pago][$eq]': 'en_mora',
+              'pagination[page]': page,
+              'pagination[pageSize]': 100,
+              'populate': 'producto'
+            },
+            headers: {
+              'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+            }
           }
+        );
+
+        const pageData = carterasMoraResponse.data.data || [];
+        carterasMora = carterasMora.concat(pageData);
+
+        const pagination = carterasMoraResponse.data.meta?.pagination;
+        hasMore = pagination && page < pagination.pageCount;
+
+        if (hasMore) {
+          console.log(`  📄 Página ${page}: ${pageData.length} carteras (continuando...)`);
+          page++;
         }
-      );
-      carterasMora = carterasMoraResponse.data.data || [];
-      console.log(`✅ Encontradas ${carterasMora.length} carteras en mora`);
+      }
+
+      console.log(`✅ Encontradas ${carterasMora.length} carteras en mora (${page} página(s))`);
     }
 
     // 4. Combinar todos los arrays
@@ -518,15 +570,40 @@ app.get('/api/carteras-masivo/auto', async (req, res) => {
           const esUltimaCuota = cuotaNro === nroCuotas;
           let ventasMatch = [];
 
+          // DEBUG: Log detallado para casos específicos
+          const isDebugDoc = ['1019052530', '1010061800'].includes(acuerdo.numero_documento);
+          if (isDebugDoc) {
+            console.log(`\n🐛 [DEBUG] Procesando cuota ${cuotaNro} del documento ${acuerdo.numero_documento}`);
+            console.log(`  - Estado actual: ${cuota.estado_pago}`);
+            console.log(`  - id_pago: ${cuota.id_pago}`);
+            console.log(`  - Total facturaciones disponibles: ${facturaciones.length}`);
+            if (facturaciones.length > 0) {
+              console.log(`  - Transacciones encontradas: ${facturaciones.map(f => f.transaccion).join(', ')}`);
+            }
+          }
+
           // PASO 1: Buscar PRIMERO por id_pago (más confiable y directo)
           if (cuota.id_pago) {
+            if (isDebugDoc) {
+              console.log(`  🔍 [DEBUG] Buscando por id_pago: "${cuota.id_pago}"`);
+            }
+
             ventasMatch = facturaciones.filter(f => {
               const transaccion = String(f.transaccion || '').trim();
-              return transaccion === String(cuota.id_pago).trim();
+              const idPagoStr = String(cuota.id_pago).trim();
+              const match = transaccion === idPagoStr;
+
+              if (isDebugDoc && f.transaccion) {
+                console.log(`    - Comparando "${transaccion}" === "${idPagoStr}" → ${match}`);
+              }
+
+              return match;
             });
 
             if (ventasMatch.length > 0) {
               console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago: ${cuota.id_pago}`);
+            } else if (isDebugDoc) {
+              console.log(`  ❌ [DEBUG] NO encontrada por id_pago`);
             }
           }
 
@@ -761,26 +838,42 @@ app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, 
     const carterasAlDiaVencidas = carterasAlDiaVencidasResponse.data.data || [];
     console.log(`✅ Encontradas ${carterasAlDiaVencidas.length} carteras al_dia con fecha vencida`);
 
-    // 3. Si incluir_mora=true, obtener también las carteras en mora
+    // 3. Si incluir_mora=true, obtener también las carteras en mora (CON PAGINACIÓN COMPLETA)
     let carterasMora = [];
     if (incluirMora) {
       console.log('🔍 Consultando carteras en mora...');
-      const carterasMoraResponse = await axios.get(
-        `https://strapi-project-d3p7.onrender.com/api/carteras`,
-        {
-          params: {
-            'filters[estado_pago][$eq]': 'en_mora',
-            'pagination[page]': 1,
-            'pagination[pageSize]': 100,
-            'populate': 'producto'
-          },
-          headers: {
-            'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const carterasMoraResponse = await axios.get(
+          `https://strapi-project-d3p7.onrender.com/api/carteras`,
+          {
+            params: {
+              'filters[estado_pago][$eq]': 'en_mora',
+              'pagination[page]': page,
+              'pagination[pageSize]': 100,
+              'populate': 'producto'
+            },
+            headers: {
+              'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`
+            }
           }
+        );
+
+        const pageData = carterasMoraResponse.data.data || [];
+        carterasMora = carterasMora.concat(pageData);
+
+        const pagination = carterasMoraResponse.data.meta?.pagination;
+        hasMore = pagination && page < pagination.pageCount;
+
+        if (hasMore) {
+          console.log(`  📄 Página ${page}: ${pageData.length} carteras (continuando...)`);
+          page++;
         }
-      );
-      carterasMora = carterasMoraResponse.data.data || [];
-      console.log(`✅ Encontradas ${carterasMora.length} carteras en mora`);
+      }
+
+      console.log(`✅ Encontradas ${carterasMora.length} carteras en mora (${page} página(s))`);
     }
 
     // 4. Combinar todos los arrays
@@ -903,15 +996,40 @@ app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, 
           const esUltimaCuota = cuotaNro === nroCuotas;
           let ventasMatch = [];
 
+          // DEBUG: Log detallado para casos específicos
+          const isDebugDoc = ['1019052530', '1010061800'].includes(acuerdo.numero_documento);
+          if (isDebugDoc) {
+            console.log(`\n🐛 [DEBUG] Procesando cuota ${cuotaNro} del documento ${acuerdo.numero_documento}`);
+            console.log(`  - Estado actual: ${cuota.estado_pago}`);
+            console.log(`  - id_pago: ${cuota.id_pago}`);
+            console.log(`  - Total facturaciones disponibles: ${facturaciones.length}`);
+            if (facturaciones.length > 0) {
+              console.log(`  - Transacciones encontradas: ${facturaciones.map(f => f.transaccion).join(', ')}`);
+            }
+          }
+
           // PASO 1: Buscar PRIMERO por id_pago (más confiable y directo)
           if (cuota.id_pago) {
+            if (isDebugDoc) {
+              console.log(`  🔍 [DEBUG] Buscando por id_pago: "${cuota.id_pago}"`);
+            }
+
             ventasMatch = facturaciones.filter(f => {
               const transaccion = String(f.transaccion || '').trim();
-              return transaccion === String(cuota.id_pago).trim();
+              const idPagoStr = String(cuota.id_pago).trim();
+              const match = transaccion === idPagoStr;
+
+              if (isDebugDoc && f.transaccion) {
+                console.log(`    - Comparando "${transaccion}" === "${idPagoStr}" → ${match}`);
+              }
+
+              return match;
             });
 
             if (ventasMatch.length > 0) {
               console.log(`  🎯 Cuota ${cuotaNro} encontrada por id_pago: ${cuota.id_pago}`);
+            } else if (isDebugDoc) {
+              console.log(`  ❌ [DEBUG] NO encontrada por id_pago`);
             }
           }
 
