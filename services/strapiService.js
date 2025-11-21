@@ -319,6 +319,70 @@ async function fetchCrmByEmail(email) {
 }
 
 /**
+ * Fetch CRM by celular (phone number)
+ * Normalizes Colombian phone numbers and searches using 'contains' filter
+ * @param {string} celular - Phone number (can be 10, 12, or 13 digits)
+ * @returns {Promise<Object|null>} CRM record with numero_documento
+ */
+async function fetchCrmByCelular(celular) {
+  if (!celular) return null;
+
+  // Normalizar: quitar espacios, guiones, paréntesis
+  let normalized = String(celular).trim().replace(/[\s\-()]/g, '');
+
+  // Detectar si es celular colombiano y normalizar a 10 dígitos
+  // Formato: 10 dígitos (3XXXXXXXXX), 12 dígitos (573XXXXXXXXX), 13 dígitos (+573XXXXXXXXX)
+  if (normalized.startsWith('+573') && normalized.length === 13) {
+    normalized = normalized.substring(3); // Quitar +57
+  } else if (normalized.startsWith('573') && normalized.length === 12) {
+    normalized = normalized.substring(2); // Quitar 57
+  } else if (normalized.startsWith('3') && normalized.length === 10) {
+    // Ya está normalizado
+  } else {
+    // No es un celular colombiano válido
+    return null;
+  }
+
+  console.log(`🔍 Buscando CRM por celular: ${normalized}`);
+
+  const url = `${STRAPI_BASE_URL}/api/crms?filters[celular][$contains]=${encodeURIComponent(normalized)}&pagination[pageSize]=1`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`
+      }
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`Strapi HTTP ${response.status}`);
+    }
+
+    const row = response.data?.data?.[0];
+    if (!row) {
+      console.log(`❌ No se encontró CRM con celular: ${normalized}`);
+      return null;
+    }
+
+    const a = row.attributes || row;
+    const uid = String(a.numero_documento || a.identityDocument || '').replace(/\D/g, '');
+
+    console.log(`✅ CRM encontrado por celular. Documento: ${uid}`);
+
+    return {
+      uid: uid,
+      nombres: a.nombres || '',
+      apellidos: a.apellidos || '',
+      correo: a.correo || '',
+      celular: (a.celular || '').replace(/[^\d+]/g, '')
+    };
+  } catch (error) {
+    console.log('❌ Error fetching CRM by celular:', error.message);
+    return null;
+  }
+}
+
+/**
  * Save confianza record to Strapi
  * @param {Object} data - Confianza record data
  * @returns {Promise<Object>} Result object
@@ -663,6 +727,7 @@ module.exports = {
   fetchCrmStrapiOnly,
   fetchCrmStrapiBatch,
   fetchCrmByEmail,
+  fetchCrmByCelular,
   saveConfianzaRecord,
   consultarAcuerdo,
   sincronizarCrmPorNumeroDocumento,

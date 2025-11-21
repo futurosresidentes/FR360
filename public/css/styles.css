@@ -2191,6 +2191,32 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: translateY(-50%) scale(0.95);
 }
 
+/* Edit celular icon */
+.edit-celular-icon {
+  position: absolute;
+  right: 70px; /* Position before callbell icon */
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.edit-celular-icon:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.15);
+}
+
+.edit-celular-icon:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
 .cancel-membership-btn,
 .cancel-venta-btn {
   background-color: #fff;

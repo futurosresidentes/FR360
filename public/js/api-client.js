@@ -60,6 +60,10 @@ class FR360ApiClient {
     return this._call('fetchCrmByEmail', email);
   }
 
+  async fetchCrmByCelular(celular) {
+    return this._call('fetchCrmByCelular', celular);
+  }
+
   async fetchCrmStrapiOnly(uid) {
     return this._call('fetchCrmStrapiOnly', uid);
   }

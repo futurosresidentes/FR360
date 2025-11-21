@@ -93,6 +93,30 @@
     const addMembBtn = document.getElementById('addMembBtn');
     const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
 
+    // Detectar si es un celular colombiano válido
+    const isCelularColombia = v => {
+      const normalized = String(v).trim().replace(/[\s\-()]/g, '');
+      // 10 dígitos comenzando por 3, o 12 dígitos comenzando por 573, o 13 dígitos comenzando por +573
+      return (/^3\d{9}$/.test(normalized) ||
+              /^573\d{9}$/.test(normalized) ||
+              /^\+573\d{9}$/.test(normalized));
+    };
+
+    // Normalizar celular a formato +573XXXXXXXXX
+    const normalizarCelular = v => {
+      let normalized = String(v).trim().replace(/[\s\-()]/g, '');
+
+      if (normalized.startsWith('+573') && normalized.length === 13) {
+        return normalized; // Ya está en formato correcto
+      } else if (normalized.startsWith('573') && normalized.length === 12) {
+        return '+' + normalized; // Agregar +
+      } else if (normalized.startsWith('3') && normalized.length === 10) {
+        return '+57' + normalized; // Agregar +57
+      }
+
+      return null; // No es un celular válido
+    };
+
     // Referencias del callbell
     const callbellIcon = document.getElementById('callbellIcon');
 
@@ -557,6 +581,7 @@
       updateCopyIconVisibility('apellidos');
       updateCopyIconVisibility('correo');
       updateCopyIconVisibility('celular');
+      updateEditCelularButtonVisibility();
 
       // Limpiar campos de inicio plataforma
       inicioTipo.value = '';
@@ -655,8 +680,8 @@
       cont.innerHTML = `<p>${msg}</p>`;
     }
 
-    // Trigger search (acepta cédula o correo)
-    // Acepta force=true para refrescar aunque sea la misma cédula/correo
+    // Trigger search (acepta cédula, correo o celular)
+    // Acepta force=true para refrescar aunque sea la misma cédula/correo/celular
     function triggerSearch(force = false) {
       if (window.SEARCH_LOCK) return;
       const raw = String(searchId.value || '').trim();
@@ -665,6 +690,88 @@
       const existingMessage = document.getElementById('membershipCreatedMessage');
       if (existingMessage) {
         existingMessage.remove();
+      }
+
+      // ——— Búsqueda por celular ———
+      if (isCelularColombia(raw)) {
+        if (!force && raw === String(lastUid || '')) return;
+
+        lastUid = raw;
+        resetForm();
+        setMembNewLoading('Cargando…');
+        setSearching(true);
+        statusTop.textContent = 'Buscando por celular…';
+
+        api.fetchCrmByCelular(raw)
+          .then(rec => {
+            if (!rec || !rec.uid) {
+              const progressPanel = document.getElementById('loadingProgress');
+              if (progressPanel) {
+                progressPanel.classList.add('hidden');
+              } else {
+                statusTop.textContent = '';
+              }
+              alert('No se encontró un registro con ese celular en Strapi.');
+              return;
+            }
+            // Prefill + bloqueo
+            nombres.value   = rec.nombres   || '';
+            apellidos.value = rec.apellidos || '';
+            correo.value    = rec.correo    || '';
+            celular.value   = rec.celular   || raw;
+            if (nombres.value)   nombres.disabled   = true;
+            if (apellidos.value) apellidos.disabled = true;
+            if (correo.value)    correo.disabled    = true;
+            if (celular.value)   celular.disabled   = true;
+
+            // Mostrar iconos de copiar
+            updateCopyIconVisibility('nombres');
+            updateCopyIconVisibility('apellidos');
+            updateCopyIconVisibility('correo');
+            updateCopyIconVisibility('celular');
+            updateEditCelularButtonVisibility();
+
+            // Verificar callbell después de llenar el campo celular
+            if (celular.value) checkCallbellAvailability();
+
+            // También llenar campos de Venta en confianza
+            const nombresConfianza = document.getElementById('nombresConfianza');
+            const apellidosConfianza = document.getElementById('apellidosConfianza');
+            const correoConfianza = document.getElementById('correoConfianza');
+            const celularConfianza = document.getElementById('celularConfianza');
+
+            nombresConfianza.value = rec.nombres || '';
+            apellidosConfianza.value = rec.apellidos || '';
+            correoConfianza.value = rec.correo || '';
+            celularConfianza.value = rec.celular || raw;
+
+            // Deshabilitar y aplicar estilo gray si tienen valor
+            if (nombresConfianza.value) { nombresConfianza.disabled = true; nombresConfianza.classList.add('gray'); }
+            if (apellidosConfianza.value) { apellidosConfianza.disabled = true; apellidosConfianza.classList.add('gray'); }
+
+            // Correo y celular siempre de solo lectura (campos automáticos)
+            correoConfianza.readOnly = true;
+            celularConfianza.readOnly = true;
+
+            // Continuar por cédula
+            const uid = rec.uid;
+            searchId.value = uid;
+            lastUid = uid;
+            setMembNewLoading('Cargando…');
+            return fetchAllData(uid);
+          })
+          .catch(err => {
+            console.error('fetchCrmByCelular error:', err);
+            const progressPanel = document.getElementById('loadingProgress');
+            if (progressPanel) {
+              progressPanel.classList.add('hidden');
+            } else {
+              statusTop.textContent = '';
+            }
+            alert('❌ Error consultando por celular.');
+          })
+          .finally(() => setSearching(false));
+        return;
       }
 
       // ——— Búsqueda por correo ———
@@ -704,6 +811,7 @@
             updateCopyIconVisibility('apellidos');
             updateCopyIconVisibility('correo');
             updateCopyIconVisibility('celular');
+            updateEditCelularButtonVisibility();
 
             // Verificar callbell después de llenar el campo celular
             if (celular.value) checkCallbellAvailability();
@@ -775,8 +883,8 @@
 
     searchId.addEventListener('blur', () => {
       const raw = String(searchId.value || '').trim();
-      // Si es correo, no normalizar ni auto-buscar aquí
-      if (isEmail(raw)) return;
+      // Si es correo o celular, no normalizar ni auto-buscar aquí
+      if (isEmail(raw) || isCelularColombia(raw)) return;
       // Normalizar si es cédula
       searchId.value = raw.replace(/[.,\s]/g, '');
       const uid = searchId.value.replace(/\D/g,'').trim();
@@ -5534,6 +5642,255 @@
       });
     }
 
+    // ===== Editar Celular =====
+    const editCelularBtn = document.getElementById('editCelularBtn');
+    const editCelularModal = document.getElementById('editCelularModal');
+    const newCelularInput = document.getElementById('newCelularInput');
+    const cancelEditCelular = document.getElementById('cancelEditCelular');
+    const confirmEditCelular = document.getElementById('confirmEditCelular');
+    const updateProgress = document.getElementById('updateProgress');
+
+    // Usuarios autorizados para editar celular
+    const AUTHORIZED_USERS = ['daniel.cardona@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
+
+    // Mostrar/ocultar botón de edición según usuario y si hay celular
+    function updateEditCelularButtonVisibility() {
+      const currentUser = USER_EMAIL;
+      const hasPermission = AUTHORIZED_USERS.includes(currentUser);
+      const hasCelular = celular.value && celular.value.trim() !== '';
+
+      if (hasPermission && hasCelular) {
+        editCelularBtn.style.display = 'inline';
+      } else {
+        editCelularBtn.style.display = 'none';
+      }
+    }
+
+    // Event listener para abrir modal
+    editCelularBtn.addEventListener('click', () => {
+      const currentUser = USER_EMAIL;
+      if (!AUTHORIZED_USERS.includes(currentUser)) {
+        alert('⛔ No tienes permisos para editar el celular. Solo daniel.cardona y eliana.montilla pueden realizar esta acción.');
+        return;
+      }
+
+      // Prellenar con el celular actual
+      newCelularInput.value = celular.value || '';
+      updateProgress.style.display = 'none';
+      editCelularModal.classList.remove('hidden');
+    });
+
+    // Cerrar modal
+    cancelEditCelular.addEventListener('click', () => {
+      editCelularModal.classList.add('hidden');
+    });
+
+    // Función de retry con delay
+    async function retryWithDelay(fn, maxRetries = 5, delay = 1000) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await fn();
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // Actualizar celular en CRM (ActiveCampaign)
+    async function updateCelularCRM(correo, nuevoCelular) {
+      const API_TOKEN = 'f76eb8ac2287255f012c28f96f48d845dbe51fbb9770209e1fb9a43d86cb3e2d5e513e5a';
+
+      // 1. Obtener contact ID
+      const getContact = async () => {
+        const response = await fetch(`https://sentiretaller.api-us1.com/api/3/contacts?email=${encodeURIComponent(correo)}`, {
+          headers: {
+            'Api-Token': API_TOKEN
+          }
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (!data.scoreValues || data.scoreValues.length === 0) {
+          throw new Error('No se encontró contacto en CRM');
+        }
+
+        return data.scoreValues[0].contact;
+      };
+
+      const contactId = await retryWithDelay(getContact);
+
+      // 2. Actualizar teléfono
+      const updatePhone = async () => {
+        const response = await fetch(`https://sentiretaller.api-us1.com/api/3/contacts/${contactId}`, {
+          method: 'PUT',
+          headers: {
+            'Api-Token': API_TOKEN,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contact: {
+              phone: nuevoCelular
+            }
+          })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+      };
+
+      return await retryWithDelay(updatePhone);
+    }
+
+    // Actualizar celular en Strapi Carteras
+    async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
+      // Usamos los acuerdos actuales que ya tenemos cargados
+      if (!window.currentAcuerdosData || !window.currentAcuerdosData.carteras) {
+        throw new Error('No hay acuerdos cargados');
+      }
+
+      const carteras = window.currentAcuerdosData.carteras;
+      const updates = [];
+
+      for (const cartera of carteras) {
+        const updateCartera = async () => {
+          const response = await fetch(`https://strapi-project-d3p7.onrender.com/api/carteras/${cartera.documentId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': 'Bearer b79460f3efaf58f0bf64a4f75aac87abb3f4695e1b746c5c8c2de9fdba3e2f2b18d0d9f2bc614e24fbe74c8e19bedb3eb1cf8a83a5a9db10e92acae8aee652c4a44e77b65fb6b4b71d560f5f8f1c5f5a8e91bea27d9c47f4ad67fcd26cad46d47fcc4e2fdf2bb67c8a52d6dbe4419c4de073e22f5d02e4e4c3cd54a0b8e14f39',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              data: {
+                celular: nuevoCelular
+              }
+            })
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status} para cartera ${cartera.documentId}`);
+          return await response.json();
+        };
+
+        updates.push(retryWithDelay(updateCartera));
+      }
+
+      return await Promise.all(updates);
+    }
+
+    // Actualizar celular en FR360 Payment Links
+    async function updateCelularFR360Links(cedula, nuevoCelular) {
+      // Usamos los links actuales que ya tenemos cargados
+      if (!window.currentLinksData || !window.currentLinksData.length === 0) {
+        throw new Error('No hay links cargados');
+      }
+
+      const links = window.currentLinksData;
+      const updates = [];
+
+      for (const link of links) {
+        const updateLink = async () => {
+          const response = await fetch('https://fr360-7cwi.onrender.com/api/v1/payment-links', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              externalId: link.externalId,
+              phone: nuevoCelular
+            })
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status} para link ${link.externalId}`);
+          return await response.json();
+        };
+
+        updates.push(retryWithDelay(updateLink));
+      }
+
+      return await Promise.all(updates);
+    }
+
+    // Confirmar actualización
+    confirmEditCelular.addEventListener('click', async () => {
+      const inputValue = newCelularInput.value.trim();
+
+      if (!inputValue) {
+        alert('Por favor ingresa un número de celular');
+        return;
+      }
+
+      const nuevoCelular = normalizarCelular(inputValue);
+
+      if (!nuevoCelular) {
+        alert('❌ El número ingresado no es un celular colombiano válido.\nFormatos aceptados: 3XXXXXXXXX, 573XXXXXXXXX o +573XXXXXXXXX');
+        return;
+      }
+
+      // Mostrar progreso
+      updateProgress.style.display = 'block';
+      confirmEditCelular.disabled = true;
+
+      // Reset status
+      document.getElementById('crmStatus').textContent = '⏳';
+      document.getElementById('crmMessage').textContent = 'Actualizando...';
+      document.getElementById('strapiStatus').textContent = '⏳';
+      document.getElementById('strapiMessage').textContent = 'Esperando...';
+      document.getElementById('fr360Status').textContent = '⏳';
+      document.getElementById('fr360Message').textContent = 'Esperando...';
+
+      const currentCedula = searchId.value;
+      const currentCorreo = correo.value;
+
+      // 1. Actualizar CRM
+      try {
+        await updateCelularCRM(currentCorreo, nuevoCelular);
+        document.getElementById('crmStatus').textContent = '✅';
+        document.getElementById('crmMessage').textContent = 'Actualizado correctamente';
+      } catch (error) {
+        document.getElementById('crmStatus').textContent = '⛔';
+        document.getElementById('crmMessage').textContent = `Error: ${error.message}`;
+      }
+
+      // 2. Actualizar Strapi Carteras
+      document.getElementById('strapiMessage').textContent = 'Actualizando...';
+      try {
+        await updateCelularStrapiCarteras(currentCedula, nuevoCelular);
+        document.getElementById('strapiStatus').textContent = '✅';
+        document.getElementById('strapiMessage').textContent = 'Actualizado correctamente';
+      } catch (error) {
+        document.getElementById('strapiStatus').textContent = '⛔';
+        document.getElementById('strapiMessage').textContent = `Error: ${error.message}`;
+      }
+
+      // 3. Actualizar FR360 Links
+      document.getElementById('fr360Message').textContent = 'Actualizando...';
+      try {
+        await updateCelularFR360Links(currentCedula, nuevoCelular);
+        document.getElementById('fr360Status').textContent = '✅';
+        document.getElementById('fr360Message').textContent = 'Actualizado correctamente';
+      } catch (error) {
+        document.getElementById('fr360Status').textContent = '⛔';
+        document.getElementById('fr360Message').textContent = `Error: ${error.message}`;
+      }
+
+      // Actualizar campo celular en el formulario
+      celular.value = nuevoCelular;
+
+      // Refrescar datos
+      setTimeout(async () => {
+        try {
+          await fetchAllData(currentCedula);
+          alert('✅ Celular actualizado correctamente. Los datos han sido refrescados.');
+          editCelularModal.classList.add('hidden');
+        } catch (error) {
+          console.error('Error refrescando datos:', error);
+          alert('✅ Celular actualizado, pero hubo un error al refrescar los datos.');
+        } finally {
+          confirmEditCelular.disabled = false;
+        }
+      }, 1000);
+    });
 
     // Inicializar
     loadProductos();

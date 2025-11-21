@@ -49,7 +49,7 @@
   <div id="main">
     <!-- TOPBAR -->
     <div id="topbar">
-      <input type="text" id="searchId" placeholder="Ingrese Nro ID o correo…" />
+      <input type="text" id="searchId" placeholder="Ingrese Nro ID, correo o celular…" />
       <button type="button" id="searchBtn"><span class="btn-text-desktop">Buscar</span><span class="btn-text-mobile">🔍</span></button>
       <div id="statusTop"></div>
       <button id="crmBtn" onclick="window.open('https://script.google.com/a/macros/sentiretaller.com/s/AKfycbyVMunmRcMMgyQjzFHYO3LHahrfWRTEMUnNnRrGHZ6tM-N-BDW8u-qx9jdxdaB_tNXe/exec', '_blank')" style="margin-left:auto; background:#007bff; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;" title="Abrir CRM"><span class="btn-text-mobile">📊</span><span class="btn-text-desktop">📊 CRM</span></button>
@@ -90,6 +90,7 @@
               <span class="label">Celular:</span>
               <div class="input-wrapper">
                 <input id="celular" class="input" />
+                <button type="button" id="editCelularBtn" class="edit-celular-icon" style="display:none;" title="Editar celular">✏️</button>
                 <span id="callbellIcon" class="callbell-icon" style="display:none;">🛎️</span>
                 <button type="button" id="copyCelular" class="copy-icon" data-copy-target="celular" style="display:none;" title="Copiar">📋</button>
               </div>
@@ -714,6 +715,46 @@
       </div>
       <div class="modal-actions">
         <button type="button" id="stageDetailsCloseBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Modal para editar celular ====== -->
+  <div id="editCelularModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 600px;">
+      <h2>✏️ Actualizar Celular</h2>
+      <div style="margin: 20px 0;">
+        <label style="display: block; margin-bottom: 10px;">
+          <strong>Nuevo celular:</strong>
+          <input type="text" id="newCelularInput" placeholder="3XXXXXXXXX, 573XXXXXXXXX o +573XXXXXXXXX" style="width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;" />
+        </label>
+        <p style="font-size: 0.9em; color: #666; margin-top: 5px;">
+          Se normalizará automáticamente a formato +573XXXXXXXXX
+        </p>
+      </div>
+
+      <div id="updateProgress" style="margin: 20px 0; display: none;">
+        <h3 style="margin-bottom: 15px;">Progreso de actualización:</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="crmStatus" style="font-size: 1.5em;">⏳</span>
+            <span><strong>CRM (ActiveCampaign):</strong> <span id="crmMessage">Esperando...</span></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="strapiStatus" style="font-size: 1.5em;">⏳</span>
+            <span><strong>Strapi Carteras:</strong> <span id="strapiMessage">Esperando...</span></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="fr360Status" style="font-size: 1.5em;">⏳</span>
+            <span><strong>FR360 Links:</strong> <span id="fr360Message">Esperando...</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="cancelEditCelular">❌ Cancelar</button>
+        <button type="button" id="confirmEditCelular">✅ Actualizar</button>
       </div>
     </div>
   </div>

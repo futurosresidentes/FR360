@@ -16,7 +16,16 @@
       "Bash(git push:*)",
       "Bash(timeout /t 5 /nobreak)",
       "Bash(del nul)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(nul)",
+      "Bash(timeout /t 2 /nobreak)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(npm run dev:*)",
+      "Bash(.env)",
+      "Bash(npm install:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

@@ -1273,6 +1273,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchCrmByEmail(args[0]);
         break;
 
+      case 'fetchCrmByCelular':
+        result = await strapiService.fetchCrmByCelular(args[0]);
+        break;
+
       case 'fetchCrmStrapiOnly':
         result = await strapiService.fetchCrmStrapiOnly(args[0]);
         break;
@@ -1424,7 +1428,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           success: false,
           error: `Function '${functionName}' not found`,
           availableFunctions: [
-            'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
+            'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmByCelular', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans', 'getProductHandleFromFRAPP',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
