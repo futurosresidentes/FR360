@@ -4,6 +4,10 @@ const axios = require('axios');
 const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN;
 
+// FR360 API configuration
+const FR360_BASE_URL = process.env.FR360_BASE_URL;
+const FR360_TOKEN = process.env.FR360_BEARER_TOKEN;
+
 // Validate required environment variables
 if (!STRAPI_BASE_URL || !STRAPI_TOKEN) {
   console.error('❌ Missing required Strapi environment variables');
@@ -383,6 +387,179 @@ async function fetchCrmByCelular(celular) {
 }
 
 /**
+ * Update celular in ActiveCampaign CRM
+ * @param {string} correo - Email address
+ * @param {string} nuevoCelular - New phone number in format +573XXXXXXXXX
+ * @returns {Promise<Object>} Result object
+ */
+async function updateCelularCRM(correo, nuevoCelular) {
+  const API_TOKEN = process.env.ACTIVECAMPAIGN_API_TOKEN;
+  const AC_BASE_URL = 'https://sentiretaller.api-us1.com/api/3';
+
+  if (!API_TOKEN) {
+    throw new Error('ACTIVECAMPAIGN_API_TOKEN no está configurado');
+  }
+
+  try {
+    console.log(`📞 Actualizando celular en CRM para correo: ${correo}`);
+
+    // 1. Obtener contact ID
+    const getContactUrl = `${AC_BASE_URL}/contacts?email=${encodeURIComponent(correo)}`;
+    const getResponse = await fetch(getContactUrl, {
+      headers: { 'Api-Token': API_TOKEN }
+    });
+
+    if (!getResponse.ok) {
+      throw new Error(`HTTP ${getResponse.status} al buscar contacto`);
+    }
+
+    const getData = await getResponse.json();
+
+    if (!getData.scoreValues || getData.scoreValues.length === 0) {
+      throw new Error('No se encontró contacto en CRM');
+    }
+
+    const contactId = getData.scoreValues[0].contact;
+
+    // 2. Actualizar teléfono
+    const updateUrl = `${AC_BASE_URL}/contacts/${contactId}`;
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Api-Token': API_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contact: {
+          phone: nuevoCelular
+        }
+      })
+    });
+
+    if (!updateResponse.ok) {
+      throw new Error(`HTTP ${updateResponse.status} al actualizar contacto`);
+    }
+
+    const result = await updateResponse.json();
+    console.log('✅ Celular actualizado en CRM correctamente');
+    return result;
+  } catch (error) {
+    console.error('❌ Error actualizando celular en CRM:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Update celular in Strapi Carteras
+ * @param {string} cedula - Número de documento
+ * @param {string} nuevoCelular - New phone number in format +573XXXXXXXXX
+ * @returns {Promise<Object>} Result object
+ */
+async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
+  try {
+    console.log(`📞 Actualizando celular en Strapi Carteras para cédula: ${cedula}`);
+
+    // 1. Obtener carteras del usuario
+    const carterasUrl = `${STRAPI_BASE_URL}/api/carteras?filters[numero_documento][$eq]=${encodeURIComponent(cedula)}`;
+    const carterasResponse = await fetch(carterasUrl, {
+      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+    });
+
+    if (!carterasResponse.ok) {
+      throw new Error(`HTTP ${carterasResponse.status} al obtener carteras`);
+    }
+
+    const carterasData = await carterasResponse.json();
+
+    if (!carterasData.data || carterasData.data.length === 0) {
+      console.log('⚠️ No se encontraron carteras para actualizar');
+      return { updated: 0 };
+    }
+
+    // 2. Actualizar cada cartera
+    const updates = [];
+    for (const cartera of carterasData.data) {
+      const updateUrl = `${STRAPI_BASE_URL}/api/carteras/${cartera.documentId}`;
+      const updatePromise = fetch(updateUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          data: {
+            celular: nuevoCelular
+          }
+        })
+      });
+      updates.push(updatePromise);
+    }
+
+    await Promise.all(updates);
+    console.log(`✅ Celular actualizado en ${carterasData.data.length} carteras de Strapi`);
+    return { updated: carterasData.data.length };
+  } catch (error) {
+    console.error('❌ Error actualizando celular en Strapi Carteras:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Update celular in FR360 Payment Links
+ * @param {string} cedula - Número de documento
+ * @param {string} nuevoCelular - New phone number in format +573XXXXXXXXX
+ * @returns {Promise<Object>} Result object
+ */
+async function updateCelularFR360Links(cedula, nuevoCelular) {
+  try {
+    console.log(`📞 Actualizando celular en FR360 Links para cédula: ${cedula}`);
+
+    // 1. Obtener links del usuario usando axios (igual que getLinksByIdentityDocument)
+    const linksUrl = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=100&page=1&identityDocument=${encodeURIComponent(cedula)}`;
+    const linksResponse = await axios.get(linksUrl, {
+      headers: {
+        'Authorization': `Bearer ${FR360_TOKEN}`
+      }
+    });
+
+    if (linksResponse.status !== 200 || linksResponse.data.status !== 'success' || !Array.isArray(linksResponse.data.data)) {
+      console.log('⚠️ No se encontraron links para actualizar');
+      return { updated: 0 };
+    }
+
+    const linksData = linksResponse.data.data;
+
+    if (linksData.length === 0) {
+      console.log('⚠️ No se encontraron links para actualizar');
+      return { updated: 0 };
+    }
+
+    // 2. Actualizar cada link
+    const updates = [];
+    for (const link of linksData) {
+      const updateUrl = `${FR360_BASE_URL}/api/v1/payment-links`;
+      const updatePromise = axios.put(updateUrl, {
+        externalId: link.externalId,
+        phone: nuevoCelular
+      }, {
+        headers: {
+          'Authorization': `Bearer ${FR360_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      updates.push(updatePromise);
+    }
+
+    await Promise.all(updates);
+    console.log(`✅ Celular actualizado en ${linksData.length} links de FR360`);
+    return { updated: linksData.length };
+  } catch (error) {
+    console.error('❌ Error actualizando celular en FR360 Links:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Save confianza record to Strapi
  * @param {Object} data - Confianza record data
  * @returns {Promise<Object>} Result object
@@ -728,6 +905,9 @@ module.exports = {
   fetchCrmStrapiBatch,
   fetchCrmByEmail,
   fetchCrmByCelular,
+  updateCelularCRM,
+  updateCelularStrapiCarteras,
+  updateCelularFR360Links,
   saveConfianzaRecord,
   consultarAcuerdo,
   sincronizarCrmPorNumeroDocumento,
