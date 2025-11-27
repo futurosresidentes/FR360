@@ -2217,6 +2217,87 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: translateY(-50%) scale(0.95);
 }
 
+/* Edit celular modal styles */
+#editCelularModal {
+  z-index: 10000 !important;
+}
+
+#editCelularModal .modal-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#editCelularModal .modal-content {
+  position: relative;
+  background: #fff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 600px;
+  width: 90%;
+  z-index: 10001;
+}
+
+#editCelularModal h2 {
+  margin: 0 0 20px 0;
+  color: #075183;
+  font-size: 1.5rem;
+}
+
+#newCelularInput {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+#newCelularInput:focus {
+  outline: none;
+  border-color: #075183;
+}
+
+#editCelularModal .modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+#editCelularModal .modal-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#cancelEditCelular {
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+#cancelEditCelular:hover {
+  background-color: #e9ecef;
+}
+
+#confirmEditCelular {
+  background-color: #28a745;
+  color: white;
+}
+
+#confirmEditCelular:hover {
+  background-color: #218838;
+}
+
+#confirmEditCelular:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
 .cancel-membership-btn,
 .cancel-venta-btn {
   background-color: #fff;

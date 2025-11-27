@@ -1588,6 +1588,7 @@
               // Mostrar iconos de copiar
               updateCopyIconVisibility('correo');
               updateCopyIconVisibility('celular');
+              updateEditCelularButtonVisibility();
 
               // Verificar callbell después de llenar el campo celular
               if (celular.value) checkCallbellAvailability();
@@ -1748,6 +1749,7 @@
       api.fetchAcuerdos(uid)
         .then((data) => {
           acuerdosDataCache = data;
+          window.currentAcuerdosData = data; // Guardar globalmente para editor de celular
           acuerdosDataLoaded = true;
           maybeRenderAcuerdos(); // Intentar renderizar si Ventas ya terminó
         })
@@ -1768,6 +1770,7 @@
       api.getLinksByIdentityDocument(uid)
         .then(res => {
           try {
+            window.currentLinksData = res; // Guardar globalmente para editor de celular
             renderLinks(res);
           } finally { done('Links'); }
         })
@@ -1912,19 +1915,19 @@
                           .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
                           .toLowerCase() === 'elite';
         const rowClass = (isElite && isPaz) ? ' class="highlight"' : '';
-        html += `<tr${rowClass} data-document-id="${item.documentId || ''}" data-comercial-id="${item.comercial?.id || ''}" data-comercial-nombre="${item.comercial?.nombre || ''}">` +
-          `<td>${fecha}</td>` +
-          `<td>${transaccion}</td>` +
+        html += `<tr${rowClass} data-document-id="${item.documentId || ''}" data-comercial-id="${item.comercial?.id || ''}" data-comercial-nombre="${item.comercial?.nombre || ''}" data-producto-id="${item.producto?.id || ''}" data-valor-neto="${item.valor_neto || ''}">` +
+          `<td class="col-fecha" data-raw="${item.fecha || ''}">${fecha}</td>` +
+          `<td class="col-transaccion">${transaccion}</td>` +
           `<td class="col-comercial">${comercial}</td>` +
-          `<td>${producto}</td>` +
-          `<td>${recaudo}</td>` +
-          `<td>${fechaIni}</td>` +
-          `<td>${paz}</td>` +
-          `<td>${acuerdo}</td>` +
-          `<td>${marca}</td>` +
-          `<td>${subcat}</td>` +
-          `<td>${categoria}</td>` +
-          `<td class="col-edit-venta" style="text-align:center"><button class="edit-venta-btn" title="Editar comercial">✏️</button></td>` +
+          `<td class="col-producto" data-raw="${item.producto?.nombre || ''}">${producto}</td>` +
+          `<td class="col-recaudo" data-raw="${item.valor_neto || ''}">${recaudo}</td>` +
+          `<td class="col-fecha-ini" data-raw="${item.fecha_inicio || ''}">${fechaIni}</td>` +
+          `<td class="col-paz">${paz}</td>` +
+          `<td class="col-acuerdo">${acuerdo}</td>` +
+          `<td class="col-marca">${marca}</td>` +
+          `<td class="col-subcat">${subcat}</td>` +
+          `<td class="col-categoria">${categoria}</td>` +
+          `<td class="col-edit-venta" style="text-align:center"><button class="edit-venta-btn" title="Editar venta">✏️</button></td>` +
         `</tr>`;
       });
 
@@ -1936,6 +1939,9 @@
       // ====== Event delegation para editar ventas inline ======
       const ventasTable = tableWrapper.querySelector('table');
       if (ventasTable) {
+        // Guardar valores originales para restaurar al cancelar
+        let originalValues = {};
+
         ventasTable.addEventListener('click', async (e) => {
           const btn = e.target.closest('button');
           if (!btn) return;
@@ -1954,6 +1960,8 @@
           ];
 
           const userEmail = USER_EMAIL || '';
+          const isDaniel = userEmail.toLowerCase() === 'daniel.cardona@sentiretaller.com';
+
           if (!allowedUsers.includes(userEmail.toLowerCase())) {
             alert('⚠️ No tienes permisos para editar ventas.');
             return;
@@ -1969,9 +1977,20 @@
             // Deshabilitar otros botones de edición mientras se edita
             ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = true);
 
-            // Mostrar loading
-            const colComercial = tr.querySelector('.col-comercial');
-            colComercial.innerHTML = 'Cargando comerciales...';
+            // Guardar valores originales
+            originalValues = {
+              fecha: tr.querySelector('.col-fecha').dataset.raw || '',
+              fechaDisplay: tr.querySelector('.col-fecha').textContent,
+              transaccion: tr.querySelector('.col-transaccion').textContent,
+              comercialId: currentComercialId,
+              comercialNombre: currentComercialNombre,
+              recaudo: tr.querySelector('.col-recaudo').dataset.raw || '',
+              recaudoDisplay: tr.querySelector('.col-recaudo').textContent,
+              fechaIni: tr.querySelector('.col-fecha-ini').dataset.raw || '',
+              fechaIniDisplay: tr.querySelector('.col-fecha-ini').textContent,
+              paz: tr.querySelector('.col-paz').textContent,
+              acuerdo: tr.querySelector('.col-acuerdo').textContent
+            };
 
             try {
               // Fetch comerciales
@@ -1979,7 +1998,6 @@
 
               if (!comerciales || comerciales.length === 0) {
                 alert('❌ No hay comerciales disponibles');
-                colComercial.innerHTML = currentComercialNombre || '';
                 ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
                 return;
               }
@@ -1991,8 +2009,35 @@
                 selectHTML += `<option value="${com.id}"${selected}>${com.nombre || 'Comercial ' + com.id}</option>`;
               });
               selectHTML += '</select>';
+              tr.querySelector('.col-comercial').innerHTML = selectHTML;
 
-              colComercial.innerHTML = selectHTML;
+              // Si es Daniel, habilitar edición de todos los campos
+              if (isDaniel) {
+                // Fecha (date input)
+                tr.querySelector('.col-fecha').innerHTML = `<input type="date" class="inp-fecha" value="${originalValues.fecha}" style="width:100%; padding:2px;">`;
+
+                // Transacción (text input)
+                tr.querySelector('.col-transaccion').innerHTML = `<input type="text" class="inp-transaccion" value="${originalValues.transaccion}" style="width:100%; padding:2px;">`;
+
+                // Recaudo/Valor neto (number input)
+                tr.querySelector('.col-recaudo').innerHTML = `<input type="number" class="inp-recaudo" value="${originalValues.recaudo}" style="width:80px; padding:2px;">`;
+
+                // Fecha inicio (date input)
+                tr.querySelector('.col-fecha-ini').innerHTML = `<input type="date" class="inp-fecha-ini" value="${originalValues.fechaIni}" style="width:100%; padding:2px;">`;
+
+                // Paz y salvo (select)
+                const pazOptions = ['', 'Si', 'No'];
+                let pazSelectHTML = '<select class="inp-paz" style="width:100%; padding:2px;">';
+                pazOptions.forEach(opt => {
+                  const selected = opt === originalValues.paz ? ' selected' : '';
+                  pazSelectHTML += `<option value="${opt}"${selected}>${opt || '(vacío)'}</option>`;
+                });
+                pazSelectHTML += '</select>';
+                tr.querySelector('.col-paz').innerHTML = pazSelectHTML;
+
+                // Acuerdo (text input)
+                tr.querySelector('.col-acuerdo').innerHTML = `<input type="text" class="inp-acuerdo" value="${originalValues.acuerdo}" style="width:100%; padding:2px;">`;
+              }
 
               // Cambiar botón a guardar/cancelar
               tr.querySelector('.col-edit-venta').innerHTML =
@@ -2002,7 +2047,6 @@
             } catch (error) {
               console.error('❌ Error al cargar comerciales:', error);
               alert('❌ Error al cargar la lista de comerciales');
-              colComercial.innerHTML = currentComercialNombre || '';
               ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
             }
 
@@ -2011,28 +2055,48 @@
             const selectComercial = tr.querySelector('.inp-comercial');
             const nuevoComercialId = selectComercial?.value;
 
-            if (!nuevoComercialId) {
-              alert('⚠️ Por favor selecciona un comercial');
-              return;
-            }
+            // Recopilar todos los valores (para Daniel incluye más campos)
+            const updateData = {
+              comercial: nuevoComercialId
+            };
 
-            // Si no cambió nada, solo cancelar
-            if (String(nuevoComercialId) === String(currentComercialId)) {
-              // Restaurar vista normal
-              tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
-              tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
-              ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
-              return;
+            if (isDaniel) {
+              const inpFecha = tr.querySelector('.inp-fecha');
+              const inpTransaccion = tr.querySelector('.inp-transaccion');
+              const inpRecaudo = tr.querySelector('.inp-recaudo');
+              const inpFechaIni = tr.querySelector('.inp-fecha-ini');
+              const inpPaz = tr.querySelector('.inp-paz');
+              const inpAcuerdo = tr.querySelector('.inp-acuerdo');
+
+              if (inpFecha) updateData.fecha = inpFecha.value;
+              if (inpTransaccion) updateData.transaccion = inpTransaccion.value;
+              if (inpRecaudo) updateData.valor_neto = parseFloat(inpRecaudo.value) || 0;
+              if (inpFechaIni) updateData.fecha_inicio = inpFechaIni.value;
+              if (inpPaz) updateData.paz_y_salvo = inpPaz.value;
+              if (inpAcuerdo) updateData.acuerdo = inpAcuerdo.value;
             }
 
             // Deshabilitar controles durante guardado
-            selectComercial.disabled = true;
+            tr.querySelectorAll('input, select').forEach(el => el.disabled = true);
             btn.disabled = true;
             tr.querySelector('.cancel-venta-btn').disabled = true;
-            tr.querySelector('.col-comercial').innerHTML = '⌛ Guardando...';
 
             try {
-              const result = await api.updateVentaComercial(documentId, nuevoComercialId);
+              let result;
+
+              if (isDaniel) {
+                // Daniel puede actualizar todos los campos
+                result = await api.updateFacturacion(documentId, updateData);
+              } else {
+                // Otros usuarios solo pueden cambiar el comercial
+                if (String(nuevoComercialId) === String(currentComercialId)) {
+                  // No hubo cambios, restaurar
+                  restoreVentaRow(tr, originalValues, isDaniel);
+                  ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
+                  return;
+                }
+                result = await api.updateVentaComercial(documentId, nuevoComercialId);
+              }
 
               if (result.success) {
                 // Obtener el nombre del nuevo comercial
@@ -2042,43 +2106,71 @@
                 tr.dataset.comercialId = nuevoComercialId;
                 tr.dataset.comercialNombre = nuevoComercialNombre;
 
-                // Restaurar vista con nuevo valor
-                tr.querySelector('.col-comercial').textContent = nuevoComercialNombre;
-                tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+                // Restaurar vista con nuevos valores
+                tr.querySelector('.col-comercial').textContent = nuevoComercialNombre.split(' ')[0];
+
+                if (isDaniel) {
+                  const newFecha = updateData.fecha || '';
+                  const newRecaudo = updateData.valor_neto || 0;
+                  const newFechaIni = updateData.fecha_inicio || '';
+
+                  tr.querySelector('.col-fecha').textContent = newFecha ? fmt(newFecha) : '';
+                  tr.querySelector('.col-fecha').dataset.raw = newFecha;
+                  tr.querySelector('.col-transaccion').textContent = updateData.transaccion || '';
+                  tr.querySelector('.col-recaudo').textContent = newRecaudo ? Number(newRecaudo).toLocaleString('es-CO') : '';
+                  tr.querySelector('.col-recaudo').dataset.raw = newRecaudo;
+                  tr.querySelector('.col-fecha-ini').textContent = newFechaIni ? fmt(newFechaIni) : '';
+                  tr.querySelector('.col-fecha-ini').dataset.raw = newFechaIni;
+                  tr.querySelector('.col-paz').textContent = updateData.paz_y_salvo || '';
+                  tr.querySelector('.col-acuerdo').textContent = updateData.acuerdo || '';
+                }
+
+                tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar venta">✏️</button>';
 
                 // Mostrar mensaje temporal de éxito
-                const originalText = tr.querySelector('.col-comercial').textContent;
-                tr.querySelector('.col-comercial').innerHTML = '✅ ' + originalText;
+                const colComercial = tr.querySelector('.col-comercial');
+                const originalText = colComercial.textContent;
+                colComercial.innerHTML = '✅ ' + originalText;
                 setTimeout(() => {
-                  tr.querySelector('.col-comercial').textContent = originalText;
+                  colComercial.textContent = originalText;
                 }, 2000);
 
               } else {
                 alert(`❌ Error al actualizar: ${result.error || 'Error desconocido'}`);
-                // Restaurar valor original
-                tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
-                tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+                restoreVentaRow(tr, originalValues, isDaniel);
               }
 
             } catch (error) {
               console.error('❌ Error al actualizar:', error);
               alert(`❌ Error de conexión: ${error.message}`);
-              // Restaurar valor original
-              tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
-              tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+              restoreVentaRow(tr, originalValues, isDaniel);
             } finally {
-              // Re-habilitar otros botones de edición
               ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
             }
 
           } else if (btn.classList.contains('cancel-venta-btn')) {
             // ====== CANCELAR EDICIÓN ======
-            // Restaurar vista normal
-            tr.querySelector('.col-comercial').textContent = currentComercialNombre || '';
-            tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar comercial">✏️</button>';
+            restoreVentaRow(tr, originalValues, isDaniel);
             ventasTable.querySelectorAll('.edit-venta-btn').forEach(b => b.disabled = false);
           }
         });
+
+        // Función auxiliar para restaurar la fila
+        function restoreVentaRow(tr, orig, isDaniel) {
+          tr.querySelector('.col-comercial').textContent = (orig.comercialNombre || '').split(' ')[0];
+          if (isDaniel) {
+            tr.querySelector('.col-fecha').textContent = orig.fechaDisplay;
+            tr.querySelector('.col-fecha').dataset.raw = orig.fecha;
+            tr.querySelector('.col-transaccion').textContent = orig.transaccion;
+            tr.querySelector('.col-recaudo').textContent = orig.recaudoDisplay;
+            tr.querySelector('.col-recaudo').dataset.raw = orig.recaudo;
+            tr.querySelector('.col-fecha-ini').textContent = orig.fechaIniDisplay;
+            tr.querySelector('.col-fecha-ini').dataset.raw = orig.fechaIni;
+            tr.querySelector('.col-paz').textContent = orig.paz;
+            tr.querySelector('.col-acuerdo').textContent = orig.acuerdo;
+          }
+          tr.querySelector('.col-edit-venta').innerHTML = '<button class="edit-venta-btn" title="Editar venta">✏️</button>';
+        }
       }
 
       // ====== Guardamos matriz para análisis (ahora con "Categoria" al final):
@@ -5697,118 +5789,25 @@
       }
     }
 
-    // Actualizar celular en CRM (ActiveCampaign)
+    // Actualizar celular en CRM (ActiveCampaign) - vía backend
     async function updateCelularCRM(correo, nuevoCelular) {
-      const API_TOKEN = 'f76eb8ac2287255f012c28f96f48d845dbe51fbb9770209e1fb9a43d86cb3e2d5e513e5a';
-
-      // 1. Obtener contact ID
-      const getContact = async () => {
-        const response = await fetch(`https://sentiretaller.api-us1.com/api/3/contacts?email=${encodeURIComponent(correo)}`, {
-          headers: {
-            'Api-Token': API_TOKEN
-          }
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        if (!data.scoreValues || data.scoreValues.length === 0) {
-          throw new Error('No se encontró contacto en CRM');
-        }
-
-        return data.scoreValues[0].contact;
-      };
-
-      const contactId = await retryWithDelay(getContact);
-
-      // 2. Actualizar teléfono
-      const updatePhone = async () => {
-        const response = await fetch(`https://sentiretaller.api-us1.com/api/3/contacts/${contactId}`, {
-          method: 'PUT',
-          headers: {
-            'Api-Token': API_TOKEN,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contact: {
-              phone: nuevoCelular
-            }
-          })
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.json();
-      };
-
-      return await retryWithDelay(updatePhone);
+      return await retryWithDelay(async () => {
+        return await api.updateCelularCRM(correo, nuevoCelular);
+      });
     }
 
-    // Actualizar celular en Strapi Carteras
+    // Actualizar celular en Strapi Carteras - vía backend
     async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
-      // Usamos los acuerdos actuales que ya tenemos cargados
-      if (!window.currentAcuerdosData || !window.currentAcuerdosData.carteras) {
-        throw new Error('No hay acuerdos cargados');
-      }
-
-      const carteras = window.currentAcuerdosData.carteras;
-      const updates = [];
-
-      for (const cartera of carteras) {
-        const updateCartera = async () => {
-          const response = await fetch(`https://strapi-project-d3p7.onrender.com/api/carteras/${cartera.documentId}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': 'Bearer b79460f3efaf58f0bf64a4f75aac87abb3f4695e1b746c5c8c2de9fdba3e2f2b18d0d9f2bc614e24fbe74c8e19bedb3eb1cf8a83a5a9db10e92acae8aee652c4a44e77b65fb6b4b71d560f5f8f1c5f5a8e91bea27d9c47f4ad67fcd26cad46d47fcc4e2fdf2bb67c8a52d6dbe4419c4de073e22f5d02e4e4c3cd54a0b8e14f39',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              data: {
-                celular: nuevoCelular
-              }
-            })
-          });
-
-          if (!response.ok) throw new Error(`HTTP ${response.status} para cartera ${cartera.documentId}`);
-          return await response.json();
-        };
-
-        updates.push(retryWithDelay(updateCartera));
-      }
-
-      return await Promise.all(updates);
+      return await retryWithDelay(async () => {
+        return await api.updateCelularStrapiCarteras(cedula, nuevoCelular);
+      });
     }
 
-    // Actualizar celular en FR360 Payment Links
+    // Actualizar celular en FR360 Payment Links - vía backend
     async function updateCelularFR360Links(cedula, nuevoCelular) {
-      // Usamos los links actuales que ya tenemos cargados
-      if (!window.currentLinksData || !window.currentLinksData.length === 0) {
-        throw new Error('No hay links cargados');
-      }
-
-      const links = window.currentLinksData;
-      const updates = [];
-
-      for (const link of links) {
-        const updateLink = async () => {
-          const response = await fetch('https://fr360-7cwi.onrender.com/api/v1/payment-links', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              externalId: link.externalId,
-              phone: nuevoCelular
-            })
-          });
-
-          if (!response.ok) throw new Error(`HTTP ${response.status} para link ${link.externalId}`);
-          return await response.json();
-        };
-
-        updates.push(retryWithDelay(updateLink));
-      }
-
-      return await Promise.all(updates);
+      return await retryWithDelay(async () => {
+        return await api.updateCelularFR360Links(cedula, nuevoCelular);
+      });
     }
 
     // Confirmar actualización
@@ -5827,6 +5826,15 @@
         return;
       }
 
+      // Confirmación final
+      const confirmacion = confirm(
+        `¿Estás seguro de actualizar el celular a:\n\n${nuevoCelular}\n\nEsto actualizará el celular en CRM, Strapi Carteras y FR360 Links.`
+      );
+
+      if (!confirmacion) {
+        return;
+      }
+
       // Mostrar progreso
       updateProgress.style.display = 'block';
       confirmEditCelular.disabled = true;
@@ -5842,11 +5850,17 @@
       const currentCedula = searchId.value;
       const currentCorreo = correo.value;
 
+      // Track success/failure
+      let crmSuccess = false;
+      let strapiSuccess = false;
+      let fr360Success = false;
+
       // 1. Actualizar CRM
       try {
         await updateCelularCRM(currentCorreo, nuevoCelular);
         document.getElementById('crmStatus').textContent = '✅';
         document.getElementById('crmMessage').textContent = 'Actualizado correctamente';
+        crmSuccess = true;
       } catch (error) {
         document.getElementById('crmStatus').textContent = '⛔';
         document.getElementById('crmMessage').textContent = `Error: ${error.message}`;
@@ -5858,6 +5872,7 @@
         await updateCelularStrapiCarteras(currentCedula, nuevoCelular);
         document.getElementById('strapiStatus').textContent = '✅';
         document.getElementById('strapiMessage').textContent = 'Actualizado correctamente';
+        strapiSuccess = true;
       } catch (error) {
         document.getElementById('strapiStatus').textContent = '⛔';
         document.getElementById('strapiMessage').textContent = `Error: ${error.message}`;
@@ -5869,23 +5884,44 @@
         await updateCelularFR360Links(currentCedula, nuevoCelular);
         document.getElementById('fr360Status').textContent = '✅';
         document.getElementById('fr360Message').textContent = 'Actualizado correctamente';
+        fr360Success = true;
       } catch (error) {
         document.getElementById('fr360Status').textContent = '⛔';
         document.getElementById('fr360Message').textContent = `Error: ${error.message}`;
       }
 
-      // Actualizar campo celular en el formulario
-      celular.value = nuevoCelular;
+      // Determinar mensaje final basado en resultados
+      const totalSuccess = [crmSuccess, strapiSuccess, fr360Success].filter(Boolean).length;
+      const totalAttempts = 3;
+
+      // Actualizar campo celular en el formulario solo si al menos una actualización fue exitosa
+      if (totalSuccess > 0) {
+        celular.value = nuevoCelular;
+      }
 
       // Refrescar datos
       setTimeout(async () => {
         try {
-          await fetchAllData(currentCedula);
-          alert('✅ Celular actualizado correctamente. Los datos han sido refrescados.');
-          editCelularModal.classList.add('hidden');
+          if (totalSuccess > 0) {
+            await fetchAllData(currentCedula);
+          }
+
+          // Mensaje según resultados
+          if (totalSuccess === totalAttempts) {
+            alert('✅ Celular actualizado correctamente en todos los sistemas. Los datos han sido refrescados.');
+          } else if (totalSuccess > 0) {
+            alert(`⚠️ Actualización parcial: ${totalSuccess}/${totalAttempts} sistemas actualizados correctamente.\n\nRevisa los detalles en el modal para ver qué falló.`);
+          } else {
+            alert('❌ Error: No se pudo actualizar el celular en ningún sistema.\n\nRevisa los mensajes de error en el modal.');
+          }
+
+          // Solo cerrar modal si todas las actualizaciones fueron exitosas
+          if (totalSuccess === totalAttempts) {
+            editCelularModal.classList.add('hidden');
+          }
         } catch (error) {
           console.error('Error refrescando datos:', error);
-          alert('✅ Celular actualizado, pero hubo un error al refrescar los datos.');
+          alert('⚠️ Los cambios se guardaron, pero hubo un error al refrescar los datos.');
         } finally {
           confirmEditCelular.disabled = false;
         }

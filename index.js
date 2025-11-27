@@ -1277,6 +1277,18 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchCrmByCelular(args[0]);
         break;
 
+      case 'updateCelularCRM':
+        result = await strapiService.updateCelularCRM(args[0], args[1]);
+        break;
+
+      case 'updateCelularStrapiCarteras':
+        result = await strapiService.updateCelularStrapiCarteras(args[0], args[1]);
+        break;
+
+      case 'updateCelularFR360Links':
+        result = await strapiService.updateCelularFR360Links(args[0], args[1]);
+        break;
+
       case 'fetchCrmStrapiOnly':
         result = await strapiService.fetchCrmStrapiOnly(args[0]);
         break;
@@ -1378,6 +1390,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.updateFacturacionComercial(args[0], args[1]);
         break;
 
+      case 'updateFacturacion':
+        result = await strapiService.updateFacturacion(args[0], args[1]);
+        break;
+
       case 'processSinglePayment':
         result = await fr360Service.processSinglePayment(args[0]);
         break;
@@ -1429,10 +1445,11 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           error: `Function '${functionName}' not found`,
           availableFunctions: [
             'getCitizenServer', 'fetchCrmByEmail', 'fetchCrmByCelular', 'fetchCrmStrapiOnly', 'sincronizarCrmPorNumeroDocumento', 'fetchCrmStrapiBatch',
+            'updateCelularCRM', 'updateCelularStrapiCarteras', 'updateCelularFR360Links',
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans', 'getProductHandleFromFRAPP',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
-            'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
+            'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
             'createClickUpTask'

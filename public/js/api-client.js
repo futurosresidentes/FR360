@@ -64,6 +64,18 @@ class FR360ApiClient {
     return this._call('fetchCrmByCelular', celular);
   }
 
+  async updateCelularCRM(correo, nuevoCelular) {
+    return this._call('updateCelularCRM', correo, nuevoCelular);
+  }
+
+  async updateCelularStrapiCarteras(cedula, nuevoCelular) {
+    return this._call('updateCelularStrapiCarteras', cedula, nuevoCelular);
+  }
+
+  async updateCelularFR360Links(cedula, nuevoCelular) {
+    return this._call('updateCelularFR360Links', cedula, nuevoCelular);
+  }
+
   async fetchCrmStrapiOnly(uid) {
     return this._call('fetchCrmStrapiOnly', uid);
   }
@@ -164,6 +176,10 @@ class FR360ApiClient {
 
   async updateVentaComercial(documentId, comercialId) {
     return this._call('updateVentaComercial', documentId, comercialId);
+  }
+
+  async updateFacturacion(documentId, data) {
+    return this._call('updateFacturacion', documentId, data);
   }
 
   async processSinglePayment(formData) {

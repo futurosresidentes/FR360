@@ -897,6 +897,74 @@ async function updateFacturacionComercial(documentId, comercialId) {
   }
 }
 
+/**
+ * Update facturacion (multiple fields) - Solo para usuarios autorizados
+ * @param {string} documentId - Document ID de la facturación
+ * @param {Object} data - Datos a actualizar
+ * @returns {Promise<Object>} Result object
+ */
+async function updateFacturacion(documentId, data) {
+  const url = `${STRAPI_BASE_URL}/api/facturaciones/${documentId}`;
+
+  try {
+    console.log(`📝 Updating facturacion ${documentId} with data:`, data);
+
+    // Construir payload solo con campos permitidos
+    const payload = {
+      data: {}
+    };
+
+    // Mapear campos del frontend a campos de Strapi
+    if (data.comercial !== undefined) payload.data.comercial = data.comercial;
+    if (data.fecha !== undefined) payload.data.fecha = data.fecha;
+    if (data.transaccion !== undefined) payload.data.transaccion = data.transaccion;
+    if (data.valor_neto !== undefined) payload.data.valor_neto = data.valor_neto;
+    if (data.fecha_inicio !== undefined) payload.data.fecha_inicio = data.fecha_inicio;
+    if (data.paz_y_salvo !== undefined) payload.data.paz_y_salvo = data.paz_y_salvo;
+    if (data.acuerdo !== undefined) payload.data.acuerdo = data.acuerdo;
+
+    console.log('📤 Sending payload to Strapi:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.put(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200) {
+      console.log('✅ Facturacion updated successfully');
+      return {
+        success: true,
+        data: response.data
+      };
+    } else {
+      console.error('❌ Unexpected response status:', response.status);
+      return {
+        success: false,
+        error: `Unexpected status: ${response.status}`
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating facturacion:', error.message);
+
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      return {
+        success: false,
+        error: error.response.data?.error?.message || error.message,
+        status: error.response.status
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -915,5 +983,6 @@ module.exports = {
   fetchUdea2026Facturaciones,
   fetchCarteraByAcuerdo,
   getComerciales,
-  updateFacturacionComercial
+  updateFacturacionComercial,
+  updateFacturacion
 };
