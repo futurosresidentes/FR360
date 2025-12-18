@@ -108,6 +108,8 @@ async function getProducts(options = {}) {
         marca: p.marca,
         es_estudiante_nuevo: !!p.es_estudiante_nuevo,
         precio: (p.precio == null ? null : Number(p.precio)),
+        precio_contado_comercial: (p.precio_contado_comercial == null ? null : Number(p.precio_contado_comercial)),
+        precio_financiado_comercial: (p.precio_financiado_comercial == null ? null : Number(p.precio_financiado_comercial)),
         max_financiacion: (p.max_financiacion == null ? null : Number(p.max_financiacion))
       }));
     }

@@ -909,8 +909,19 @@
         valorInput.readOnly = false;
         return;
       }
-      // precio publicado en Strapi → tope máximo
-      const max = (typeof meta.precio === 'number' && !isNaN(meta.precio)) ? meta.precio : null;
+      // Determinar precio según número de cuotas:
+      // - 1 cuota (contado): precio_contado_comercial
+      // - más de 1 cuota (financiado): precio_financiado_comercial
+      const numCuotas = Number(cuotas.value) || 0;
+      let precioBase;
+      if (numCuotas <= 1) {
+        // Contado: usar precio_contado_comercial, fallback a precio
+        precioBase = meta.precio_contado_comercial ?? meta.precio;
+      } else {
+        // Financiado: usar precio_financiado_comercial, fallback a precio
+        precioBase = meta.precio_financiado_comercial ?? meta.precio;
+      }
+      const max = (typeof precioBase === 'number' && !isNaN(precioBase)) ? precioBase : null;
       // aplica descuento si corresponde
       const min = (max != null) ? Math.round(max * (1 - (currentDiscountPct || 0) / 100)) : null;
 
