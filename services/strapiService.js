@@ -924,6 +924,7 @@ async function updateFacturacion(documentId, data) {
     if (data.fecha_inicio !== undefined) payload.data.fecha_inicio = data.fecha_inicio;
     if (data.paz_y_salvo !== undefined) payload.data.paz_y_salvo = data.paz_y_salvo;
     if (data.acuerdo !== undefined) payload.data.acuerdo = data.acuerdo;
+    if (data.producto !== undefined) payload.data.producto = data.producto;
 
     console.log('📤 Sending payload to Strapi:', JSON.stringify(payload, null, 2));
 

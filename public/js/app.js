@@ -1995,6 +1995,8 @@
               transaccion: tr.querySelector('.col-transaccion').textContent,
               comercialId: currentComercialId,
               comercialNombre: currentComercialNombre,
+              productoId: tr.dataset.productoId || '',
+              productoNombre: tr.querySelector('.col-producto').textContent,
               recaudo: tr.querySelector('.col-recaudo').dataset.raw || '',
               recaudoDisplay: tr.querySelector('.col-recaudo').textContent,
               fechaIni: tr.querySelector('.col-fecha-ini').dataset.raw || '',
@@ -2004,8 +2006,12 @@
             };
 
             try {
-              // Fetch comerciales
+              // Fetch comerciales (y productos si es Daniel)
               const comerciales = await api.getComerciales();
+              let productos = [];
+              if (isDaniel) {
+                productos = await api.getProductosCatalog();
+              }
 
               if (!comerciales || comerciales.length === 0) {
                 alert('❌ No hay comerciales disponibles');
@@ -2029,6 +2035,16 @@
 
                 // Transacción (text input)
                 tr.querySelector('.col-transaccion').innerHTML = `<input type="text" class="inp-transaccion" value="${originalValues.transaccion}" style="width:100%; padding:2px;">`;
+
+                // Producto (select)
+                let productoSelectHTML = '<select class="inp-producto" style="width:100%; padding:2px;">';
+                productoSelectHTML += '<option value="">(Sin producto)</option>';
+                productos.forEach(prod => {
+                  const selected = String(prod.id) === String(originalValues.productoId) ? ' selected' : '';
+                  productoSelectHTML += `<option value="${prod.id}"${selected}>${prod.nombre}</option>`;
+                });
+                productoSelectHTML += '</select>';
+                tr.querySelector('.col-producto').innerHTML = productoSelectHTML;
 
                 // Recaudo/Valor neto (number input)
                 tr.querySelector('.col-recaudo').innerHTML = `<input type="number" class="inp-recaudo" value="${originalValues.recaudo}" style="width:80px; padding:2px;">`;
@@ -2074,6 +2090,7 @@
             if (isDaniel) {
               const inpFecha = tr.querySelector('.inp-fecha');
               const inpTransaccion = tr.querySelector('.inp-transaccion');
+              const inpProducto = tr.querySelector('.inp-producto');
               const inpRecaudo = tr.querySelector('.inp-recaudo');
               const inpFechaIni = tr.querySelector('.inp-fecha-ini');
               const inpPaz = tr.querySelector('.inp-paz');
@@ -2081,6 +2098,7 @@
 
               if (inpFecha) updateData.fecha = inpFecha.value;
               if (inpTransaccion) updateData.transaccion = inpTransaccion.value;
+              if (inpProducto) updateData.producto = inpProducto.value || null;
               if (inpRecaudo) updateData.valor_neto = parseFloat(inpRecaudo.value) || 0;
               if (inpFechaIni) updateData.fecha_inicio = inpFechaIni.value;
               if (inpPaz) updateData.paz_y_salvo = inpPaz.value;
@@ -2128,6 +2146,16 @@
                   tr.querySelector('.col-fecha').textContent = newFecha ? fmt(newFecha) : '';
                   tr.querySelector('.col-fecha').dataset.raw = newFecha;
                   tr.querySelector('.col-transaccion').textContent = updateData.transaccion || '';
+
+                  // Producto - obtener nombre del select
+                  const selectProducto = tr.querySelector('.inp-producto');
+                  if (selectProducto) {
+                    const nuevoProductoNombre = selectProducto.options[selectProducto.selectedIndex]?.text || '';
+                    const nuevoProductoId = selectProducto.value || '';
+                    tr.querySelector('.col-producto').textContent = nuevoProductoNombre === '(Sin producto)' ? '' : nuevoProductoNombre;
+                    tr.dataset.productoId = nuevoProductoId;
+                  }
+
                   tr.querySelector('.col-recaudo').textContent = newRecaudo ? Number(newRecaudo).toLocaleString('es-CO') : '';
                   tr.querySelector('.col-recaudo').dataset.raw = newRecaudo;
                   tr.querySelector('.col-fecha-ini').textContent = newFechaIni ? fmt(newFechaIni) : '';
@@ -2173,6 +2201,8 @@
             tr.querySelector('.col-fecha').textContent = orig.fechaDisplay;
             tr.querySelector('.col-fecha').dataset.raw = orig.fecha;
             tr.querySelector('.col-transaccion').textContent = orig.transaccion;
+            tr.querySelector('.col-producto').textContent = orig.productoNombre;
+            tr.dataset.productoId = orig.productoId;
             tr.querySelector('.col-recaudo').textContent = orig.recaudoDisplay;
             tr.querySelector('.col-recaudo').dataset.raw = orig.recaudo;
             tr.querySelector('.col-fecha-ini').textContent = orig.fechaIniDisplay;
