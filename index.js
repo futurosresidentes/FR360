@@ -14,6 +14,8 @@ const frappService = require('./services/frappService');
 const callbellService = require('./services/callbellService');
 const oldMembershipService = require('./services/oldMembershipService');
 const clickupService = require('./services/clickupService');
+const googleDriveService = require('./services/googleDriveService');
+const pdfService = require('./services/pdfService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -255,6 +257,345 @@ app.post('/api/webpig/webhooks/:id/mark-manual-completion', ensureAuthenticated,
 
   } catch (error) {
     console.error('[WebPig] Error marking stage as manually completed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST update webhook agreement - Cambiar el acuerdo asociado a un webhook
+app.post('/api/webpig/webhooks/:id/update-agreement', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { id } = req.params;
+  const { newAgreementId } = req.body;
+  const userEmail = req.user?.email || '';
+
+  // Solo Daniel puede usar este endpoint
+  if (userEmail.toLowerCase() !== 'daniel.cardona@sentiretaller.com') {
+    return res.status(403).json({ success: false, error: 'No autorizado para modificar acuerdos' });
+  }
+
+  if (!newAgreementId) {
+    return res.status(400).json({ success: false, error: 'Debe proporcionar el nuevo número de acuerdo' });
+  }
+
+  console.log(`[WebPig] Updating agreement for webhook ${id} to ${newAgreementId} by ${userEmail}`);
+
+  try {
+    // Primero obtener el registro actual
+    const { data: currentData, error: selectError } = await supabase
+      .from('webhook_logs')
+      .select('id, response_data')
+      .eq('webhook_id', parseInt(id))
+      .eq('stage', 'fr360_query')
+      .eq('status', 'success')
+      .single();
+
+    if (selectError) {
+      throw new Error(`No se encontró el log del webhook: ${selectError.message}`);
+    }
+
+    if (!currentData) {
+      throw new Error('No se encontró el registro de fr360_query para este webhook');
+    }
+
+    // Actualizar el response_data con el nuevo acuerdo
+    const updatedResponseData = {
+      ...currentData.response_data,
+      agreementId: newAgreementId,
+      nroAcuerdo: newAgreementId
+    };
+
+    // Hacer el update
+    const { error: updateError } = await supabase
+      .from('webhook_logs')
+      .update({ response_data: updatedResponseData })
+      .eq('id', currentData.id);
+
+    if (updateError) {
+      throw new Error(`Error actualizando acuerdo: ${updateError.message}`);
+    }
+
+    console.log(`[WebPig] Agreement updated successfully for webhook ${id}`);
+
+    res.json({
+      success: true,
+      message: `Acuerdo actualizado a ${newAgreementId} para webhook ${id}`,
+      webhookId: id,
+      newAgreementId
+    });
+
+  } catch (error) {
+    console.error('[WebPig] Error updating agreement:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST regularize advance payment - Solo para Daniel
+app.post('/api/webpig/webhooks/:id/regularize-advance-payment', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { id } = req.params;
+  const { dryRun = true, webhookPayload = {} } = req.body; // Por defecto solo preview, no ejecuta
+  const userEmail = req.user?.email || '';
+
+  // Solo Daniel puede usar este endpoint
+  if (userEmail.toLowerCase() !== 'daniel.cardona@sentiretaller.com') {
+    return res.status(403).json({ success: false, error: 'No autorizado para regularizar pagos anticipados' });
+  }
+
+  console.log(`[WebPig] Regularizing advance payment for webhook ID: ${id} (dryRun: ${dryRun})`);
+
+  try {
+    // 1. Usar datos del webhook pasados desde el frontend
+    const payload = webhookPayload;
+    const agreementId = payload.agreementId;
+    const amount = parseFloat(payload.amount) || 0;
+    const fechaPago = payload.fecha || new Date().toISOString().split('T')[0];
+    const producto = payload.product || '';
+
+    console.log(`[WebPig] Webhook ${id} payload recibido:`, JSON.stringify(payload, null, 2));
+    console.log(`[WebPig] Producto detectado: "${producto}"`);
+
+    // Validar que sea un pago anticipado
+    if (!producto.toLowerCase().includes('pago anticipado')) {
+      console.log(`[WebPig] Producto "${producto}" no contiene "pago anticipado"`);
+      return res.status(400).json({ success: false, error: `Este webhook no es un pago anticipado. Producto: "${producto}"` });
+    }
+
+    if (!agreementId) {
+      return res.status(400).json({ success: false, error: 'El webhook no tiene agreementId' });
+    }
+
+    console.log(`[WebPig] Agreement: ${agreementId}, Amount: ${amount}, Fecha: ${fechaPago}`);
+
+    // 2. Consultar carteras del acuerdo en Strapi
+    const carterasUrl = `${process.env.STRAPI_BASE_URL}/api/carteras?filters[nro_acuerdo][$eq]=${agreementId}&populate=*&pagination[pageSize]=100`;
+    console.log(`[WebPig] Consultando carteras URL: ${carterasUrl}`);
+
+    const carterasResponse = await fetch(carterasUrl, {
+      headers: { 'Authorization': `Bearer ${process.env.STRAPI_TOKEN}` }
+    });
+    const carterasData = await carterasResponse.json();
+    const allCuotas = carterasData.data || [];
+
+    console.log(`[WebPig] Cuotas encontradas: ${allCuotas.length}`);
+    if (allCuotas.length > 0) {
+      console.log(`[WebPig] Primera cuota estructura:`, JSON.stringify(allCuotas[0], null, 2).substring(0, 500));
+      console.log(`[WebPig] Estados de pago:`, allCuotas.map(c => ({ cuota: c.cuota_nro, estado: c.estado_pago })));
+    }
+
+    if (allCuotas.length === 0) {
+      return res.status(404).json({ success: false, error: `No se encontraron cuotas para el acuerdo ${agreementId}` });
+    }
+
+    // 3. Filtrar cuotas pendientes (no pagadas) y ordenar por cuota_nro
+    const cuotasPendientes = allCuotas
+      .filter(c => c.estado_pago !== 'pagado')
+      .sort((a, b) => a.cuota_nro - b.cuota_nro);
+
+    console.log(`[WebPig] Cuotas pendientes después de filtrar: ${cuotasPendientes.length}`);
+
+    if (cuotasPendientes.length === 0) {
+      // Buscar otros acuerdos del cliente con cuotas pendientes
+      const cedula = allCuotas[0]?.numero_documento || payload.identityDocument;
+
+      if (cedula) {
+        console.log(`[WebPig] Buscando otros acuerdos para cédula: ${cedula}`);
+
+        // Buscar todas las carteras del cliente
+        const otrosAcuerdosUrl = `${process.env.STRAPI_BASE_URL}/api/carteras?filters[numero_documento][$eq]=${cedula}&filters[estado_pago][$ne]=pagado&populate=*&pagination[pageSize]=200`;
+        const otrosAcuerdosResponse = await fetch(otrosAcuerdosUrl, {
+          headers: { 'Authorization': `Bearer ${process.env.STRAPI_TOKEN}` }
+        });
+        const otrosAcuerdosData = await otrosAcuerdosResponse.json();
+        const cuotasPendientesOtros = otrosAcuerdosData.data || [];
+
+        if (cuotasPendientesOtros.length > 0) {
+          // Agrupar por acuerdo
+          const acuerdosDisponibles = new Map();
+          cuotasPendientesOtros.forEach(cuota => {
+            const nroAcuerdo = cuota.nro_acuerdo;
+            if (!nroAcuerdo || nroAcuerdo === agreementId) return; // Excluir el acuerdo actual
+
+            if (!acuerdosDisponibles.has(nroAcuerdo)) {
+              acuerdosDisponibles.set(nroAcuerdo, {
+                nro_acuerdo: nroAcuerdo,
+                producto: cuota.producto?.nombre || cuota.producto || 'Sin producto',
+                cuotas_pendientes: 0,
+                valor_total_pendiente: 0
+              });
+            }
+
+            const acuerdo = acuerdosDisponibles.get(nroAcuerdo);
+            acuerdo.cuotas_pendientes++;
+            acuerdo.valor_total_pendiente += parseFloat(cuota.valor_cuota) || 0;
+          });
+
+          const acuerdosSugeridos = Array.from(acuerdosDisponibles.values());
+
+          if (acuerdosSugeridos.length > 0) {
+            console.log(`[WebPig] Encontrados ${acuerdosSugeridos.length} acuerdos alternativos con cuotas pendientes`);
+
+            return res.status(400).json({
+              success: false,
+              error: `No hay cuotas pendientes para regularizar (acuerdo: ${agreementId}, total cuotas: ${allCuotas.length})`,
+              hasAlternatives: true,
+              cedula,
+              acuerdoActual: agreementId,
+              acuerdosSugeridos: acuerdosSugeridos.map(a => ({
+                ...a,
+                valor_total_pendiente: Math.round(a.valor_total_pendiente)
+              }))
+            });
+          }
+        }
+      }
+
+      return res.status(400).json({ success: false, error: `No hay cuotas pendientes para regularizar (acuerdo: ${agreementId}, total cuotas: ${allCuotas.length})` });
+    }
+
+    console.log(`[WebPig] Cuotas pendientes: ${cuotasPendientes.length}`);
+
+    // 4. Calcular distribución del pago
+    let restante = amount;
+    const cambios = [];
+
+    for (const cuota of cuotasPendientes) {
+      const valorCuota = parseFloat(cuota.valor_cuota) || 0;
+
+      let valorPagado, nuevoValorCuota;
+
+      if (restante >= valorCuota) {
+        // Cuota completa
+        valorPagado = valorCuota;
+        nuevoValorCuota = valorCuota;
+        restante -= valorCuota;
+      } else {
+        // Cuota parcial o cero
+        valorPagado = restante;
+        nuevoValorCuota = restante;
+        restante = 0;
+      }
+
+      cambios.push({
+        documentId: cuota.documentId,
+        cuota_nro: cuota.cuota_nro,
+        valor_cuota_original: valorCuota,
+        valor_cuota_nuevo: nuevoValorCuota,
+        valor_pagado: valorPagado,
+        estado_pago: 'pagado',
+        fecha_de_pago: fechaPago,
+        requiereCambioValor: valorCuota !== nuevoValorCuota
+      });
+    }
+
+    // Resumen para mostrar
+    const resumen = {
+      webhookId: id,
+      agreementId,
+      montoPagado: amount,
+      fechaPago,
+      producto,
+      cuotasPendientes: cuotasPendientes.length,
+      cambios,
+      restanteSinAsignar: restante // Debería ser 0 si todo está bien
+    };
+
+    console.log(`[WebPig] Resumen de regularización:`, JSON.stringify(resumen, null, 2));
+
+    // 5. Si es dryRun, solo devolver preview
+    if (dryRun) {
+      return res.json({
+        success: true,
+        dryRun: true,
+        message: 'Preview de regularización (no se ejecutaron cambios)',
+        resumen
+      });
+    }
+
+    // 6. Ejecutar los PUT en Strapi para cada cuota
+    const resultados = [];
+    for (const cambio of cambios) {
+      const updateUrl = `${process.env.STRAPI_BASE_URL}/api/carteras/${cambio.documentId}`;
+      const updatePayload = {
+        data: {
+          estado_pago: cambio.estado_pago,
+          fecha_de_pago: cambio.fecha_de_pago,
+          valor_pagado: cambio.valor_pagado,
+          valor_cuota: cambio.valor_cuota_nuevo
+        }
+      };
+
+      console.log(`[WebPig] Actualizando cuota ${cambio.cuota_nro}:`, updatePayload);
+
+      const updateResponse = await fetch(updateUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatePayload)
+      });
+
+      const updateResult = await updateResponse.json();
+      resultados.push({
+        cuota_nro: cambio.cuota_nro,
+        success: updateResponse.ok,
+        status: updateResponse.status,
+        data: updateResult
+      });
+
+      if (!updateResponse.ok) {
+        console.error(`[WebPig] Error actualizando cuota ${cambio.cuota_nro}:`, updateResult);
+      }
+    }
+
+    // 7. Marcar FRAPP como completado en Supabase
+    const { error: logError } = await supabase
+      .from('webhook_logs')
+      .insert([{
+        webhook_id: parseInt(id),
+        stage: 'membership_creation',
+        status: 'success',
+        details: `Regularización de pago anticipado completada por ${userEmail}. ${cambios.length} cuotas actualizadas.`,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (logError) {
+      console.error('[WebPig] Error insertando log de FRAPP:', logError);
+    }
+
+    // 8. Generar y enviar paz y salvo
+    // Obtener datos del estudiante de la primera cuota
+    const primeraCartera = allCuotas[0];
+    const datosEstudiante = {
+      nombres: primeraCartera.nombres || payload.givenName || '',
+      apellidos: primeraCartera.apellidos || payload.familyName || '',
+      cedula: primeraCartera.numero_documento || payload.identityDocument || '',
+      celular: primeraCartera.celular || payload.phone || '',
+      producto: producto,
+      acuerdo: agreementId
+    };
+
+    console.log('[WebPig] Generando paz y salvo para:', datosEstudiante);
+
+    let pazYSalvoResult = null;
+    try {
+      // Usar pdfService (Supabase) en lugar de googleDriveService para evitar problemas de cuota
+      pazYSalvoResult = await pdfService.generarYEnviarPazYSalvo(datosEstudiante);
+      console.log('[WebPig] Resultado paz y salvo:', pazYSalvoResult);
+    } catch (pazError) {
+      console.error('[WebPig] Error generando paz y salvo:', pazError);
+      pazYSalvoResult = { success: false, error: pazError.message };
+    }
+
+    res.json({
+      success: true,
+      dryRun: false,
+      message: `Regularización completada. ${cambios.length} cuotas actualizadas.${pazYSalvoResult?.success ? ' Paz y salvo enviado.' : ''}`,
+      resumen,
+      resultados,
+      pazYSalvo: pazYSalvoResult
+    });
+
+  } catch (error) {
+    console.error('[WebPig] Error regularizing advance payment:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

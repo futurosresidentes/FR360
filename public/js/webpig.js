@@ -284,6 +284,201 @@ async function retryWebhook(webhookId) {
   }
 }
 
+// Check if product is a "Pago anticipado"
+function isPagoAnticipado(product) {
+  return product && product.toLowerCase().includes('pago anticipado');
+}
+
+// Regularize advance payment - muestra preview y pide confirmación
+async function regularizeAdvancePayment(webhookId, buttonElement) {
+  // Solo Daniel puede usar esto
+  if (window.userEmail !== 'daniel.cardona@sentiretaller.com') {
+    alert('⚠️ No tienes permisos para regularizar pagos anticipados.');
+    return;
+  }
+
+  // Obtener datos del webhook desde la fila de la tabla
+  const row = buttonElement.closest('tr');
+  const webhookDataStr = row?.dataset?.webhookData;
+  if (!webhookDataStr) {
+    alert('❌ Error: No se encontraron datos del webhook');
+    return;
+  }
+
+  const webhookData = JSON.parse(webhookDataStr);
+  const webhook = webhookData.webhook;
+
+  // Extraer datos del stage FR360 (donde están los datos reales del cliente y producto)
+  const fr360Logs = webhook.logs?.by_stage?.fr360_query || webhook.logs?.by_status?.success?.filter(l => l.stage === 'fr360_query') || [];
+  const fr360Response = fr360Logs.find(log => log.response_data)?.response_data || {};
+
+  console.log('🔍 [Debug] FR360 Response:', fr360Response);
+
+  // Extraer datos necesarios del webhook - priorizar datos de FR360 stage
+  const payloadData = {
+    product: fr360Response.product || webhook.product || webhook.payload?.product || '',
+    agreementId: fr360Response.agreementId || fr360Response.nroAcuerdo || webhook.payload?.agreementId || webhook.agreement_id || '',
+    amount: fr360Response.amount || webhook.payload?.amount || webhook.amount || 0,
+    givenName: fr360Response.givenName || webhook.payload?.givenName || webhook.customer?.given_name || '',
+    familyName: fr360Response.familyName || webhook.payload?.familyName || webhook.customer?.family_name || '',
+    identityDocument: fr360Response.identityDocument || webhook.payload?.identityDocument || webhook.customer?.identity_document || '',
+    phone: fr360Response.phone || webhook.payload?.phone || webhook.customer?.phone || '',
+    fecha: webhook.created_at?.split('T')[0] || new Date().toISOString().split('T')[0]
+  };
+
+  console.log('Webhook data para regularización:', payloadData);
+
+  try {
+    // Paso 1: Obtener preview (dryRun = true)
+    const previewResponse = await fetch(`/api/webpig/webhooks/${webhookId}/regularize-advance-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, webhookPayload: payloadData })
+    });
+
+    const previewResult = await previewResponse.json();
+
+    if (!previewResult.success) {
+      // Verificar si hay acuerdos alternativos sugeridos
+      if (previewResult.hasAlternatives && previewResult.acuerdosSugeridos?.length > 0) {
+        let alternativesMessage = `⚠️ ${previewResult.error}\n\n`;
+        alternativesMessage += `📋 Cliente: ${previewResult.cedula}\n`;
+        alternativesMessage += `📄 Acuerdo actual: ${previewResult.acuerdoActual}\n\n`;
+        alternativesMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        alternativesMessage += `ACUERDOS CON CUOTAS PENDIENTES:\n`;
+        alternativesMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        previewResult.acuerdosSugeridos.forEach((acuerdo, idx) => {
+          alternativesMessage += `${idx + 1}. Acuerdo: ${acuerdo.nro_acuerdo}\n`;
+          alternativesMessage += `   Producto: ${acuerdo.producto}\n`;
+          alternativesMessage += `   Cuotas pendientes: ${acuerdo.cuotas_pendientes}\n`;
+          alternativesMessage += `   Valor pendiente: $${acuerdo.valor_total_pendiente.toLocaleString('es-CO')}\n\n`;
+        });
+
+        alternativesMessage += `¿Desea actualizar el acuerdo del webhook?\n`;
+        alternativesMessage += `(Ingrese el número del acuerdo al que desea cambiar)`;
+
+        const selectedAcuerdo = prompt(alternativesMessage);
+
+        if (selectedAcuerdo) {
+          // Buscar si el usuario ingresó un número de opción o directamente el acuerdo
+          let nuevoAcuerdo = selectedAcuerdo.trim();
+          const opcionNum = parseInt(nuevoAcuerdo);
+
+          if (!isNaN(opcionNum) && opcionNum > 0 && opcionNum <= previewResult.acuerdosSugeridos.length) {
+            nuevoAcuerdo = previewResult.acuerdosSugeridos[opcionNum - 1].nro_acuerdo;
+          }
+
+          // Confirmar el cambio
+          const confirmar = confirm(
+            `¿Confirma cambiar el acuerdo del webhook ${webhookId}?\n\n` +
+            `De: ${previewResult.acuerdoActual}\n` +
+            `A: ${nuevoAcuerdo}`
+          );
+
+          if (confirmar) {
+            try {
+              // Llamar al endpoint para actualizar el acuerdo
+              const updateResponse = await fetch(`/api/webpig/webhooks/${webhookId}/update-agreement`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newAgreementId: nuevoAcuerdo })
+              });
+
+              const updateResult = await updateResponse.json();
+
+              if (updateResult.success) {
+                alert(`✅ ${updateResult.message}\n\nAhora puede intentar la regularización nuevamente.`);
+                loadWebhooks(); // Recargar tabla
+              } else {
+                // Fallback: mostrar SQL para ejecutar manualmente
+                const sql = `UPDATE webhook_logs SET response_data = jsonb_set(jsonb_set(response_data, '{agreementId}', '"${nuevoAcuerdo}"'), '{nroAcuerdo}', '"${nuevoAcuerdo}"') WHERE webhook_id = ${webhookId} AND stage = 'fr360_query' AND status = 'success';`;
+
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(sql).then(() => {
+                    alert(`⚠️ Error automático: ${updateResult.error}\n\n✅ SQL copiado al portapapeles!\nEjecútelo en Supabase manualmente.`);
+                  }).catch(() => {
+                    alert(`⚠️ Error: ${updateResult.error}\n\n📋 SQL para ejecutar en Supabase:\n\n${sql}`);
+                  });
+                } else {
+                  alert(`⚠️ Error: ${updateResult.error}\n\n📋 SQL para ejecutar en Supabase:\n\n${sql}`);
+                }
+              }
+            } catch (updateError) {
+              const sql = `UPDATE webhook_logs SET response_data = jsonb_set(jsonb_set(response_data, '{agreementId}', '"${nuevoAcuerdo}"'), '{nroAcuerdo}', '"${nuevoAcuerdo}"') WHERE webhook_id = ${webhookId} AND stage = 'fr360_query' AND status = 'success';`;
+              alert(`⚠️ Error de conexión.\n\n📋 SQL para ejecutar en Supabase:\n\n${sql}`);
+            }
+          }
+        }
+        return;
+      }
+
+      alert(`❌ Error: ${previewResult.error || 'Error desconocido'}`);
+      return;
+    }
+
+    // Paso 2: Mostrar preview y pedir confirmación
+    const resumen = previewResult.resumen;
+    let confirmMessage = `💱 REGULARIZACIÓN DE PAGO ANTICIPADO\n`;
+    confirmMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    confirmMessage += `📋 Webhook ID: ${resumen.webhookId}\n`;
+    confirmMessage += `📦 Producto: ${resumen.producto}\n`;
+    confirmMessage += `📄 Acuerdo: ${resumen.agreementId}\n`;
+    confirmMessage += `💰 Monto pagado: $${resumen.montoPagado.toLocaleString('es-CO')}\n`;
+    confirmMessage += `📅 Fecha pago: ${resumen.fechaPago}\n`;
+    confirmMessage += `📊 Cuotas pendientes: ${resumen.cuotasPendientes}\n\n`;
+    confirmMessage += `DISTRIBUCIÓN:\n`;
+    confirmMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+    for (const cambio of resumen.cambios) {
+      const valorOriginal = cambio.valor_cuota_original.toLocaleString('es-CO');
+      const valorNuevo = cambio.valor_cuota_nuevo.toLocaleString('es-CO');
+      const cambioIndicator = cambio.requiereCambioValor ? ` ⚠️ (era $${valorOriginal})` : '';
+      confirmMessage += `  Cuota ${cambio.cuota_nro}: $${valorNuevo}${cambioIndicator}\n`;
+    }
+
+    if (resumen.restanteSinAsignar > 0) {
+      confirmMessage += `\n⚠️ ALERTA: Restante sin asignar: $${resumen.restanteSinAsignar.toLocaleString('es-CO')}\n`;
+    }
+
+    confirmMessage += `\n¿Ejecutar la regularización?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    // Paso 3: Ejecutar la regularización real (dryRun = false)
+    const executeResponse = await fetch(`/api/webpig/webhooks/${webhookId}/regularize-advance-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: false, webhookPayload: payloadData })
+    });
+
+    const executeResult = await executeResponse.json();
+
+    if (executeResult.success) {
+      let successMessage = `✅ Regularización completada!\n\n${executeResult.message}`;
+
+      if (executeResult.pazYSalvo) {
+        if (executeResult.pazYSalvo.success) {
+          successMessage += `\n\n📄 Paz y salvo generado y enviado por WhatsApp`;
+          successMessage += `\n🔗 ${executeResult.pazYSalvo.pdfUrl}`;
+        } else {
+          successMessage += `\n\n⚠️ Error generando paz y salvo: ${executeResult.pazYSalvo.error || 'Error desconocido'}`;
+        }
+      }
+
+      alert(successMessage);
+      loadWebhooks(); // Recargar tabla
+    } else {
+      alert(`❌ Error al ejecutar: ${executeResult.error || 'Error desconocido'}`);
+    }
+
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
+
 // ✅ Get stage status usando logs.by_status (estructura real de Supabase)
 function getStageStatus(webhook, columnName, isAccepted) {
   // If transaction was rejected, don't show stages
@@ -793,6 +988,10 @@ function renderWebhooks(webhooks) {
       <td class="actions-col">
         ${(webhook.status === 'error' || webhook.status === 'requires_manual_intervention') && RETRY_PERMISSIONS.includes(window.userEmail)
           ? `<button onclick="retryWebhook(${webhook.id})" class="btn-retry">🔄 Reintentar</button>`
+          : ''
+        }
+        ${isPagoAnticipado(product) && frappStatus.icon === '⛔' && window.userEmail === 'daniel.cardona@sentiretaller.com'
+          ? `<button onclick="regularizeAdvancePayment(${webhook.id}, this)" class="btn-regularize" title="Regularizar pago anticipado">💱</button>`
           : ''
         }
       </td>
