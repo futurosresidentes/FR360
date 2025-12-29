@@ -2540,6 +2540,69 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   }
 }
 
+/* ===== ANTICIPADOS 2026 STYLES ===== */
+#anticipadosTableContainer {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.anticipados-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.anticipados-table thead {
+  background: #075183 !important;
+  color: white;
+}
+
+.anticipados-table thead th {
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 2px solid #053d62;
+  background: #075183 !important;
+  color: white !important;
+}
+
+.anticipados-table tbody tr {
+  border-bottom: 1px solid #e9ecef;
+  transition: background-color 0.2s;
+  background-color: white;
+}
+
+.anticipados-table tbody tr:hover {
+  background-color: #e8f4fc;
+}
+
+.anticipados-table td {
+  padding: 10px 8px;
+  vertical-align: middle;
+}
+
+.anticipados-table tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.anticipados-table tbody tr:nth-child(even):hover {
+  background-color: #e8f4fc;
+}
+
+@media (max-width: 768px) {
+  .anticipados-table {
+    font-size: 0.8rem;
+  }
+
+  .anticipados-table thead th,
+  .anticipados-table td {
+    padding: 8px 4px;
+  }
+}
+
 /* ===== EPAYCO STYLES ===== */
 /* Layout similar a Web Pig con sticky headers */
 #epayco.pane.active {

@@ -1760,6 +1760,11 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchCarteraByAcuerdo(args[0]);
         break;
 
+      // === ANTICIPADOS 2026 ===
+      case 'fetchAnticipadosPendientes':
+        result = await strapiService.fetchAnticipadosPendientes();
+        break;
+
       // === LINKS ===
       case 'getLinksByIdentityDocument':
         result = await fr360Service.getLinksByIdentityDocument(args[0]);
@@ -1791,7 +1796,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
-            'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo',
+            'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
             'createClickUpTask'
           ]

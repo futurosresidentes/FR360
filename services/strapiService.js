@@ -968,6 +968,118 @@ async function updateFacturacion(documentId, data) {
   }
 }
 
+/**
+ * Fetch students with 2+ pending installments (al_dia or en_mora)
+ * Groups by numero_documento and returns aggregated data
+ * @returns {Promise<Object>} Object with students array and totals
+ */
+async function fetchAnticipadosPendientes() {
+  // Traer todas las carteras con estado al_dia o en_mora
+  const url = `${STRAPI_BASE_URL}/api/carteras?filters[$or][0][estado_pago][$eq]=al_dia&filters[$or][1][estado_pago][$eq]=en_mora&pagination[pageSize]=5000&populate=*`;
+
+  try {
+    console.log('📊 Consultando carteras pendientes para Anticipados 2026...');
+
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`
+      }
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`Error HTTP ${response.status}`);
+    }
+
+    const raw = Array.isArray(response.data.data) ? response.data.data : [];
+    console.log(`📋 Total de cuotas pendientes encontradas: ${raw.length}`);
+
+    // Agrupar por numero_documento
+    const byDocument = {};
+
+    for (const item of raw) {
+      const attrs = item.attributes || item;
+      const doc = attrs.numero_documento;
+
+      if (!doc) continue;
+
+      // Construir nombre completo desde nombres + apellidos
+      const nombreCompleto = [attrs.nombres, attrs.apellidos].filter(Boolean).join(' ').trim();
+
+      if (!byDocument[doc]) {
+        byDocument[doc] = {
+          documento: doc,
+          nombre: nombreCompleto,
+          correo: attrs.correo || '',
+          celular: attrs.celular || '',
+          cuotas: [],
+          totalAdeudado: 0,
+          totalAlDia: 0  // Solo cuotas al_dia
+        };
+      }
+
+      // Calcular valor adeudado de esta cuota
+      const valorCuota = Number(attrs.valor_cuota) || 0;
+      const valorPagado = Number(attrs.valor_pagado) || 0;
+      const adeudado = Math.max(0, valorCuota - valorPagado);
+      const estadoPago = attrs.estado_pago || '';
+
+      byDocument[doc].cuotas.push({
+        nroAcuerdo: attrs.nro_acuerdo,
+        cuotaNro: attrs.cuota_nro,
+        estadoPago: estadoPago,
+        valorCuota: valorCuota,
+        valorPagado: valorPagado,
+        adeudado: adeudado
+      });
+
+      byDocument[doc].totalAdeudado += adeudado;
+
+      // Sumar solo si está al_dia (no en mora)
+      if (estadoPago === 'al_dia') {
+        byDocument[doc].totalAlDia += adeudado;
+      }
+
+      // Actualizar datos del estudiante si están vacíos
+      if (!byDocument[doc].nombre && nombreCompleto) byDocument[doc].nombre = nombreCompleto;
+      if (!byDocument[doc].correo && attrs.correo) byDocument[doc].correo = attrs.correo;
+      if (!byDocument[doc].celular && attrs.celular) byDocument[doc].celular = attrs.celular;
+    }
+
+    // Filtrar solo los que tienen 2 o más cuotas pendientes
+    const estudiantes = Object.values(byDocument)
+      .filter(est => est.cuotas.length >= 2)
+      .sort((a, b) => b.totalAdeudado - a.totalAdeudado); // Ordenar por mayor deuda
+
+    // Calcular totales
+    const totalEstudiantes = estudiantes.length;
+    const totalAdeudado = estudiantes.reduce((sum, est) => sum + est.totalAdeudado, 0);
+    const totalAlDia = estudiantes.reduce((sum, est) => sum + est.totalAlDia, 0);
+
+    console.log(`✅ Encontrados ${totalEstudiantes} estudiantes con 2+ cuotas pendientes`);
+    console.log(`💰 Total adeudado: $${totalAdeudado.toLocaleString('es-CO')}`);
+    console.log(`✅ Total al día (sin mora): $${totalAlDia.toLocaleString('es-CO')}`);
+
+    return {
+      success: true,
+      estudiantes,
+      totales: {
+        totalEstudiantes,
+        totalAdeudado,
+        totalAlDia
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Error fetching anticipados pendientes:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      estudiantes: [],
+      totales: { totalEstudiantes: 0, totalAdeudado: 0, totalAlDia: 0 }
+    };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -987,5 +1099,6 @@ module.exports = {
   fetchCarteraByAcuerdo,
   getComerciales,
   updateFacturacionComercial,
-  updateFacturacion
+  updateFacturacion,
+  fetchAnticipadosPendientes
 };
