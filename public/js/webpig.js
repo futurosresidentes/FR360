@@ -990,7 +990,7 @@ function renderWebhooks(webhooks) {
           ? `<button onclick="retryWebhook(${webhook.id})" class="btn-retry">🔄 Reintentar</button>`
           : ''
         }
-        ${isPagoAnticipado(product) && frappStatus.icon === '⛔' && window.userEmail === 'daniel.cardona@sentiretaller.com'
+        ${isPagoAnticipado(product) && frappStatus.icon !== '✅' && window.userEmail === 'daniel.cardona@sentiretaller.com'
           ? `<button onclick="regularizeAdvancePayment(${webhook.id}, this)" class="btn-regularize" title="Regularizar pago anticipado">💱</button>`
           : ''
         }
