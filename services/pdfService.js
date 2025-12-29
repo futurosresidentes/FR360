@@ -286,7 +286,8 @@ async function enviarPazYSalvoPorCallbell(data) {
   const payload = {
     to: celularNormalizado,
     from: 'whatsapp',
-    type: 'template',
+    type: 'text',
+    content: { text: `Hola ${primerNombre}, aquí está tu paz y salvo del acuerdo ${acuerdo}` },
     template_uuid: templateUuid,
     template_values: [primerNombre, String(acuerdo), pdfUrl],
     optin_contact: true
