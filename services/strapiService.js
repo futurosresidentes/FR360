@@ -291,8 +291,9 @@ async function fetchCrmStrapiBatch(uids) {
 async function fetchCrmByEmail(email) {
   if (!email) return null;
 
-  const q = String(email).trim().toLowerCase();
-  const url = `${STRAPI_BASE_URL}/api/crms?filters[correo][$eq]=${encodeURIComponent(q)}&pagination[pageSize]=1`;
+  const q = String(email).trim();
+  // Usar $eqi para búsqueda case-insensitive
+  const url = `${STRAPI_BASE_URL}/api/crms?filters[correo][$eqi]=${encodeURIComponent(q)}&pagination[pageSize]=1`;
 
   try {
     const response = await axios.get(url, {
