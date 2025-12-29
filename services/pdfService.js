@@ -286,10 +286,9 @@ async function enviarPazYSalvoPorCallbell(data) {
   const payload = {
     to: celularNormalizado,
     from: 'whatsapp',
-    type: 'text',
-    content: { text: 'Paz' },
-    template_values: [primerNombre, String(acuerdo), pdfUrl],
+    type: 'template',
     template_uuid: templateUuid,
+    template_values: [primerNombre, String(acuerdo), pdfUrl],
     optin_contact: true
   };
 
