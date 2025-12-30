@@ -975,8 +975,8 @@ async function updateFacturacion(documentId, data) {
  * @returns {Promise<Object>} Object with students array and totals
  */
 async function fetchAnticipadosPendientes() {
-  // Traer todas las carteras con estado al_dia o en_mora
-  const url = `${STRAPI_BASE_URL}/api/carteras?filters[$or][0][estado_pago][$eq]=al_dia&filters[$or][1][estado_pago][$eq]=en_mora&pagination[pageSize]=5000&populate=*`;
+  // Traer todas las carteras con estado al_dia o en_mora, solo acuerdos firmados
+  const url = `${STRAPI_BASE_URL}/api/carteras?filters[$and][0][$or][0][estado_pago][$eq]=al_dia&filters[$and][0][$or][1][estado_pago][$eq]=en_mora&filters[$and][1][estado_firma][$eq]=firmado&pagination[pageSize]=5000&populate=*`;
 
   try {
     console.log('📊 Consultando carteras pendientes para Anticipados 2026...');
