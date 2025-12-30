@@ -114,27 +114,21 @@ async function generarPDFBuffer(data) {
 
     doc.moveDown(1.5);
 
-    // Cuerpo principal - texto justificado
+    // Cuerpo principal - texto justificado como un solo párrafo
+    const parrafo = `Sentire Taller S.A.S. informa que el(la) estudiante ${nombreCompleto}, identificado(a) con cédula de ciudadanía No. ${cedula}, quien adquirió el curso ${curso} mediante el acuerdo de pagos No. ${acuerdo}, se encuentra a paz y salvo con nuestra entidad.`;
+
     doc.font(fontRegular)
        .fontSize(12)
-       .text(`Sentire Taller S.A.S. informa que el(la) estudiante `, { continued: true, align: 'justify', lineGap: 2 });
-    doc.font(fontBold).text(nombreCompleto, { continued: true });
-    doc.font(fontRegular).text(`, identificado(a) con cédula de ciudadanía No. `, { continued: true });
-    doc.font(fontBold).text(cedula, { continued: true });
-    doc.font(fontRegular).text(`, quien adquirió el curso `, { continued: true });
-    doc.font(fontBold).text(curso, { continued: true });
-    doc.font(fontRegular).text(` mediante el acuerdo de pagos No. `, { continued: true });
-    doc.font(fontBold).text(acuerdo, { continued: true });
-    doc.font(fontRegular).text(`, se encuentra a paz y salvo con nuestra entidad.`, { align: 'justify', lineGap: 2 });
+       .text(parrafo, { align: 'justify', lineGap: 3 });
 
     doc.moveDown(1.5);
 
     // Nota importante - tamaño 11
+    const notaImportante = '*Importante: Esta certificación de paz y salvo solo hace referencia a los productos mencionados anteriormente, si desea verificar o conocer el historial crediticio de la persona deberá realizarlo por los medios correspondientes para ello.';
+
     doc.fontSize(11)
-       .font(fontBold)
-       .text('*Importante: ', { continued: true, align: 'justify', lineGap: 2 });
-    doc.font(fontRegular)
-       .text('Esta certificación de paz y salvo solo hace referencia a los productos mencionados anteriormente, si desea verificar o conocer el historial crediticio de la persona deberá realizarlo por los medios correspondientes para ello.', { align: 'justify', lineGap: 2 });
+       .font(fontRegular)
+       .text(notaImportante, { align: 'justify', lineGap: 3 });
 
     doc.moveDown(1.5);
 
