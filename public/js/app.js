@@ -2784,10 +2784,83 @@
           }
         });
 
-        // handler provisional del botón
+        // handler del botón paz y salvo
         tableDiv.querySelectorAll('.ps-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            alert('La expedición del paz y salvo aún no está disponible.');
+          btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            const nroAcuerdo = tr.dataset.nroAcuerdo || '';
+            const productoNombre = tr.dataset.productoNombre || '';
+
+            // Obtener datos del cliente desde el formulario principal
+            const clienteNombres = document.getElementById('nombres')?.value || '';
+            const clienteApellidos = document.getElementById('apellidos')?.value || '';
+            const clienteCedula = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
+            const clienteCelular = document.getElementById('celular')?.value || '';
+
+            if (!clienteNombres || !clienteApellidos || !clienteCedula) {
+              alert('❌ No se encontraron los datos del cliente. Por favor, realice una búsqueda primero.');
+              return;
+            }
+
+            if (!nroAcuerdo || !productoNombre) {
+              alert('❌ No se encontraron los datos del acuerdo.');
+              return;
+            }
+
+            // Confirmar antes de generar
+            const confirmar = confirm(
+              `¿Generar paz y salvo?\n\n` +
+              `Cliente: ${clienteNombres} ${clienteApellidos}\n` +
+              `Cédula: ${clienteCedula}\n` +
+              `Producto: ${productoNombre}\n` +
+              `Acuerdo: ${nroAcuerdo}\n\n` +
+              `${clienteCelular ? `Se enviará por WhatsApp a: ${clienteCelular}` : '⚠️ No hay celular registrado, no se enviará por WhatsApp'}`
+            );
+
+            if (!confirmar) return;
+
+            // Deshabilitar botón mientras se procesa
+            btn.disabled = true;
+            btn.textContent = '⏳';
+
+            try {
+              const response = await fetch('/api/paz-y-salvo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nombres: clienteNombres,
+                  apellidos: clienteApellidos,
+                  cedula: clienteCedula,
+                  celular: clienteCelular,
+                  producto: productoNombre,
+                  acuerdo: nroAcuerdo
+                })
+              });
+
+              const result = await response.json();
+
+              if (result.success) {
+                let mensaje = `✅ ${result.message}`;
+                if (result.pdfUrl) {
+                  mensaje += `\n\n📄 PDF: ${result.pdfUrl}`;
+                }
+                alert(mensaje);
+                btn.textContent = '✅';
+
+                // Abrir PDF en nueva pestaña
+                if (result.pdfUrl) {
+                  window.open(result.pdfUrl, '_blank');
+                }
+              } else {
+                alert(`❌ Error: ${result.error || 'Error desconocido'}`);
+                btn.textContent = '🔖';
+                btn.disabled = false;
+              }
+            } catch (error) {
+              alert(`❌ Error de conexión: ${error.message}`);
+              btn.textContent = '🔖';
+              btn.disabled = false;
+            }
           });
         });
       }

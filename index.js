@@ -1982,6 +1982,49 @@ app.get('/api/membership-plans', async (req, res) => {
   }
 });
 
+// Generar y enviar paz y salvo desde Acuerdos
+app.post('/api/paz-y-salvo', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const { nombres, apellidos, cedula, celular, producto, acuerdo } = req.body;
+
+    // Validar datos requeridos
+    if (!nombres || !apellidos || !cedula || !producto || !acuerdo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Faltan datos requeridos: nombres, apellidos, cedula, producto, acuerdo'
+      });
+    }
+
+    console.log('[PazYSalvo] Generando paz y salvo para:', { nombres, apellidos, cedula, producto, acuerdo });
+
+    // Usar pdfService para generar y enviar el paz y salvo
+    const resultado = await pdfService.generarYEnviarPazYSalvo({
+      nombres,
+      apellidos,
+      cedula,
+      celular: celular || '',
+      producto,
+      acuerdo
+    });
+
+    console.log('[PazYSalvo] Resultado:', resultado);
+
+    res.json({
+      success: resultado.success,
+      pdfUrl: resultado.pdfUrl,
+      callbellSent: resultado.callbellSent,
+      message: resultado.success
+        ? `Paz y salvo generado${resultado.callbellSent ? ' y enviado por WhatsApp' : ''}`
+        : 'Error generando paz y salvo',
+      error: resultado.error
+    });
+
+  } catch (error) {
+    console.error('[PazYSalvo] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Obtener links de pago por UID
 app.get('/api/links/:uid', async (req, res) => {
   try {
