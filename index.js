@@ -1794,11 +1794,6 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.consultarAcuerdo(args[0]);
         break;
 
-      // === UDEA 2026 ===
-      case 'fetchUdea2026Facturaciones':
-        result = await strapiService.fetchUdea2026Facturaciones();
-        break;
-
       case 'fetchCarteraByAcuerdo':
         result = await strapiService.fetchCarteraByAcuerdo(args[0]);
         break;
@@ -1839,7 +1834,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
-            'fetchUdea2026Facturaciones', 'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes',
+            'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
             'createClickUpTask'
           ]

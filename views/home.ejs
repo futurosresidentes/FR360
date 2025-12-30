@@ -36,7 +36,6 @@
         <% if (typeof userEmail !== 'undefined' && ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'].includes(userEmail)) { %>
         <li data-tab="epayco">ePayco 💳</li>
         <% } %>
-        <li data-tab="udea2026">Udea2026</li>
         <li data-tab="anticipados-2026">Anticipados 2026</li>
         <% if (typeof userEmail !== 'undefined' && userEmail === 'daniel.cardona@sentiretaller.com') { %>
         <li data-tab="carteras-masivo">Carteras Masivo 📊</li>
@@ -324,37 +323,6 @@
         <div id="epaycoContainer"></div>
       </div>
       <% } %>
-
-      <!-- UDEA2026 -->
-      <div class="pane right" id="udea2026">
-        <div class="udea-header">
-          <h2>UDEA 2026</h2>
-          <button id="refreshUdeaBtn" class="btn-primary">🔄 Actualizar</button>
-        </div>
-        <div id="udeaStatsContainer" class="udea-stats">
-          <div class="stat-card">
-            <h3>Total Ventas</h3>
-            <p id="totalVentas" class="stat-value">$0</p>
-          </div>
-          <div class="stat-card">
-            <h3>Total Recaudo</h3>
-            <p id="totalRecaudo" class="stat-value">$0</p>
-          </div>
-          <div class="stat-card">
-            <h3>Total Estudiantes</h3>
-            <p id="totalEstudiantes" class="stat-value">0</p>
-          </div>
-          <div class="stat-card">
-            <h3>Contado</h3>
-            <p id="totalContado" class="stat-value">0</p>
-          </div>
-          <div class="stat-card">
-            <h3>Financiado</h3>
-            <p id="totalFinanciado" class="stat-value">0</p>
-          </div>
-        </div>
-        <div id="udeaTableContainer"></div>
-      </div>
 
       <!-- ANTICIPADOS 2026 -->
       <div class="pane right" id="anticipados-2026">
@@ -789,8 +757,6 @@
   <script src="/js/webpig.js"></script>
   <!-- ePayco module -->
   <script src="/js/epayco.js"></script>
-  <!-- UDEA 2026 module -->
-  <script src="/js/udea2026.js"></script>
   <!-- Anticipados 2026 module -->
   <script src="/js/anticipados-2026.js"></script>
   <!-- Carteras Masivo module -->
