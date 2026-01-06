@@ -16,6 +16,7 @@ const oldMembershipService = require('./services/oldMembershipService');
 const clickupService = require('./services/clickupService');
 const googleDriveService = require('./services/googleDriveService');
 const pdfService = require('./services/pdfService');
+const cobranzaService = require('./services/cobranzaService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -1803,6 +1804,26 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchAnticipadosPendientes();
         break;
 
+      // === COBRANZA / DESBLOQUEO ===
+      case 'obtenerCandidatosDesbloqueo':
+        result = await cobranzaService.obtenerCandidatosDesbloqueo();
+        break;
+
+      case 'desbloquearUsuario':
+        // args[0] = objeto usuario con: cedula, nombres, apellidos, etc.
+        result = await cobranzaService.desbloquearUsuario(args[0]);
+        break;
+
+      // === COBRANZA / BLOQUEO ===
+      case 'obtenerCandidatosBloqueo':
+        result = await cobranzaService.obtenerCandidatosBloqueo();
+        break;
+
+      case 'bloquearUsuario':
+        // args[0] = objeto usuario con: cedula, nombres, apellidos, cuotas, etc.
+        result = await cobranzaService.bloquearUsuario(args[0]);
+        break;
+
       // === LINKS ===
       case 'getLinksByIdentityDocument':
         result = await fr360Service.getLinksByIdentityDocument(args[0]);
@@ -1835,6 +1856,8 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes',
+            'obtenerCandidatosDesbloqueo', 'desbloquearUsuario',
+            'obtenerCandidatosBloqueo', 'bloquearUsuario',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
             'createClickUpTask'
           ]

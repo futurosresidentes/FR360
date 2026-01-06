@@ -388,6 +388,49 @@
           </div>
         </div>
         <div id="carterasResultsContainer" style="margin-top: 20px; max-height: 600px; overflow-y: auto;"></div>
+
+        <!-- Sección Desbloqueo de Morosos -->
+        <div class="desbloqueo-section" style="margin-top: 32px; padding-top: 24px; border-top: 2px solid #dee2e6;">
+          <h3 style="margin-bottom: 12px;">🔓 Desbloqueo de Morosos</h3>
+          <p style="color: #666; margin-bottom: 16px;">
+            Busca usuarios morosos (con estado_app = bloqueado) y permite desbloquearlos:<br>
+            • Verifica mora &gt; 60 días<br>
+            • Actualiza estado_app a "activo" en FRAPP<br>
+            • Notifica al Google Chat de cobranza
+          </p>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button id="buscarMorososBtn" class="btn-primary">🔍 Buscar Morosos Bloqueados</button>
+          </div>
+          <div id="desbloqueoStatus" style="margin-top: 12px; display: none;">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+              <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #e3f2fd; border-top: 3px solid #2196f3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+              <span id="desbloqueoStatusText" style="font-weight: 600; font-size: 0.9em; color: #1976d2;">Buscando morosos...</span>
+            </div>
+          </div>
+          <div id="desbloqueoResultsContainer" style="margin-top: 16px;"></div>
+        </div>
+
+        <!-- Sección Bloqueo de Morosos -->
+        <div class="bloqueo-section" style="margin-top: 32px; padding-top: 24px; border-top: 2px solid #dee2e6;">
+          <h3 style="margin-bottom: 12px;">🔒 Bloqueo de Morosos</h3>
+          <p style="color: #666; margin-bottom: 16px;">
+            Busca usuarios activos con cuotas en mora grave (>= 6 días) y permite bloquearlos:<br>
+            • Asigna rol "moroso" en WordPress<br>
+            • Cambia status a "moroso" en FRAPP<br>
+            • Registra en Strapi y notifica al Google Chat<br>
+            • Actualiza CRM y envía WhatsApp por Callbell
+          </p>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button id="buscarParaBloqueoBtn" class="btn-danger">🔍 Buscar Candidatos a Bloqueo</button>
+          </div>
+          <div id="bloqueoStatus" style="margin-top: 12px; display: none;">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+              <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #fff3cd; border-top: 3px solid #ffc107; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+              <span id="bloqueoStatusText" style="font-weight: 600; font-size: 0.9em; color: #856404;">Buscando candidatos...</span>
+            </div>
+          </div>
+          <div id="bloqueoResultsContainer" style="margin-top: 16px;"></div>
+        </div>
       </div>
       <% } %>
     </div>
@@ -761,6 +804,10 @@
   <script src="/js/anticipados-2026.js"></script>
   <!-- Carteras Masivo module -->
   <script src="/js/carteras-masivo.js"></script>
+  <!-- Desbloqueo de morosos module -->
+  <script src="/js/desbloqueo.js"></script>
+  <!-- Bloqueo de morosos module -->
+  <script src="/js/bloqueo.js"></script>
   <!-- Ticket system module -->
   <script src="/js/tickets.js"></script>
 </body>
