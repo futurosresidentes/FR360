@@ -982,14 +982,23 @@ async function bloquearUsuario(usuario) {
   if (usuario.telefono && CALLBELL_API_KEY) {
     try {
       const callbellUrl = 'https://api.callbell.eu/v1/messages/send';
+
+      // Normalizar teléfono: agregar código de país 57 si no lo tiene
+      let telefonoNormalizado = usuario.telefono.toString().replace(/\D/g, '');
+      if (telefonoNormalizado.length === 10 && telefonoNormalizado.startsWith('3')) {
+        telefonoNormalizado = '57' + telefonoNormalizado;
+      }
+
       const callbellPayload = {
-        to: usuario.telefono.toString(),
+        to: telefonoNormalizado,
         from: 'whatsapp',
         type: 'text',
         content: { text: 'Pago' },
         template_uuid: CALLBELL_TEMPLATE_UUID_BLOQUEO,
         optin_contact: true
       };
+
+      console.log(`📱 Callbell payload:`, JSON.stringify(callbellPayload));
 
       const response = await axios.post(callbellUrl, callbellPayload, {
         headers: {
@@ -999,11 +1008,14 @@ async function bloquearUsuario(usuario) {
         timeout: 15000
       });
 
+      console.log(`✅ Callbell response:`, response.data);
       resultados.callbellOk = true;
-      console.log(`✅ Callbell: mensaje enviado`);
     } catch (e) {
       resultados.errores.push(`Callbell: ${e.message}`);
       console.error(`❌ Callbell error:`, e.message);
+      if (e.response) {
+        console.error(`❌ Callbell response:`, e.response.data);
+      }
     }
   }
 
