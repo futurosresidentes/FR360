@@ -9,6 +9,7 @@ const WP_BASE_URL = process.env.OLD_MEMB_BASE_URL;
 const WP_AUTH = process.env.OLD_MEMB_AUTH;
 const FRAPP_BASE_URL = process.env.FRAPP_BASE_URL;
 const FRAPP_API_KEY_READ = process.env.FRAPP_API_KEY;
+const FRAPP_API_KEY_ADMIN_READ = process.env.FRAPP_API_KEY_ADMIN_READ; // Para listar usuarios (users-memberships)
 const FRAPP_API_KEY_WRITE = process.env.FRAPP_API_KEY_WRITE;
 const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN;
@@ -97,7 +98,7 @@ async function getFrappMorosos() {
 
     try {
       const response = await axios.get(url, {
-        headers: { 'x-api-key': FRAPP_API_KEY_READ },
+        headers: { 'x-api-key': FRAPP_API_KEY_ADMIN_READ },
         timeout: 30000
       });
 
@@ -549,7 +550,7 @@ async function getFrappActivos() {
 
     try {
       const response = await axios.get(url, {
-        headers: { 'x-api-key': FRAPP_API_KEY_READ },
+        headers: { 'x-api-key': FRAPP_API_KEY_ADMIN_READ },
         timeout: 30000
       });
 
