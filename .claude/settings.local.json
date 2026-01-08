@@ -25,7 +25,17 @@
       "Bash(npm run dev:*)",
       "Bash(.env)",
       "Bash(npm install:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)",
+      "Bash(git fetch:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(node -c:*)",
+      "Bash(node test-key.js:*)",
+      "Bash(node test-google-auth.js:*)",
+      "Bash(node:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

@@ -389,17 +389,17 @@
         </div>
         <div id="carterasResultsContainer" style="margin-top: 20px; max-height: 600px; overflow-y: auto;"></div>
 
-        <!-- Sección Desbloqueo de Morosos -->
+        <!-- Sección Desbloqueo de Al días -->
         <div class="desbloqueo-section" style="margin-top: 32px; padding-top: 24px; border-top: 2px solid #dee2e6;">
-          <h3 style="margin-bottom: 12px;">🔓 Desbloqueo de Morosos</h3>
+          <h3 style="margin-bottom: 12px;">🔓 Desbloqueo de Al días</h3>
           <p style="color: #666; margin-bottom: 16px;">
-            Busca usuarios morosos (con estado_app = bloqueado) y permite desbloquearlos:<br>
-            • Verifica mora &gt; 60 días<br>
-            • Actualiza estado_app a "activo" en FRAPP<br>
+            Busca usuarios bloqueados que ya están al día y permite desbloquearlos:<br>
+            • Verifica que todas las cuotas tengan mora ≤ 5 días<br>
+            • Quita rol "moroso" en WordPress y FRAPP<br>
             • Notifica al Google Chat de cobranza
           </p>
           <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <button id="buscarMorososBtn" class="btn-primary">🔍 Buscar Morosos Bloqueados</button>
+            <button id="buscarMorososBtn" class="btn-success">🔍 Buscar Al días Bloqueados</button>
           </div>
           <div id="desbloqueoStatus" style="margin-top: 12px; display: none;">
             <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">

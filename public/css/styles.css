@@ -1655,6 +1655,30 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   transform: scale(0.98);
 }
 
+/* Regularize advance payment button */
+.btn-regularize {
+  background-color: #fff;
+  border: 2px solid #28a745;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #28a745;
+  font-weight: 500;
+  margin-left: 5px;
+}
+
+.btn-regularize:hover {
+  background-color: #28a745;
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.btn-regularize:active {
+  transform: scale(0.98);
+}
+
 /* Manual completion section */
 .manual-completion-section {
   background-color: #e8f5e9;
@@ -2168,6 +2192,58 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
 }
 
 .btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: linear-gradient(135deg, #075183 0%, #054066 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #054066 0%, #043552 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(7,81,131,0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40,167,69,0.3);
+}
+
+.btn-success:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
