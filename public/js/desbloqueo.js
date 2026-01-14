@@ -90,7 +90,7 @@
       `;
     } finally {
       buscarBtn.disabled = false;
-      buscarBtn.innerHTML = '🔍 Buscar Morosos Bloqueados';
+      buscarBtn.innerHTML = '🔍 Buscar Al días Bloqueados';
     }
   }
 
