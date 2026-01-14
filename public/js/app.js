@@ -909,21 +909,26 @@
         valorInput.readOnly = false;
         return;
       }
-      // Determinar precio según número de cuotas:
-      // - 1 cuota (contado): precio_contado_comercial
-      // - más de 1 cuota (financiado): precio_financiado_comercial
+
+      // MAX: Siempre es el campo "precio" de Strapi
+      const max = (typeof meta.precio === 'number' && !isNaN(meta.precio)) ? meta.precio : null;
+
+      // MIN: Depende de si hay descuento o no
       const numCuotas = Number(cuotas.value) || 0;
-      let precioBase;
-      if (numCuotas <= 1) {
-        // Contado: usar precio_contado_comercial, fallback a precio
-        precioBase = meta.precio_contado_comercial ?? meta.precio;
+      let min = null;
+
+      if (currentDiscountPct > 0) {
+        // CON descuento: aplicar descuento sobre "precio"
+        min = (max != null) ? Math.round(max * (1 - currentDiscountPct / 100)) : null;
       } else {
-        // Financiado: usar precio_financiado_comercial, fallback a precio
-        precioBase = meta.precio_financiado_comercial ?? meta.precio;
+        // SIN descuento: usar precio_contado_comercial o precio_financiado_comercial según cuotas
+        if (numCuotas <= 1) {
+          min = meta.precio_contado_comercial ?? meta.precio;
+        } else {
+          min = meta.precio_financiado_comercial ?? meta.precio;
+        }
+        min = (typeof min === 'number' && !isNaN(min)) ? min : null;
       }
-      const max = (typeof precioBase === 'number' && !isNaN(precioBase)) ? precioBase : null;
-      // aplica descuento si corresponde
-      const min = (max != null) ? Math.round(max * (1 - (currentDiscountPct || 0) / 100)) : null;
 
       if (isSpecialUser) {
         // Para usuarios especiales: solo mostrar placeholder pero sin restricciones
@@ -3439,38 +3444,12 @@
         `<div>Tipo de Compra: ${compra}</div>` +
         `<div>Descuento: ${desc}</div>`;
 
-      // 5) Recalcular rango/placeholder según descuento (sin bloquear)
+      // 5) Recalcular rango/placeholder según descuento
       const pct  = parseInt(desc, 10) || 0;
       currentDiscountPct = pct;
-      const maxV = Number(valorInput.max) || 0;
-      const minV = Math.round(maxV * (1 - pct / 100));
 
-      // Usuarios especiales que pueden omitir las restricciones Min/Max
-      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com'];
-      const isSpecialUser = specialUsers.includes(USER_EMAIL);
-
-      if (isSpecialUser) {
-        // Para usuarios especiales: solo mostrar placeholder pero sin restricciones
-        valorInput.min = '';
-        valorInput.max = '';
-        valorInput.placeholder = `Min $${minV.toLocaleString('es-CO')} – Max $${maxV.toLocaleString('es-CO')}`;
-        valorInput.readOnly = false;
-      } else {
-        // Para usuarios normales: aplicar restricciones
-        valorInput.min = String(minV);
-        valorInput.placeholder = `Min $${minV.toLocaleString('es-CO')} – Max $${maxV.toLocaleString('es-CO')}`;
-        valorInput.readOnly = (minV === maxV);
-        if (minV === maxV) valorInput.value = maxV.toLocaleString('es-CO');
-      }
-
-      // mantener coherente si cambia producto/cuotas luego
+      // Delegar todo el cálculo a updatePriceRange() que ya tiene la lógica correcta
       updatePriceRange();
-      if (!isSpecialUser && minV === maxV && maxV) {
-        valorInput.value    = maxV.toLocaleString('es-CO');
-        valorInput.readOnly = true;
-      } else if (!isSpecialUser) {
-        valorInput.readOnly = false;
-      }
     }
 
     // renderMembOld - Renderiza membresías de plataforma vieja (WordPress)
