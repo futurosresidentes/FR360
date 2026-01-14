@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FR360 - CRM</title>
+  <link rel="icon" type="image/png" href="/favicon.png?v=3" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: 'Montserrat', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background-color: #111;
+      border-bottom: 1px solid #333;
+    }
+
+    .topbar h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .topbar .user-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .topbar .user-info img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+    }
+
+    .topbar a {
+      color: #888;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .topbar a:hover {
+      color: #fff;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    .placeholder {
+      text-align: center;
+      color: #555;
+    }
+
+    .placeholder h2 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .placeholder p {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>CRM</h1>
+    <div class="user-info">
+      <% if (typeof userPhoto !== 'undefined' && userPhoto) { %>
+        <img src="<%= userPhoto %>" alt="User" />
+      <% } %>
+      <span><%= userName %></span>
+      <a href="/">← Panel Principal</a>
+      <a href="/logout">Salir</a>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="placeholder">
+      <h2>CRM en construcción</h2>
+      <p>Aquí irá el nuevo módulo de CRM</p>
+    </div>
+  </div>
+</body>
+</html>

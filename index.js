@@ -82,6 +82,16 @@ app.get('/', ensureAuthenticated, ensureDomain, (req, res) => {
   });
 });
 
+// --- Ruta CRM (PROTEGIDA)
+app.get('/crm', ensureAuthenticated, ensureDomain, (req, res) => {
+  res.render('crm', {
+    title: 'FR360 - CRM',
+    userEmail: req.user.email,
+    userName: req.user.displayName,
+    userPhoto: req.user.photo
+  });
+});
+
 // === API ENDPOINTS (TODOS PROTEGIDOS) ===
 
 // ===== WEB PIG PROXY ENDPOINTS (MUST BE BEFORE GENERIC /api/:functionName) =====
