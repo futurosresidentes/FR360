@@ -17,6 +17,7 @@ const clickupService = require('./services/clickupService');
 const googleDriveService = require('./services/googleDriveService');
 const pdfService = require('./services/pdfService');
 const cobranzaService = require('./services/cobranzaService');
+const cobrancioWebService = require('./services/cobrancioWebService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -1832,6 +1833,32 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
       case 'bloquearUsuario':
         // args[0] = objeto usuario con: cedula, nombres, apellidos, cuotas, etc.
         result = await cobranzaService.bloquearUsuario(args[0]);
+        break;
+
+      // === COBRANCIO WEB (Notificaciones) ===
+      case 'obtenerResumenCobrancio':
+        result = await cobrancioWebService.obtenerResumenCobrancio();
+        break;
+
+      case 'obtenerCandidatosMora':
+        result = await cobrancioWebService.obtenerCandidatosMora();
+        break;
+
+      case 'obtenerCandidatosFecha':
+        result = await cobrancioWebService.obtenerCandidatosFecha();
+        break;
+
+      case 'obtenerCandidatosPrevio':
+        result = await cobrancioWebService.obtenerCandidatosPrevio();
+        break;
+
+      case 'procesarNotificacionCobrancio':
+        // args[0] = candidato, args[1] = tipoAviso, args[2] = soloSincronizar
+        result = await cobrancioWebService.procesarNotificacion(args[0], args[1], args[2]);
+        break;
+
+      case 'verificarLeyDejenDeFregar':
+        result = await cobrancioWebService.leyDejenDeFregar();
         break;
 
       // === LINKS ===

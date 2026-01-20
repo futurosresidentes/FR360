@@ -431,6 +431,62 @@
           </div>
           <div id="bloqueoResultsContainer" style="margin-top: 16px;"></div>
         </div>
+
+        <!-- Sección Cobrancio Web (Notificaciones de cobranza) -->
+        <div class="cobrancio-section" style="margin-top: 32px; padding-top: 24px; border-top: 2px solid #dee2e6;">
+          <h3 style="margin-bottom: 12px;">📱 Cobrancio Web - Notificaciones</h3>
+          <p style="color: #666; margin-bottom: 16px;">
+            Envía notificaciones de cobranza vía WhatsApp (Callbell) y registra en Strapi:<br>
+            • <strong>MORA:</strong> Usuarios con 3-5 días de mora<br>
+            • <strong>FECHA:</strong> Cuotas que vencen hoy, mañana o pasado mañana (si son festivos)<br>
+            • <strong>PREVIO:</strong> Cuotas que vencen en 7 días
+          </p>
+
+          <!-- Botones principales -->
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+            <button id="cobrancioFullBtn" class="btn-primary" style="background: #6f42c1;">🚀 Ejecutar Cobrancio FULL</button>
+            <button id="cobrancioResumenBtn" class="btn-primary" style="background: #17a2b8;">📊 Ver Resumen</button>
+          </div>
+
+          <!-- Botones individuales -->
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button id="cobrancioMoraBtn" class="btn-warning" style="background: #fd7e14; border-color: #fd7e14;">⏰ MORA (3-5 días)</button>
+            <button id="cobrancioFechaBtn" class="btn-info" style="background: #20c997; border-color: #20c997;">📅 FECHA (hoy/mañana)</button>
+            <button id="cobrancioPrevioBtn" class="btn-secondary" style="background: #6c757d; border-color: #6c757d;">📆 PREVIO (7 días)</button>
+          </div>
+
+          <!-- Status -->
+          <div id="cobrancioStatus" style="margin-top: 12px; display: none;">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #e8f4f8; border-radius: 8px; border-left: 4px solid #17a2b8;">
+              <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #e8f4f8; border-top: 3px solid #17a2b8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+              <span id="cobrancioStatusText" style="font-weight: 600; font-size: 0.9em; color: #0c5460;">Procesando...</span>
+            </div>
+          </div>
+
+          <!-- Resumen de candidatos -->
+          <div id="cobrancioResumenContainer" style="margin-top: 16px; display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div style="padding: 16px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <h4 style="margin: 0 0 8px 0; color: #856404;">⏰ MORA</h4>
+                <p style="margin: 0; font-size: 1.5em; font-weight: 700; color: #856404;" id="cobrancioMoraCount">0</p>
+                <small style="color: #856404;">candidatos (3-5 días)</small>
+              </div>
+              <div style="padding: 16px; background: #d4edda; border-radius: 8px; border-left: 4px solid #28a745;">
+                <h4 style="margin: 0 0 8px 0; color: #155724;">📅 FECHA</h4>
+                <p style="margin: 0; font-size: 1.5em; font-weight: 700; color: #155724;" id="cobrancioFechaCount">0</p>
+                <small style="color: #155724;" id="cobrancioFechaDetail">hoy: 0</small>
+              </div>
+              <div style="padding: 16px; background: #cce5ff; border-radius: 8px; border-left: 4px solid #007bff;">
+                <h4 style="margin: 0 0 8px 0; color: #004085;">📆 PREVIO</h4>
+                <p style="margin: 0; font-size: 1.5em; font-weight: 700; color: #004085;" id="cobrancioPrevioCount">0</p>
+                <small style="color: #004085;" id="cobrancioPrevioDetail">7 días antes</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contenedor de resultados -->
+          <div id="cobrancioResultsContainer" style="margin-top: 16px;"></div>
+        </div>
       </div>
       <% } %>
     </div>
@@ -808,6 +864,8 @@
   <script src="/js/desbloqueo.js"></script>
   <!-- Bloqueo de morosos module -->
   <script src="/js/bloqueo.js"></script>
+  <!-- Cobrancio Web module -->
+  <script src="/js/cobrancio.js"></script>
   <!-- Ticket system module -->
   <script src="/js/tickets.js"></script>
 </body>
