@@ -356,6 +356,34 @@
     let activeMembershipFRAPP = null;
     let currentUserFRAPP = null; // Usuario actual de FRAPP
 
+    // Función para actualizar indicador de mora (egresados)
+    function updateMoraIndicator() {
+      const moraIndicator = document.getElementById('moraIndicator');
+      if (!moraIndicator) return;
+
+      // Verificar si es egresado (Élite o Esencial con Paz y Salvo)
+      const hasElitePaid = lastFactRows.some(r =>
+        String(r[8]).trim().toLowerCase() === 'si' &&
+        String(r[16]).trim().toLowerCase() === 'élite'
+      );
+      const hasEsencialPaid = lastFactRows.some(r =>
+        String(r[8]).trim().toLowerCase() === 'si' &&
+        String(r[16]).trim().toLowerCase() === 'esencial'
+      );
+      const esEgresado = hasElitePaid || hasEsencialPaid;
+
+      // Si es egresado, verificar si tiene cuotas en mora
+      const acuerdosData = window.currentAcuerdosData;
+      if (esEgresado && Array.isArray(acuerdosData) && acuerdosData.length > 0) {
+        const tieneMora = acuerdosData.some(item =>
+          String(item.estado_pago || '').toLowerCase() === 'en_mora'
+        );
+        moraIndicator.style.display = tieneMora ? 'inline' : 'none';
+      } else {
+        moraIndicator.style.display = 'none';
+      }
+    }
+
     const BASE_PRICE_9MESES           = 4130000;
     const BASE_PRICE_6MESES           = 3410000;
     const OFF_9MESES                  = 0.2;    
@@ -641,7 +669,9 @@
       inicio.required = false;
       valorInput.readOnly = false;
       document.getElementById('discountAnalysis').innerHTML = '';
+      document.getElementById('moraIndicator').style.display = 'none';
       lastFactRows = [];
+      window.currentAcuerdosData = null; // Limpiar datos de acuerdos del cliente anterior
       planPagosTable.innerHTML = '';
       planPagosContainer.classList.add('hidden');
 
@@ -2906,6 +2936,9 @@
       // Espacio entre tablas
       const sep = document.createElement('div'); sep.style.height='16px'; c.appendChild(sep);
       buildAcuerdosTable(unsigned, 'Acuerdos sin firmar','sin-firmar');
+
+      // Actualizar indicador de mora para egresados (ahora que tenemos los datos de acuerdos)
+      updateMoraIndicator();
      }
     
 
@@ -3426,8 +3459,10 @@
       if (hasElitePaid) te = 'Élite';
       else if (hasEsencialPaid) te = 'Esencial';
 
+      // 1.5) Actualizar indicador de mora para egresados
+      updateMoraIndicator();
 
-      // 2) Tipo de compra: solo exact match sobre la lista de productos “élite”
+      // 2) Tipo de compra: solo exact match sobre la lista de productos "élite"
       const prod = producto.value.trim();
       const esCompraElite = /^Élite\b/i.test(prod);
 
