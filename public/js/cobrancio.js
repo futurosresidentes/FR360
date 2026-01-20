@@ -337,21 +337,32 @@
       showStatus('Ejecutando MORA...');
       try {
         const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
-        if (!ley.activa) {
+        console.log('Ley dejen de fregar:', ley);
+        if (ley.activa) {
+          console.log('MORA no ejecutado: ' + ley.razon);
+          resultadosGlobales.mora = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: ley.razon };
+        } else {
           const dataMora = await window.fr360Api.call('obtenerCandidatosMora');
-          if (!dataMora.error) {
+          console.log('Candidatos MORA:', dataMora);
+          if (dataMora.error) {
+            resultadosGlobales.mora = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataMora.error };
+          } else {
             resultadosGlobales.mora = await procesarCandidatos(dataMora.candidatos, 'mora', 'MORA');
           }
         }
       } catch (err) {
         console.error('Error en MORA:', err);
+        resultadosGlobales.mora = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: err.message };
       }
 
       // 2. FECHA
       showStatus('Ejecutando FECHA...');
       try {
         const dataFecha = await window.fr360Api.call('obtenerCandidatosFecha');
-        if (!dataFecha.error) {
+        console.log('Candidatos FECHA:', dataFecha);
+        if (dataFecha.error) {
+          resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataFecha.error };
+        } else {
           const candidatos = dataFecha.candidatos;
           resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [] };
 
@@ -378,20 +389,28 @@
         }
       } catch (err) {
         console.error('Error en FECHA:', err);
+        resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: err.message };
       }
 
       // 3. PREVIO
       showStatus('Ejecutando PREVIO...');
       try {
         const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
-        if (!ley.activa) {
+        if (ley.activa) {
+          console.log('PREVIO no ejecutado: ' + ley.razon);
+          resultadosGlobales.previo = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: ley.razon };
+        } else {
           const dataPrevio = await window.fr360Api.call('obtenerCandidatosPrevio');
-          if (!dataPrevio.error) {
+          console.log('Candidatos PREVIO:', dataPrevio);
+          if (dataPrevio.error) {
+            resultadosGlobales.previo = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataPrevio.error };
+          } else {
             resultadosGlobales.previo = await procesarCandidatos(dataPrevio.candidatos, 'previo', 'PREVIO');
           }
         }
       } catch (err) {
         console.error('Error en PREVIO:', err);
+        resultadosGlobales.previo = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: err.message };
       }
 
       // Mostrar resumen final
@@ -402,25 +421,37 @@
 
       resumenHtml += `<p><strong>MORA (3-5 dias):</strong> `;
       if (resultadosGlobales.mora) {
-        resumenHtml += `${resultadosGlobales.mora.exitosos.length} exitosos, ${resultadosGlobales.mora.omitidos.length} omitidos`;
+        if (resultadosGlobales.mora.noEjecutado) {
+          resumenHtml += `<span style="color: #856404;">No ejecutado: ${resultadosGlobales.mora.noEjecutado}</span>`;
+        } else {
+          resumenHtml += `${resultadosGlobales.mora.exitosos.length} exitosos, ${resultadosGlobales.mora.omitidos.length} omitidos`;
+        }
       } else {
-        resumenHtml += `No ejecutado`;
+        resumenHtml += `<span style="color: #999;">No ejecutado</span>`;
       }
       resumenHtml += `</p>`;
 
       resumenHtml += `<p><strong>FECHA (hoy/manana):</strong> `;
       if (resultadosGlobales.fecha) {
-        resumenHtml += `${resultadosGlobales.fecha.exitosos.length} exitosos, ${resultadosGlobales.fecha.omitidos.length} omitidos`;
+        if (resultadosGlobales.fecha.noEjecutado) {
+          resumenHtml += `<span style="color: #856404;">No ejecutado: ${resultadosGlobales.fecha.noEjecutado}</span>`;
+        } else {
+          resumenHtml += `${resultadosGlobales.fecha.exitosos.length} exitosos, ${resultadosGlobales.fecha.omitidos.length} omitidos`;
+        }
       } else {
-        resumenHtml += `No ejecutado`;
+        resumenHtml += `<span style="color: #999;">No ejecutado</span>`;
       }
       resumenHtml += `</p>`;
 
       resumenHtml += `<p><strong>PREVIO (7 dias):</strong> `;
       if (resultadosGlobales.previo) {
-        resumenHtml += `${resultadosGlobales.previo.exitosos.length} exitosos, ${resultadosGlobales.previo.omitidos.length} omitidos`;
+        if (resultadosGlobales.previo.noEjecutado) {
+          resumenHtml += `<span style="color: #856404;">No ejecutado: ${resultadosGlobales.previo.noEjecutado}</span>`;
+        } else {
+          resumenHtml += `${resultadosGlobales.previo.exitosos.length} exitosos, ${resultadosGlobales.previo.omitidos.length} omitidos`;
+        }
       } else {
-        resumenHtml += `No ejecutado`;
+        resumenHtml += `<span style="color: #999;">No ejecutado</span>`;
       }
       resumenHtml += `</p>`;
 
