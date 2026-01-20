@@ -356,85 +356,97 @@ async function obtenerCandidatosMora() {
 async function obtenerCandidatosFecha() {
   console.log('=== Obteniendo candidatos FECHA ===');
 
-  const hoy = new Date();
-  const manana = new Date(hoy.getTime() + 1 * 24 * 60 * 60 * 1000);
-  const pasadoManana = new Date(hoy.getTime() + 2 * 24 * 60 * 60 * 1000);
+  try {
+    const hoy = new Date();
+    const manana = new Date(hoy.getTime() + 1 * 24 * 60 * 60 * 1000);
+    const pasadoManana = new Date(hoy.getTime() + 2 * 24 * 60 * 60 * 1000);
 
-  // Verificar si hoy es domingo/festivo
-  if (await esDomingoOFestivo(hoy)) {
-    return { error: 'Hoy es domingo o festivo', candidatos: { hoy: [], manana: [], pasadoManana: [] } };
+    // Verificar si hoy es domingo/festivo
+    if (await esDomingoOFestivo(hoy)) {
+      return {
+        error: 'Hoy es domingo o festivo',
+        candidatos: { hoy: [], manana: [], pasadoManana: [], cobroMananaHoy: false, cobroPasadoMananaHoy: false }
+      };
+    }
+
+    // Obtener links ya notificados
+    const linksYaNotificados = await obtenerLinksCobranzasHistorico('Aviso fecha');
+
+    const resultado = {
+      hoy: [],
+      manana: [],
+      pasadoManana: [],
+      cobroMananaHoy: false,
+      cobroPasadoMananaHoy: false
+    };
+
+    // Función helper para obtener candidatos de una fecha
+    const obtenerCandidatosDeFecha = async (fecha, etiqueta) => {
+      const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+
+      const cuotas = await obtenerCuotasStrapi({
+        'estado_pago][$eq': 'al_dia',
+        'fecha_limite][$eq': fechaStr,
+        'estado_firma][$eq': 'firmado'
+      });
+
+      const candidatos = [];
+      const procesados = new Set();
+
+      cuotas.forEach(cuota => {
+        const linkPago = cuota.link_pago || '';
+
+        if (linkPago && !linksYaNotificados.has(linkPago) && !procesados.has(linkPago)) {
+          procesados.add(linkPago);
+
+          candidatos.push({
+            cedula: String(cuota.numero_documento),
+            nombre: cuota.nombres ? cuota.nombres.split(' ')[0] : '',
+            nombreCompleto: `${cuota.nombres || ''} ${cuota.apellidos || ''}`.trim(),
+            telefono: normalizarTelefono(cuota.celular),
+            linkPago: linkPago,
+            producto: cuota.producto || '',
+            fechaLimite: cuota.fecha_limite,
+            fechaFormateada: formatearFecha(cuota.fecha_limite),
+            etiquetaDia: etiqueta
+          });
+        }
+      });
+
+      return candidatos;
+    };
+
+    // Lógica de festivos: si mañana Y pasado mañana son festivos, cobrar todo hoy
+    const mananaEsFestivo = await esDomingoOFestivo(manana);
+    const pasadoMananaEsFestivo = await esDomingoOFestivo(pasadoManana);
+
+    // Siempre cobrar lo de hoy
+    resultado.hoy = await obtenerCandidatosDeFecha(hoy, 'Hoy');
+
+    // Si mañana es festivo, cobrar lo de mañana hoy
+    if (mananaEsFestivo) {
+      resultado.manana = await obtenerCandidatosDeFecha(manana, 'Mañana');
+      resultado.cobroMananaHoy = true;
+      console.log(`Mañana es festivo. Cobrando ${resultado.manana.length} cuotas de mañana hoy.`);
+    }
+
+    // Si pasado mañana Y mañana son festivos, cobrar lo de pasado mañana hoy
+    if (pasadoMananaEsFestivo && mananaEsFestivo) {
+      resultado.pasadoManana = await obtenerCandidatosDeFecha(pasadoManana, 'Pasado mañana');
+      resultado.cobroPasadoMananaHoy = true;
+      console.log(`Pasado mañana también es festivo. Cobrando ${resultado.pasadoManana.length} cuotas de pasado mañana hoy.`);
+    }
+
+    console.log(`Candidatos FECHA - Hoy: ${resultado.hoy.length}, Mañana: ${resultado.manana.length}, Pasado mañana: ${resultado.pasadoManana.length}`);
+    return { candidatos: resultado };
+
+  } catch (error) {
+    console.error('Error en obtenerCandidatosFecha:', error.message);
+    return {
+      error: error.message,
+      candidatos: { hoy: [], manana: [], pasadoManana: [], cobroMananaHoy: false, cobroPasadoMananaHoy: false }
+    };
   }
-
-  // Obtener links ya notificados
-  const linksYaNotificados = await obtenerLinksCobranzasHistorico('Aviso fecha');
-
-  const resultado = {
-    hoy: [],
-    manana: [],
-    pasadoManana: [],
-    cobroMananaHoy: false,
-    cobroPasadoMananaHoy: false
-  };
-
-  // Función helper para obtener candidatos de una fecha
-  const obtenerCandidatosDeFecha = async (fecha, etiqueta) => {
-    const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
-
-    const cuotas = await obtenerCuotasStrapi({
-      'estado_pago][$eq': 'al_dia',
-      'fecha_limite][$eq': fechaStr,
-      'estado_firma][$eq': 'firmado'
-    });
-
-    const candidatos = [];
-    const procesados = new Set();
-
-    cuotas.forEach(cuota => {
-      const linkPago = cuota.link_pago || '';
-
-      if (linkPago && !linksYaNotificados.has(linkPago) && !procesados.has(linkPago)) {
-        procesados.add(linkPago);
-
-        candidatos.push({
-          cedula: String(cuota.numero_documento),
-          nombre: cuota.nombres ? cuota.nombres.split(' ')[0] : '',
-          nombreCompleto: `${cuota.nombres || ''} ${cuota.apellidos || ''}`.trim(),
-          telefono: normalizarTelefono(cuota.celular),
-          linkPago: linkPago,
-          producto: cuota.producto || '',
-          fechaLimite: cuota.fecha_limite,
-          fechaFormateada: formatearFecha(cuota.fecha_limite),
-          etiquetaDia: etiqueta
-        });
-      }
-    });
-
-    return candidatos;
-  };
-
-  // Lógica de festivos: si mañana Y pasado mañana son festivos, cobrar todo hoy
-  const mananaEsFestivo = await esDomingoOFestivo(manana);
-  const pasadoMananaEsFestivo = await esDomingoOFestivo(pasadoManana);
-
-  // Siempre cobrar lo de hoy
-  resultado.hoy = await obtenerCandidatosDeFecha(hoy, 'Hoy');
-
-  // Si mañana es festivo, cobrar lo de mañana hoy
-  if (mananaEsFestivo) {
-    resultado.manana = await obtenerCandidatosDeFecha(manana, 'Mañana');
-    resultado.cobroMananaHoy = true;
-    console.log(`Mañana es festivo. Cobrando ${resultado.manana.length} cuotas de mañana hoy.`);
-  }
-
-  // Si pasado mañana Y mañana son festivos, cobrar lo de pasado mañana hoy
-  if (pasadoMananaEsFestivo && mananaEsFestivo) {
-    resultado.pasadoManana = await obtenerCandidatosDeFecha(pasadoManana, 'Pasado mañana');
-    resultado.cobroPasadoMananaHoy = true;
-    console.log(`Pasado mañana también es festivo. Cobrando ${resultado.pasadoManana.length} cuotas de pasado mañana hoy.`);
-  }
-
-  console.log(`Candidatos FECHA - Hoy: ${resultado.hoy.length}, Mañana: ${resultado.manana.length}, Pasado mañana: ${resultado.pasadoManana.length}`);
-  return { candidatos: resultado };
 }
 
 /**

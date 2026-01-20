@@ -24,6 +24,22 @@
   // Si no existen los elementos, salir (no estamos en la pestaña correcta)
   if (!cobrancioFullBtn) return;
 
+  // === API Helper ===
+  async function apiCall(endpoint, ...args) {
+    const response = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+
+    return response.json();
+  }
+
   // === Utilidades ===
   function showStatus(message) {
     cobrancioStatus.style.display = 'block';
@@ -48,7 +64,7 @@
     setButtonsEnabled(false);
 
     try {
-      const response = await window.fr360Api.call('obtenerResumenCobrancio');
+      const response = await apiCall('obtenerResumenCobrancio');
 
       if (response.error) {
         alert('Error: ' + response.error);
@@ -146,7 +162,7 @@
       showStatus(`Procesando ${i + 1}/${candidatos.length}: ${c.cedula}...`);
 
       try {
-        const result = await window.fr360Api.call('procesarNotificacionCobrancio', c, tipoAviso, soloSincronizar);
+        const result = await apiCall('procesarNotificacionCobrancio', c, tipoAviso, soloSincronizar);
 
         if (result.exito) {
           const suffix = soloSincronizar ? ' (sincronizado)' : '';
@@ -195,14 +211,14 @@
     cobrancioResultsContainer.innerHTML = '';
 
     try {
-      const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
+      const ley = await apiCall('verificarLeyDejenDeFregar');
       if (ley.activa) {
         alert('No se puede ejecutar: ' + ley.razon);
         return;
       }
 
       showStatus('Obteniendo candidatos MORA (3-5 dias)...');
-      const data = await window.fr360Api.call('obtenerCandidatosMora');
+      const data = await apiCall('obtenerCandidatosMora');
 
       if (data.error) {
         alert('Error: ' + data.error);
@@ -229,14 +245,15 @@
 
     try {
       showStatus('Obteniendo candidatos FECHA...');
-      const data = await window.fr360Api.call('obtenerCandidatosFecha');
+      const data = await apiCall('obtenerCandidatosFecha');
+      console.log('Candidatos FECHA:', data);
 
-      if (data.error) {
+      if (data.error && (!data.candidatos || Object.keys(data.candidatos).length === 0)) {
         alert('Error: ' + data.error);
         return;
       }
 
-      const candidatos = data.candidatos;
+      const candidatos = data.candidatos || { hoy: [], manana: [], pasadoManana: [] };
       const resultadosGlobales = { exitosos: [], omitidos: [], fallidos: [] };
 
       // Procesar pasado manana (si aplica)
@@ -281,14 +298,14 @@
     cobrancioResultsContainer.innerHTML = '';
 
     try {
-      const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
+      const ley = await apiCall('verificarLeyDejenDeFregar');
       if (ley.activa) {
         alert('No se puede ejecutar: ' + ley.razon);
         return;
       }
 
       showStatus('Obteniendo candidatos PREVIO (7 dias)...');
-      const data = await window.fr360Api.call('obtenerCandidatosPrevio');
+      const data = await apiCall('obtenerCandidatosPrevio');
 
       if (data.error) {
         alert('Error: ' + data.error);
@@ -336,13 +353,13 @@
       // 1. MORA
       showStatus('Ejecutando MORA...');
       try {
-        const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
+        const ley = await apiCall('verificarLeyDejenDeFregar');
         console.log('Ley dejen de fregar:', ley);
         if (ley.activa) {
           console.log('MORA no ejecutado: ' + ley.razon);
           resultadosGlobales.mora = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: ley.razon };
         } else {
-          const dataMora = await window.fr360Api.call('obtenerCandidatosMora');
+          const dataMora = await apiCall('obtenerCandidatosMora');
           console.log('Candidatos MORA:', dataMora);
           if (dataMora.error) {
             resultadosGlobales.mora = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataMora.error };
@@ -358,12 +375,13 @@
       // 2. FECHA
       showStatus('Ejecutando FECHA...');
       try {
-        const dataFecha = await window.fr360Api.call('obtenerCandidatosFecha');
+        const dataFecha = await apiCall('obtenerCandidatosFecha');
         console.log('Candidatos FECHA:', dataFecha);
-        if (dataFecha.error) {
+
+        if (dataFecha.error && (!dataFecha.candidatos || Object.keys(dataFecha.candidatos).length === 0)) {
           resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataFecha.error };
         } else {
-          const candidatos = dataFecha.candidatos;
+          const candidatos = dataFecha.candidatos || { hoy: [], manana: [], pasadoManana: [] };
           resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [] };
 
           if (candidatos.pasadoManana?.length > 0 && candidatos.cobroPasadoMananaHoy) {
@@ -386,6 +404,11 @@
             resultadosGlobales.fecha.omitidos.push(...res.omitidos);
             resultadosGlobales.fecha.fallidos.push(...res.fallidos);
           }
+
+          // Si hubo error pero hay candidatos vacíos, mostrar el error
+          if (dataFecha.error) {
+            resultadosGlobales.fecha.noEjecutado = dataFecha.error;
+          }
         }
       } catch (err) {
         console.error('Error en FECHA:', err);
@@ -395,12 +418,12 @@
       // 3. PREVIO
       showStatus('Ejecutando PREVIO...');
       try {
-        const ley = await window.fr360Api.call('verificarLeyDejenDeFregar');
+        const ley = await apiCall('verificarLeyDejenDeFregar');
         if (ley.activa) {
           console.log('PREVIO no ejecutado: ' + ley.razon);
           resultadosGlobales.previo = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: ley.razon };
         } else {
-          const dataPrevio = await window.fr360Api.call('obtenerCandidatosPrevio');
+          const dataPrevio = await apiCall('obtenerCandidatosPrevio');
           console.log('Candidatos PREVIO:', dataPrevio);
           if (dataPrevio.error) {
             resultadosGlobales.previo = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataPrevio.error };
