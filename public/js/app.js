@@ -356,25 +356,47 @@
     let activeMembershipFRAPP = null;
     let currentUserFRAPP = null; // Usuario actual de FRAPP
 
-    // Función para actualizar indicador de mora (egresados)
+    // Función para actualizar indicadores de tipo de cliente y mora
     function updateMoraIndicator() {
       const moraIndicator = document.getElementById('moraIndicator');
-      if (!moraIndicator) return;
+      const clientTypeIndicator = document.getElementById('clientTypeIndicator');
+      if (!moraIndicator || !clientTypeIndicator) return;
 
-      // Verificar si es egresado (Élite o Esencial con Paz y Salvo)
-      const hasElitePaid = lastFactRows.some(r =>
-        String(r[8]).trim().toLowerCase() === 'si' &&
+      // Índices en lastFactRows: 16 = Categoria
+      // Verificar si tiene cualquier producto Élite (con o sin paz y salvo)
+      const hasElite = lastFactRows.some(r =>
         String(r[16]).trim().toLowerCase() === 'élite'
       );
-      const hasEsencialPaid = lastFactRows.some(r =>
-        String(r[8]).trim().toLowerCase() === 'si' &&
+
+      // Verificar si tiene cualquier producto Esencial (con o sin paz y salvo)
+      const hasEsencial = lastFactRows.some(r =>
         String(r[16]).trim().toLowerCase() === 'esencial'
       );
-      const esEgresado = hasElitePaid || hasEsencialPaid;
 
-      // Si es egresado, verificar si tiene cuotas en mora
+      // Determinar tipo de cliente (prioridad: Élite > Esencial > Nuevo)
+      if (hasElite) {
+        clientTypeIndicator.textContent = 'Élite';
+        clientTypeIndicator.style.display = 'inline';
+        clientTypeIndicator.style.backgroundColor = '#28a745';
+        clientTypeIndicator.style.color = '#fff';
+      } else if (hasEsencial) {
+        clientTypeIndicator.textContent = 'Esencial';
+        clientTypeIndicator.style.display = 'inline';
+        clientTypeIndicator.style.backgroundColor = '#17a2b8';
+        clientTypeIndicator.style.color = '#fff';
+      } else if (lastUid) {
+        clientTypeIndicator.textContent = 'Nuevo';
+        clientTypeIndicator.style.display = 'inline';
+        clientTypeIndicator.style.backgroundColor = '#6c757d';
+        clientTypeIndicator.style.color = '#fff';
+      } else {
+        clientTypeIndicator.style.display = 'none';
+      }
+
+      // Verificar mora solo para clientes Élite o Esencial
+      const esClienteConHistorial = hasElite || hasEsencial;
       const acuerdosData = window.currentAcuerdosData;
-      if (esEgresado && Array.isArray(acuerdosData) && acuerdosData.length > 0) {
+      if (esClienteConHistorial && Array.isArray(acuerdosData) && acuerdosData.length > 0) {
         const tieneMora = acuerdosData.some(item =>
           String(item.estado_pago || '').toLowerCase() === 'en_mora'
         );
@@ -670,6 +692,7 @@
       valorInput.readOnly = false;
       document.getElementById('discountAnalysis').innerHTML = '';
       document.getElementById('moraIndicator').style.display = 'none';
+      document.getElementById('clientTypeIndicator').style.display = 'none';
       lastFactRows = [];
       window.currentAcuerdosData = null; // Limpiar datos de acuerdos del cliente anterior
       planPagosTable.innerHTML = '';
