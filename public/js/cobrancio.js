@@ -383,15 +383,21 @@
       showStatus('Ejecutando FECHA...');
       try {
         const dataFecha = await apiCall('obtenerCandidatosFecha');
-        console.log('Candidatos FECHA:', dataFecha);
+        console.log('Candidatos FECHA raw:', JSON.stringify(dataFecha));
 
         if (dataFecha.error && (!dataFecha.candidatos || Object.keys(dataFecha.candidatos).length === 0)) {
           resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [], noEjecutado: dataFecha.error };
         } else {
           const candidatos = dataFecha.candidatos || { hoy: [], manana: [], pasadoManana: [] };
+          console.log('Candidatos FECHA parsed:', JSON.stringify(candidatos));
+          console.log('Candidatos hoy:', candidatos.hoy?.length || 0);
+          console.log('Candidatos manana:', candidatos.manana?.length || 0);
+          console.log('Candidatos pasadoManana:', candidatos.pasadoManana?.length || 0);
+
           resultadosGlobales.fecha = { exitosos: [], omitidos: [], fallidos: [] };
 
           if (candidatos.pasadoManana?.length > 0 && candidatos.cobroPasadoMananaHoy) {
+            console.log('Procesando pasado manana...');
             const res = await procesarCandidatos(candidatos.pasadoManana, 'fecha', 'FECHA - Pasado manana');
             resultadosGlobales.fecha.exitosos.push(...res.exitosos);
             resultadosGlobales.fecha.omitidos.push(...res.omitidos);
@@ -399,6 +405,7 @@
           }
 
           if (candidatos.manana?.length > 0 && candidatos.cobroMananaHoy) {
+            console.log('Procesando manana...');
             const res = await procesarCandidatos(candidatos.manana, 'fecha', 'FECHA - Manana');
             resultadosGlobales.fecha.exitosos.push(...res.exitosos);
             resultadosGlobales.fecha.omitidos.push(...res.omitidos);
@@ -406,10 +413,14 @@
           }
 
           if (candidatos.hoy?.length > 0) {
+            console.log('Procesando hoy con', candidatos.hoy.length, 'candidatos...');
             const res = await procesarCandidatos(candidatos.hoy, 'fecha', 'FECHA - Hoy');
+            console.log('Resultado procesarCandidatos hoy:', res);
             resultadosGlobales.fecha.exitosos.push(...res.exitosos);
             resultadosGlobales.fecha.omitidos.push(...res.omitidos);
             resultadosGlobales.fecha.fallidos.push(...res.fallidos);
+          } else {
+            console.log('No hay candidatos para hoy o array vacio');
           }
 
           // Si hubo error pero hay candidatos vacíos, mostrar el error
