@@ -37,7 +37,14 @@
       throw new Error(`Error ${response.status}: ${errorText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // El backend envuelve la respuesta en { success, result }
+    if (data.success === false) {
+      throw new Error(data.error || 'Error desconocido');
+    }
+
+    return data.result !== undefined ? data.result : data;
   }
 
   // === Utilidades ===
