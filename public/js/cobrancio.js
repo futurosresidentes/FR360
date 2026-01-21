@@ -123,6 +123,115 @@
     }
   }
 
+  // === Modal de confirmación con botones ===
+  function crearModal() {
+    // Si ya existe, no crear otro
+    if (document.getElementById('cobrancioModal')) return;
+
+    const modalHtml = `
+      <div id="cobrancioModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:10000; justify-content:center; align-items:center;">
+        <div style="background:white; border-radius:12px; max-width:500px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+          <div id="cobrancioModalHeader" style="background:linear-gradient(135deg,#6f42c1,#5a32a3); color:white; padding:16px 20px; border-radius:12px 12px 0 0;">
+            <h3 style="margin:0; font-size:1.1em;" id="cobrancioModalTitle">Confirmación</h3>
+          </div>
+          <div id="cobrancioModalBody" style="padding:20px;">
+            <!-- Contenido dinámico -->
+          </div>
+          <div id="cobrancioModalFooter" style="padding:16px 20px; border-top:1px solid #eee; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+            <!-- Botones dinámicos -->
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+
+  function mostrarModalConfirmacion(candidato, index, total, nombreTipo) {
+    return new Promise((resolve) => {
+      crearModal();
+      const modal = document.getElementById('cobrancioModal');
+      const title = document.getElementById('cobrancioModalTitle');
+      const body = document.getElementById('cobrancioModalBody');
+      const footer = document.getElementById('cobrancioModalFooter');
+
+      title.textContent = `[${index + 1}/${total}] ${nombreTipo.toUpperCase()}`;
+
+      body.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span style="font-weight:600; color:#333;">Cédula:</span>
+            <code style="background:#f0f0f0; padding:4px 10px; border-radius:4px; font-size:1.1em; font-weight:600;">${candidato.cedula}</code>
+            <button id="copiarCedulaBtn" style="background:#6f42c1; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.85em; display:flex; align-items:center; gap:4px;" title="Copiar cédula">
+              📋 Copiar
+            </button>
+          </div>
+          <p style="margin:8px 0;"><strong>Nombre:</strong> ${candidato.nombreCompleto}</p>
+          <p style="margin:8px 0;"><strong>Teléfono:</strong> ${candidato.telefono || 'N/A'}</p>
+          ${candidato.diasMora ? `<p style="margin:8px 0;"><strong>Días mora:</strong> <span style="color:#dc3545; font-weight:600;">${candidato.diasMora}</span></p>` : ''}
+          <p style="margin:8px 0;"><strong>Fecha límite:</strong> ${candidato.fechaFormateada || candidato.fechaLimite}</p>
+          <p style="margin:8px 0; word-break:break-all;"><strong>Link pago:</strong> <a href="${candidato.linkPago}" target="_blank" style="color:#6f42c1;">${candidato.linkPago}</a></p>
+        </div>
+        <div style="background:#f8f9fa; padding:12px; border-radius:8px; font-size:0.9em; color:#666;">
+          <p style="margin:4px 0;"><strong style="color:#28a745;">SI</strong> = Enviar WhatsApp + registrar en Strapi</p>
+          <p style="margin:4px 0;"><strong style="color:#ffc107;">NO</strong> = Solo registrar (ya fue cobrado)</p>
+          <p style="margin:4px 0;"><strong style="color:#dc3545;">OMITIR</strong> = Saltar este candidato</p>
+          <p style="margin:4px 0;"><strong style="color:#6c757d;">CANCELAR</strong> = Detener todo el proceso</p>
+        </div>
+      `;
+
+      footer.innerHTML = `
+        <button id="modalBtnSi" style="background:linear-gradient(135deg,#28a745,#218838); color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:600; font-size:1em;">
+          ✅ SÍ, Cobrar
+        </button>
+        <button id="modalBtnNo" style="background:linear-gradient(135deg,#ffc107,#e0a800); color:#333; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:600; font-size:1em;">
+          📝 NO, Solo registrar
+        </button>
+        <button id="modalBtnOmitir" style="background:linear-gradient(135deg,#6c757d,#5a6268); color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:600; font-size:1em;">
+          ⏭️ Omitir
+        </button>
+        <button id="modalBtnCancelar" style="background:linear-gradient(135deg,#dc3545,#c82333); color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:600; font-size:1em;">
+          🛑 Cancelar Todo
+        </button>
+      `;
+
+      modal.style.display = 'flex';
+
+      // Event: Copiar cédula
+      document.getElementById('copiarCedulaBtn').onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(candidato.cedula);
+          const btn = document.getElementById('copiarCedulaBtn');
+          btn.innerHTML = '✅ Copiado!';
+          btn.style.background = '#28a745';
+          setTimeout(() => {
+            btn.innerHTML = '📋 Copiar';
+            btn.style.background = '#6f42c1';
+          }, 1500);
+        } catch (e) {
+          alert('Error al copiar: ' + e.message);
+        }
+      };
+
+      // Event: Botones de acción
+      document.getElementById('modalBtnSi').onclick = () => {
+        modal.style.display = 'none';
+        resolve('SI');
+      };
+      document.getElementById('modalBtnNo').onclick = () => {
+        modal.style.display = 'none';
+        resolve('NO');
+      };
+      document.getElementById('modalBtnOmitir').onclick = () => {
+        modal.style.display = 'none';
+        resolve('OMITIR');
+      };
+      document.getElementById('modalBtnCancelar').onclick = () => {
+        modal.style.display = 'none';
+        resolve('CANCELAR');
+      };
+    });
+  }
+
   // === Procesar candidatos con confirmaciones ===
   async function procesarCandidatos(candidatos, tipoAviso, nombreTipo) {
     if (!candidatos || candidatos.length === 0) {
@@ -132,8 +241,8 @@
 
     const confirmar = confirm(
       `Se encontraron ${candidatos.length} candidatos para ${nombreTipo}.\n\n` +
-      `Se procesara cada uno con confirmacion individual.\n\n` +
-      `Continuar?`
+      `Se procesará cada uno con confirmación individual.\n\n` +
+      `¿Continuar?`
     );
 
     if (!confirmar) {
@@ -145,26 +254,20 @@
     for (let i = 0; i < candidatos.length; i++) {
       const c = candidatos[i];
 
-      const mensaje = `[${i + 1}/${candidatos.length}] ${nombreTipo.toUpperCase()}\n\n` +
-                      `Cedula: ${c.cedula}\n` +
-                      `Nombre: ${c.nombreCompleto}\n` +
-                      `Telefono: ${c.telefono || 'N/A'}\n` +
-                      (c.diasMora ? `Dias mora: ${c.diasMora}\n` : '') +
-                      `Fecha limite: ${c.fechaFormateada || c.fechaLimite}\n` +
-                      `Link pago: ${c.linkPago}\n\n` +
-                      `SI = Enviar notificacion WhatsApp + registrar\n` +
-                      `NO = Solo registrar en Strapi (ya fue cobrado)\n` +
-                      `CANCELAR = Omitir este candidato`;
+      const respuesta = await mostrarModalConfirmacion(c, i, candidatos.length, nombreTipo);
 
-      // Simular msgBox con 3 opciones usando prompts
-      const respuesta = prompt(mensaje + '\n\nEscribe: SI, NO o CANCELAR');
+      if (respuesta === 'CANCELAR') {
+        // Cancelar todo el proceso de este tipo
+        console.log(`Proceso ${nombreTipo} cancelado por el usuario`);
+        break;
+      }
 
-      if (!respuesta || respuesta.toUpperCase() === 'CANCELAR') {
+      if (respuesta === 'OMITIR') {
         resultados.omitidos.push(`${c.cedula} - ${c.nombreCompleto}`);
         continue;
       }
 
-      const soloSincronizar = respuesta.toUpperCase() === 'NO';
+      const soloSincronizar = respuesta === 'NO';
 
       showStatus(`Procesando ${i + 1}/${candidatos.length}: ${c.cedula}...`);
 
