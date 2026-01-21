@@ -165,20 +165,23 @@ async function obtenerLinksCobranzasHistorico(tipoAviso) {
 
 /**
  * Obtiene cuotas de Strapi con filtros dinámicos
+ * Los filtros se pasan como un array de strings completos, ej:
+ * ['filters[estado_pago][$eq]=en_mora', 'filters[estado_firma][$eq]=firmado']
  */
-async function obtenerCuotasStrapi(filtros = {}) {
+async function obtenerCuotasStrapi(filtros = []) {
   const cuotas = [];
   let currentPage = 1;
   let totalPages = 1;
 
   while (currentPage <= totalPages) {
-    const queryParts = ['pagination[pageSize]=100', `pagination[page]=${currentPage}`];
-
-    Object.entries(filtros).forEach(([key, value]) => {
-      queryParts.push(`filters[${key}]=${encodeURIComponent(value)}`);
-    });
+    const queryParts = [
+      'pagination[pageSize]=100',
+      `pagination[page]=${currentPage}`,
+      ...filtros
+    ];
 
     const url = `${STRAPI_BASE_URL}/api/carteras?${queryParts.join('&')}`;
+    console.log(`📋 Consultando Strapi: ${url}`);
 
     try {
       const response = await axios.get(url, {
@@ -186,15 +189,21 @@ async function obtenerCuotasStrapi(filtros = {}) {
         timeout: 30000
       });
 
+      console.log(`📋 Strapi respuesta status: ${response.status}, items: ${response.data?.data?.length || 0}`);
+
       if (response.status === 200 && response.data?.data) {
         cuotas.push(...response.data.data);
 
         if (response.data.meta?.pagination) {
           totalPages = response.data.meta.pagination.pageCount;
+          console.log(`📋 Página ${currentPage}/${totalPages}`);
         }
       }
     } catch (e) {
       console.error(`Error obteniendo cuotas página ${currentPage}:`, e.message);
+      if (e.response) {
+        console.error(`Strapi error response:`, e.response.status, e.response.data);
+      }
       break;
     }
 
@@ -204,6 +213,7 @@ async function obtenerCuotasStrapi(filtros = {}) {
     }
   }
 
+  console.log(`📋 Total cuotas obtenidas: ${cuotas.length}`);
   return cuotas;
 }
 
@@ -307,46 +317,64 @@ async function obtenerCandidatosMora() {
   // Verificar ley dejen de fregar
   const ley = await leyDejenDeFregar();
   if (ley.activa) {
+    console.log(`❌ Ley dejen de fregar activa: ${ley.razon}`);
     return { error: ley.razon, candidatos: [] };
   }
+  console.log('✅ Ley dejen de fregar NO activa');
 
   // Obtener links ya notificados
   const linksYaNotificados = await obtenerLinksCobranzasHistorico('Aviso mora');
+  console.log(`📋 Links ya notificados (mora): ${linksYaNotificados.size}`);
 
   // Obtener cuotas en mora firmadas
-  const cuotasEnMora = await obtenerCuotasStrapi({
-    'estado_pago][$eq': 'en_mora',
-    'estado_firma][$eq': 'firmado'
-  });
+  const cuotasEnMora = await obtenerCuotasStrapi([
+    'filters[estado_pago][$eq]=en_mora',
+    'filters[estado_firma][$eq]=firmado'
+  ]);
 
-  console.log(`Total cuotas en mora: ${cuotasEnMora.length}`);
+  console.log(`📋 Total cuotas en mora (firmadas): ${cuotasEnMora.length}`);
+
+  // Debug: mostrar primeras cuotas
+  if (cuotasEnMora.length > 0) {
+    console.log('📋 Primera cuota ejemplo:', JSON.stringify(cuotasEnMora[0], null, 2));
+  }
 
   // Filtrar cuotas con 3-5 días de mora
   const candidatos = [];
   const procesados = new Set();
+  let debugCount = 0;
 
   cuotasEnMora.forEach(cuota => {
-    const diasMora = calcularDiasMora(cuota.fecha_limite);
-    const linkPago = cuota.link_pago || '';
+    // Strapi v4 puede tener datos en attributes o directamente
+    const datos = cuota.attributes || cuota;
+    const fechaLimite = datos.fecha_limite;
+    const diasMora = calcularDiasMora(fechaLimite);
+    const linkPago = datos.link_pago || '';
+
+    // Debug primeras 5 cuotas
+    if (debugCount < 5) {
+      console.log(`📋 Cuota debug: fecha_limite=${fechaLimite}, diasMora=${diasMora}, linkPago=${linkPago ? 'SI' : 'NO'}`);
+      debugCount++;
+    }
 
     if (diasMora >= 3 && diasMora <= 5 && linkPago && !linksYaNotificados.has(linkPago) && !procesados.has(linkPago)) {
       procesados.add(linkPago);
 
       candidatos.push({
-        cedula: String(cuota.numero_documento),
-        nombre: cuota.nombres ? cuota.nombres.split(' ')[0] : '',
-        nombreCompleto: `${cuota.nombres || ''} ${cuota.apellidos || ''}`.trim(),
-        telefono: normalizarTelefono(cuota.celular),
+        cedula: String(datos.numero_documento),
+        nombre: datos.nombres ? datos.nombres.split(' ')[0] : '',
+        nombreCompleto: `${datos.nombres || ''} ${datos.apellidos || ''}`.trim(),
+        telefono: normalizarTelefono(datos.celular),
         linkPago: linkPago,
-        producto: cuota.producto || '',
+        producto: datos.producto || '',
         diasMora: diasMora,
-        fechaLimite: cuota.fecha_limite,
-        fechaFormateada: formatearFecha(cuota.fecha_limite)
+        fechaLimite: fechaLimite,
+        fechaFormateada: formatearFecha(fechaLimite)
       });
     }
   });
 
-  console.log(`Candidatos MORA (3-5 días): ${candidatos.length}`);
+  console.log(`📋 Candidatos MORA (3-5 días): ${candidatos.length}`);
   return { candidatos, totalCuotas: cuotasEnMora.length };
 }
 
@@ -383,31 +411,36 @@ async function obtenerCandidatosFecha() {
     // Función helper para obtener candidatos de una fecha
     const obtenerCandidatosDeFecha = async (fecha, etiqueta) => {
       const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+      console.log(`📋 Buscando cuotas FECHA para ${etiqueta}: ${fechaStr}`);
 
-      const cuotas = await obtenerCuotasStrapi({
-        'estado_pago][$eq': 'al_dia',
-        'fecha_limite][$eq': fechaStr,
-        'estado_firma][$eq': 'firmado'
-      });
+      const cuotas = await obtenerCuotasStrapi([
+        'filters[estado_pago][$eq]=al_dia',
+        `filters[fecha_limite][$eq]=${fechaStr}`,
+        'filters[estado_firma][$eq]=firmado'
+      ]);
+
+      console.log(`📋 Cuotas encontradas para ${etiqueta}: ${cuotas.length}`);
 
       const candidatos = [];
       const procesados = new Set();
 
       cuotas.forEach(cuota => {
-        const linkPago = cuota.link_pago || '';
+        // Strapi v4 puede tener datos en attributes o directamente
+        const datos = cuota.attributes || cuota;
+        const linkPago = datos.link_pago || '';
 
         if (linkPago && !linksYaNotificados.has(linkPago) && !procesados.has(linkPago)) {
           procesados.add(linkPago);
 
           candidatos.push({
-            cedula: String(cuota.numero_documento),
-            nombre: cuota.nombres ? cuota.nombres.split(' ')[0] : '',
-            nombreCompleto: `${cuota.nombres || ''} ${cuota.apellidos || ''}`.trim(),
-            telefono: normalizarTelefono(cuota.celular),
+            cedula: String(datos.numero_documento),
+            nombre: datos.nombres ? datos.nombres.split(' ')[0] : '',
+            nombreCompleto: `${datos.nombres || ''} ${datos.apellidos || ''}`.trim(),
+            telefono: normalizarTelefono(datos.celular),
             linkPago: linkPago,
-            producto: cuota.producto || '',
-            fechaLimite: cuota.fecha_limite,
-            fechaFormateada: formatearFecha(cuota.fecha_limite),
+            producto: datos.producto || '',
+            fechaLimite: datos.fecha_limite,
+            fechaFormateada: formatearFecha(datos.fecha_limite),
             etiquetaDia: etiqueta
           });
         }
@@ -472,11 +505,11 @@ async function obtenerCandidatosPrevio() {
   console.log(`Buscando cuotas con vencimiento en: ${fechaObjetivoStr}`);
 
   // Obtener cuotas al día que vencen en 7 días
-  const cuotasAlDia = await obtenerCuotasStrapi({
-    'estado_pago][$eq': 'al_dia',
-    'fecha_limite][$eq': fechaObjetivoStr,
-    'estado_firma][$eq': 'firmado'
-  });
+  const cuotasAlDia = await obtenerCuotasStrapi([
+    'filters[estado_pago][$eq]=al_dia',
+    `filters[fecha_limite][$eq]=${fechaObjetivoStr}`,
+    'filters[estado_firma][$eq]=firmado'
+  ]);
 
   console.log(`Total cuotas al día con vencimiento en 7 días: ${cuotasAlDia.length}`);
 
@@ -484,25 +517,27 @@ async function obtenerCandidatosPrevio() {
   const procesados = new Set();
 
   cuotasAlDia.forEach(cuota => {
-    const linkPago = cuota.link_pago || '';
+    // Strapi v4 puede tener datos en attributes o directamente
+    const datos = cuota.attributes || cuota;
+    const linkPago = datos.link_pago || '';
 
     if (linkPago && !linksYaNotificados.has(linkPago) && !procesados.has(linkPago)) {
       procesados.add(linkPago);
 
       candidatos.push({
-        cedula: String(cuota.numero_documento),
-        nombre: cuota.nombres ? cuota.nombres.split(' ')[0] : '',
-        nombreCompleto: `${cuota.nombres || ''} ${cuota.apellidos || ''}`.trim(),
-        telefono: normalizarTelefono(cuota.celular),
+        cedula: String(datos.numero_documento),
+        nombre: datos.nombres ? datos.nombres.split(' ')[0] : '',
+        nombreCompleto: `${datos.nombres || ''} ${datos.apellidos || ''}`.trim(),
+        telefono: normalizarTelefono(datos.celular),
         linkPago: linkPago,
-        producto: cuota.producto || '',
-        fechaLimite: cuota.fecha_limite,
-        fechaFormateada: formatearFecha(cuota.fecha_limite)
+        producto: datos.producto || '',
+        fechaLimite: datos.fecha_limite,
+        fechaFormateada: formatearFecha(datos.fecha_limite)
       });
     }
   });
 
-  console.log(`Candidatos PREVIO: ${candidatos.length}`);
+  console.log(`📋 Candidatos PREVIO: ${candidatos.length}`);
   return { candidatos, fechaObjetivo: fechaObjetivoStr, totalCuotas: cuotasAlDia.length };
 }
 
