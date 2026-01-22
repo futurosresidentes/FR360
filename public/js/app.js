@@ -2617,17 +2617,11 @@
         const fechaLimite = tr.dataset.fechaLimite; // formato "YYYY-MM-DD"
         if (!fechaLimite || fechaLimite === '1970-01-01') return;
 
-        // Calcular "hoy" en zona horaria de Colombia (UTC-5)
-        const now = new Date();
-        const colombiaOffset = -5 * 60; // UTC-5 en minutos
-        const localOffset = now.getTimezoneOffset(); // Offset del navegador
-        const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
-
-        const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
-        const limite = new Date(fechaLimite + 'T00:00:00-05:00');
+        // Calcular "hoy" en zona horaria de Colombia (comparación por strings YYYY-MM-DD)
+        const hoyColombiaStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
         // Recalcular estado basándose en la fecha
-        if (limite < hoy) {
+        if (fechaLimite < hoyColombiaStr) {
           // La fecha límite YA pasó → En mora
           if (estadoActual !== 'en_mora') {
             tr.dataset.estadoPago = 'en_mora';
