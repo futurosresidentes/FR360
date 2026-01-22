@@ -520,11 +520,11 @@ function getStageStatus(webhook, columnName, isAccepted) {
       new Date(b.created_at) - new Date(a.created_at)
     )[0];
 
-    // Debug: Ver las fechas para el webhook 990
-    if (webhook.id === 990 && columnName === 'FRAPP') {
-      console.log(`[DEBUG 990 FRAPP] Latest Success Date:`, latestSuccess.created_at, new Date(latestSuccess.created_at));
-      console.log(`[DEBUG 990 FRAPP] Latest Error Date:`, latestError.created_at, new Date(latestError.created_at));
-      console.log(`[DEBUG 990 FRAPP] Success > Error?`, new Date(latestSuccess.created_at) > new Date(latestError.created_at));
+    // Debug: Ver las fechas para comparación
+    if (columnName === 'DIAN') {
+      console.log(`[DEBUG ${webhook.id} DIAN] Latest Success:`, latestSuccess?.created_at);
+      console.log(`[DEBUG ${webhook.id} DIAN] Latest Error:`, latestError?.created_at);
+      console.log(`[DEBUG ${webhook.id} DIAN] Success > Error?`, new Date(latestSuccess.created_at) > new Date(latestError.created_at));
     }
 
     // Si el success es más reciente que el error, mostrar success
@@ -729,11 +729,15 @@ function showStageDetails(columnName, logs, webhookData) {
     }).join('');
   }
 
-  // Agregar botón para marcar como completado manualmente (DIAN y FRAPP con errores o skipped)
+  // Agregar botón para marcar como completado manualmente (DIAN y FRAPP con errores, skipped o not-run)
   const stageStatus = webhookData[columnName];
   const allowedColumns = ['DIAN', 'FRAPP'];
+  const allowedStatuses = ['error', 'skipped', 'not-run'];
 
-  if (allowedColumns.includes(columnName) && stageStatus && (stageStatus.status === 'error' || stageStatus.status === 'skipped' || stageStatus.icon === '⛔')) {
+  console.log(`[WebPig Debug] Column: ${columnName}, Status:`, stageStatus);
+  console.log(`[WebPig Debug] Condition check: allowed=${allowedColumns.includes(columnName)}, hasStatus=${!!stageStatus}, statusMatch=${stageStatus ? allowedStatuses.includes(stageStatus.status) : 'N/A'}, iconMatch=${stageStatus?.icon === '⛔'}`);
+
+  if (allowedColumns.includes(columnName) && stageStatus && (allowedStatuses.includes(stageStatus.status) || stageStatus.icon === '⛔')) {
     const helpText = columnName === 'DIAN'
       ? 'Usa este botón si ya emitiste a DIAN manualmente'
       : 'Usa este botón si ya completaste este proceso manualmente';

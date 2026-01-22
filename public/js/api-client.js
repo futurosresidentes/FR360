@@ -84,6 +84,27 @@ class FR360ApiClient {
     return this._call('sincronizarCrmPorNumeroDocumento', uid);
   }
 
+  async createOrUpdateCRMContact(data) {
+    try {
+      const response = await fetch(`${this.baseUrl}/crm/create-or-update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API Error [createOrUpdateCRMContact]:', error);
+      throw error;
+    }
+  }
+
   // ===== PRODUCTS =====
 
   async getProductosServer() {

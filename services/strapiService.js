@@ -648,7 +648,7 @@ async function consultarAcuerdo(nroAcuerdo) {
   try {
     console.log('Consultando acuerdo:', nroAcuerdo);
 
-    const url = `${STRAPI_BASE_URL}/api/carteras?populate=*&filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}`;
+    const url = `${STRAPI_BASE_URL}/api/carteras?populate=*&filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}&pagination[pageSize]=100`;
 
     const response = await axios.get(url, {
       headers: {
@@ -666,7 +666,7 @@ async function consultarAcuerdo(nroAcuerdo) {
       };
     }
 
-    console.log('Respuesta de la API:', response.data);
+    console.log('Respuesta de la API - total registros:', response.data?.data?.length);
 
     if (!response.data.data || response.data.data.length === 0) {
       console.log('No se encontró el acuerdo');
@@ -677,23 +677,57 @@ async function consultarAcuerdo(nroAcuerdo) {
       };
     }
 
-    const acuerdo = response.data.data[0];
-    const attributes = acuerdo.attributes || acuerdo;
+    // Obtener datos del primer registro para info general
+    const primerRegistro = response.data.data[0];
+    const attrPrimero = primerRegistro.attributes || primerRegistro;
+
+    // Obtener nombre del producto
+    const productoNombre = attrPrimero.producto?.data?.attributes?.nombre
+      || attrPrimero.producto?.nombre
+      || 'Producto';
+
+    // Mapear TODAS las cuotas del acuerdo
+    const cuotas = response.data.data.map(registro => {
+      const attr = registro.attributes || registro;
+      return {
+        id: registro.id,
+        nro_cuota: attr.cuota_nro,
+        estado_pago: attr.estado_pago,
+        valor_cuota: attr.valor_cuota,
+        fecha_limite: attr.fecha_limite,
+        link_pago: attr.link_pago,
+        producto: productoNombre
+      };
+    });
+
+    // Ordenar por número de cuota
+    cuotas.sort((a, b) => a.nro_cuota - b.nro_cuota);
+
+    // Obtener IDs de producto y comercial
+    const productoId = attrPrimero.producto?.data?.id || attrPrimero.producto?.id || null;
+    const comercialId = attrPrimero.comercial?.data?.id || attrPrimero.comercial?.id || null;
+    const comercialNombre = attrPrimero.comercial?.data?.attributes?.nombre || attrPrimero.comercial?.nombre || '';
 
     const resultado = {
       success: true,
       data: {
-        numero_documento: attributes.numero_documento || '',
-        producto: attributes.producto?.data?.attributes?.nombre || attributes.producto?.nombre || '',
-        comercial: attributes.comercial?.data?.attributes?.nombre || attributes.comercial?.nombre || '',
-        fechaInicio: attributes.inicio_plataforma || '',
-        estado: attributes.estado_firma || '',
-        correo: attributes.correo || '',
-        celular: attributes.celular || ''
-      }
+        numero_documento: attrPrimero.numero_documento || '',
+        producto: productoNombre,
+        productoId: productoId,
+        comercial: comercialNombre,
+        comercialId: comercialId,
+        fechaInicio: attrPrimero.inicio_plataforma || '',
+        estado: attrPrimero.estado_firma || '',
+        correo: attrPrimero.correo || '',
+        celular: attrPrimero.celular || ''
+      },
+      cuotas: cuotas,
+      producto: productoNombre,
+      productoId: productoId,
+      comercialId: comercialId
     };
 
-    console.log('Acuerdo encontrado:', resultado.data);
+    console.log('Acuerdo encontrado con', cuotas.length, 'cuotas');
     return resultado;
 
   } catch (error) {
@@ -1055,6 +1089,287 @@ async function fetchAnticipadosPendientes() {
   }
 }
 
+/**
+ * Guardar venta en cuenta corriente en Strapi
+ * @param {Object} data - Datos de la venta
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function guardarVentaCorriente(data) {
+  const ENDPOINT = `${STRAPI_BASE_URL}/api/ventas-corrientes`;
+
+  console.log('💾 [Strapi] Guardando venta corriente:', JSON.stringify(data, null, 2));
+
+  try {
+    // Construir payload con todos los campos de ventas-corrientes
+    const payloadData = {
+      numero_documento: data.numero_documento || '',
+      nombres: data.nombres || '',
+      apellidos: data.apellidos || '',
+      correo: data.correo || '',
+      celular: data.celular || '',
+      nro_acuerdo: data.nro_acuerdo || '',
+      valor: data.valor ? Number(data.valor) : 0,
+      estado: 'pendiente',
+      comprobante_url: data.comprobante_url || '',
+      direccion: data.direccion || '',
+      ciudad: data.ciudad || '',
+      // Relaciones (formato Strapi v4)
+      producto: data.productoId ? { id: Number(data.productoId) } : null,
+      comercial: data.comercialId ? { id: Number(data.comercialId) } : null
+    };
+
+    const payload = { data: payloadData };
+
+    console.log('📤 [Strapi] Payload completo:', JSON.stringify(payload, null, 2));
+    console.log('📤 [Strapi] Endpoint:', ENDPOINT);
+
+    const response = await axios.post(ENDPOINT, payload, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('✅ [Strapi] Venta corriente guardada exitosamente:', response.status);
+    return { success: true, data: response.data };
+
+  } catch (error) {
+    console.error('❌ [Strapi] Error guardando venta corriente:', error.message);
+    if (error.response) {
+      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+      console.error('Response status:', error.response.status);
+    }
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Normaliza el teléfono agregando +57 si es necesario
+ * @param {string} telefono - Número de teléfono
+ * @returns {string} - Teléfono normalizado
+ */
+function normalizePhone(telefono) {
+  if (!telefono) return '';
+
+  const cleanPhone = telefono.trim();
+
+  // Si ya tiene +57 o +, retornar tal cual
+  if (cleanPhone.startsWith('+')) {
+    return cleanPhone;
+  }
+
+  // Si es un número de 10 dígitos que empieza con 3 (celular colombiano)
+  if (/^3\d{9}$/.test(cleanPhone)) {
+    return '+57' + cleanPhone;
+  }
+
+  return cleanPhone;
+}
+
+/**
+ * Crear o actualizar contacto en ActiveCampaign CRM
+ * Estrategia Create-First: Intenta crear primero, si existe entonces actualiza
+ * @param {Object} data - Datos del contacto
+ * @param {string} data.correo - Email
+ * @param {string} data.nombres - Nombre
+ * @param {string} data.apellidos - Apellido
+ * @param {string} data.celular - Teléfono
+ * @param {string} data.cedula - Cédula
+ * @returns {Promise<Object>} - Resultado de la operación
+ */
+async function createOrUpdateCRMContact(data) {
+  const API_TOKEN = process.env.ACTIVECAMPAIGN_API_TOKEN;
+  const AC_BASE_URL = 'https://sentiretaller.api-us1.com/api/3';
+
+  if (!API_TOKEN) {
+    throw new Error('ACTIVECAMPAIGN_API_TOKEN no está configurado');
+  }
+
+  console.log(`📇 [CRM] Iniciando create-or-update para: ${data.correo}`);
+
+  // Función interna para crear contacto
+  async function createContact() {
+    const url = `${AC_BASE_URL}/contacts`;
+
+    const fieldValues = [];
+
+    // Campo 2: Cédula (siempre presente)
+    if (data.cedula) {
+      fieldValues.push({
+        field: '2',
+        value: data.cedula
+      });
+    }
+
+    const contactData = {
+      contact: {
+        email: data.correo,
+        firstName: data.nombres || '',
+        lastName: data.apellidos || '',
+        phone: normalizePhone(data.celular),
+        fieldValues
+      }
+    };
+
+    console.log(`📇 [CRM] Intentando crear contacto: ${data.correo}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Api-Token': API_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(contactData)
+    });
+
+    const responseData = await response.json().catch(() => ({}));
+    console.log(`📇 [CRM] Response status: ${response.status}`);
+    console.log(`📇 [CRM] Response data:`, JSON.stringify(responseData, null, 2));
+
+    // Si fue creado exitosamente
+    if (response.ok) {
+      console.log(`✅ [CRM] Contacto creado exitosamente: ${responseData.contact?.id}`);
+      return {
+        created: true,
+        contact: responseData.contact
+      };
+    }
+
+    // Si es un error de duplicado
+    if (response.status === 422 || response.status === 400) {
+      const errors = responseData.errors || [];
+      const isDuplicate = errors.some(err =>
+        err.code === 'duplicate' ||
+        err.title?.toLowerCase().includes('correo') ||
+        err.title?.toLowerCase().includes('email')
+      );
+
+      if (isDuplicate) {
+        console.log(`📇 [CRM] Contacto duplicado detectado: ${data.correo}`);
+        return {
+          created: false,
+          duplicate: true,
+          email: data.correo
+        };
+      }
+    }
+
+    // Cualquier otro error
+    throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseData)}`);
+  }
+
+  // Función interna para buscar contacto por email
+  async function findContactByEmail(email) {
+    const url = `${AC_BASE_URL}/contacts?email=${encodeURIComponent(email)}`;
+
+    console.log(`📇 [CRM] Buscando contacto por email: ${email}`);
+
+    const response = await fetch(url, {
+      headers: {
+        'Api-Token': API_TOKEN
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+
+      if (result.contacts && result.contacts.length > 0) {
+        console.log(`✅ [CRM] Contacto encontrado: ${result.contacts[0].id}`);
+        return result.contacts[0];
+      } else {
+        console.log(`⚠️ [CRM] Contacto no encontrado`);
+        return null;
+      }
+    }
+
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+  }
+
+  // Función interna para actualizar contacto
+  async function updateContact(contactId) {
+    const url = `${AC_BASE_URL}/contacts/${contactId}`;
+
+    const fieldValues = [];
+
+    // Campo 2: Cédula
+    if (data.cedula) {
+      fieldValues.push({
+        field: '2',
+        value: data.cedula
+      });
+    }
+
+    const contactData = {
+      contact: {
+        firstName: data.nombres || '',
+        lastName: data.apellidos || '',
+        phone: normalizePhone(data.celular),
+        fieldValues
+      }
+    };
+
+    console.log(`📇 [CRM] Actualizando contacto ${contactId}`);
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Api-Token': API_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(contactData)
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`✅ [CRM] Contacto actualizado exitosamente: ${contactId}`);
+      return result.contact;
+    }
+
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+  }
+
+  // Ejecutar estrategia create-first con retry
+  return await retryWithBackoff(async (attempt) => {
+    console.log(`📇 [CRM] Intento ${attempt} de create-or-update`);
+
+    // 1. Intentar crear primero
+    const createResult = await createContact();
+
+    // Si se creó exitosamente, retornar
+    if (createResult.created) {
+      return {
+        success: true,
+        action: 'created',
+        contact: createResult.contact
+      };
+    }
+
+    // 2. Si es duplicado, buscar y actualizar
+    if (createResult.duplicate) {
+      console.log(`📇 [CRM] Contacto duplicado, buscando para actualizar...`);
+
+      const existingContact = await findContactByEmail(data.correo);
+
+      if (!existingContact) {
+        throw new Error(`[CRM] Contacto reportado como duplicado pero no encontrado: ${data.correo}`);
+      }
+
+      // Actualizar el contacto existente
+      const updatedContact = await updateContact(existingContact.id);
+
+      return {
+        success: true,
+        action: 'updated',
+        contact: updatedContact
+      };
+    }
+
+    throw new Error(`[CRM] Resultado inesperado en createOrUpdateContact`);
+  }, 3, 1000); // 3 reintentos, 1 segundo inicial
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -1074,5 +1389,7 @@ module.exports = {
   getComerciales,
   updateFacturacionComercial,
   updateFacturacion,
-  fetchAnticipadosPendientes
+  fetchAnticipadosPendientes,
+  guardarVentaCorriente,
+  createOrUpdateCRMContact
 };

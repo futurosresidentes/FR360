@@ -1863,9 +1863,39 @@
       c.innerHTML = '';
       c.style.display = 'block';
 
-      // sin datos
+      // sin datos - mostrar botón de reportar venta CC de todas formas
       if (!Array.isArray(data) || data.length === 0) {
-        c.innerHTML = '<p>No hay ventas para mostrar.</p>';
+        // Crear contenedor de controles con el botón de reportar
+        const controlsSinVentas = document.createElement('div');
+        controlsSinVentas.style.display = 'flex';
+        controlsSinVentas.style.alignItems = 'center';
+        controlsSinVentas.style.gap = '8px';
+        controlsSinVentas.style.marginBottom = '12px';
+
+        const btnReportarCCSinVentas = document.createElement('button');
+        btnReportarCCSinVentas.innerHTML = '💴 <span>Reportar venta en cuenta corriente</span>';
+        btnReportarCCSinVentas.className = 'btn-refresh-orange';
+        btnReportarCCSinVentas.addEventListener('click', () => {
+          const datosEstudiante = {
+            cedula: searchId.value.replace(/\D/g, ''),
+            nombres: nombres.value || '',
+            apellidos: apellidos.value || '',
+            celular: celular.value || '',
+            correo: correo.value || ''
+          };
+          if (typeof window.abrirReportarVentaCC === 'function') {
+            window.abrirReportarVentaCC(datosEstudiante);
+          } else {
+            alert('Error: módulo de reportar venta no cargado');
+          }
+        });
+        controlsSinVentas.appendChild(btnReportarCCSinVentas);
+
+        c.appendChild(controlsSinVentas);
+        c.appendChild(document.createTextNode(''));
+        const msgNoVentas = document.createElement('p');
+        msgNoVentas.textContent = 'No hay ventas para mostrar.';
+        c.appendChild(msgNoVentas);
         return;
       }
 
@@ -1945,6 +1975,28 @@
           });
       });
       controls.appendChild(btn);
+
+      // Botón Reportar Venta en Cuenta Corriente
+      const btnReportarCC = document.createElement('button');
+      btnReportarCC.innerHTML = '💴 <span>Reportar venta en cuenta corriente</span>';
+      btnReportarCC.className = 'btn-refresh-orange';
+      btnReportarCC.style.marginLeft = '8px';
+      btnReportarCC.addEventListener('click', () => {
+        // Obtener datos del estudiante actual
+        const datosEstudiante = {
+          cedula: searchId.value.replace(/\D/g, ''),
+          nombres: nombres.value || '',
+          apellidos: apellidos.value || '',
+          celular: celular.value || '',
+          correo: correo.value || ''
+        };
+        if (typeof window.abrirReportarVentaCC === 'function') {
+          window.abrirReportarVentaCC(datosEstudiante);
+        } else {
+          alert('Error: módulo de reportar venta no cargado');
+        }
+      });
+      controls.appendChild(btnReportarCC);
 
       resumen.appendChild(controls);
       c.appendChild(resumen);
@@ -4937,6 +4989,24 @@
         }
 
         otorgarAccesoBtn.disabled = true;
+        otorgarAccesoBtn.innerHTML = '⏳ Sincronizando CRM...';
+
+        // 0. Crear o actualizar contacto en CRM (ActiveCampaign)
+        try {
+          console.log('📇 Sincronizando contacto en CRM...');
+          const crmResult = await api.createOrUpdateCRMContact({
+            correo: correo,
+            nombres: nombres,
+            apellidos: apellidos,
+            celular: celular,
+            cedula: cedula
+          });
+          console.log('📇 CRM sincronizado:', crmResult);
+        } catch (crmError) {
+          console.error('⚠️ Error sincronizando CRM (continuando proceso):', crmError);
+          // No bloquear el proceso si falla CRM, solo registrar el error
+        }
+
         otorgarAccesoBtn.innerHTML = '⏳ Procesando...';
 
         // 1. Obtener datos de membresías (usar cache o consultar)
@@ -5082,10 +5152,31 @@
         }
 
         // 5. Calcular fechas usando las funciones de formato de membresía
-        const membershipStartDate = getMembershipStartDate(fechaInicio);
+        // Verificar si la fecha de inicio es anterior a hoy (hasta máximo 3 días)
+        let fechaInicioAjustada = fechaInicio;
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaInicioObj = parseLocalDate(fechaInicio);
+        fechaInicioObj.setHours(0, 0, 0, 0);
 
-        // Calcular fecha de fin sumando los días de duración
-        const startDateObj = parseLocalDate(fechaInicio);
+        const diffMs = hoy.getTime() - fechaInicioObj.getTime();
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        console.log('Diferencia en días entre hoy y fecha inicio:', diffDias);
+
+        // Si la fecha de inicio está en el pasado (hasta 3 días), ajustar a hoy
+        if (diffDias > 0 && diffDias <= 3) {
+          console.log(`⚠️ Fecha inicio está ${diffDias} día(s) en el pasado. Ajustando fechas...`);
+          fechaInicioAjustada = formatLocalDate(hoy);
+          console.log('Fecha inicio ajustada a hoy:', fechaInicioAjustada);
+        } else if (diffDias > 3) {
+          console.log(`❌ Fecha inicio está ${diffDias} días en el pasado (más de 3). No se ajusta, se dejará que FRAPP genere el error.`);
+        }
+
+        const membershipStartDate = getMembershipStartDate(fechaInicioAjustada);
+
+        // Calcular fecha de fin sumando los días de duración (desde la fecha ajustada)
+        const startDateObj = parseLocalDate(fechaInicioAjustada);
         startDateObj.setDate(startDateObj.getDate() + durationDays);
         const endDateString = formatLocalDate(startDateObj);
         const membershipEndDate = getMembershipExpiryDate(endDateString);
@@ -5093,7 +5184,8 @@
         console.log('Producto:', producto);
         console.log('MembershipPlanId:', membershipPlanId);
         console.log('Duración en días:', durationDays);
-        console.log('Fecha inicio (input):', fechaInicio);
+        console.log('Fecha inicio (original):', fechaInicio);
+        console.log('Fecha inicio (ajustada):', fechaInicioAjustada);
         console.log('Fecha inicio (formateada):', membershipStartDate);
         console.log('Fecha fin (formateada):', membershipEndDate);
 

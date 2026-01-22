@@ -37,8 +37,8 @@ const supabase = createClient(
 // --- Middlewares básicos
 app.use(morgan('dev'));
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static('public'));
 
 // Configurar trust proxy para Render
@@ -1815,6 +1815,40 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchAnticipadosPendientes();
         break;
 
+      // === GOOGLE DRIVE ===
+      case 'subirArchivoGoogleDrive':
+        // args[0] = { folderId, fileName, mimeType, base64Content }
+        console.log('📤 [API] subirArchivoGoogleDrive llamado');
+        console.log('📤 [API] args[0] keys:', args[0] ? Object.keys(args[0]) : 'undefined');
+        console.log('📤 [API] folderId:', args[0]?.folderId);
+        console.log('📤 [API] fileName:', args[0]?.fileName);
+        console.log('📤 [API] mimeType:', args[0]?.mimeType);
+        console.log('📤 [API] base64Content length:', args[0]?.base64Content?.length || 0);
+        try {
+          result = await googleDriveService.subirArchivo(args[0]);
+          console.log('📤 [API] Resultado:', JSON.stringify(result));
+        } catch (driveError) {
+          console.error('📤 [API] Error en subirArchivo:', driveError);
+          result = { success: false, error: driveError.message };
+        }
+        break;
+
+      // === SUPABASE STORAGE ===
+      case 'subirArchivoSupabase':
+        // args[0] = { bucketName, fileName, mimeType, base64Content }
+        console.log('📤 [API] subirArchivoSupabase llamado');
+        console.log('📤 [API] bucketName:', args[0]?.bucketName);
+        console.log('📤 [API] fileName:', args[0]?.fileName);
+        result = await pdfService.subirArchivoSupabase(args[0]);
+        break;
+
+      // === VENTAS CORRIENTE ===
+      case 'guardarVentaCorriente':
+        // args[0] = { numero_documento, nombres, apellidos, correo, celular, comercialId, productoId, nro_acuerdo, valor, comprobante_url, direccion, ciudad }
+        console.log('💾 [API] guardarVentaCorriente llamado');
+        result = await strapiService.guardarVentaCorriente(args[0]);
+        break;
+
       // === COBRANZA / DESBLOQUEO ===
       case 'obtenerCandidatosDesbloqueo':
         result = await cobranzaService.obtenerCandidatosDesbloqueo();
@@ -2415,6 +2449,30 @@ app.get('/api/crm/email/:email', async (req, res) => {
     res.json({ success: true, data: crm });
   } catch (error) {
     console.error('Error getting CRM by email:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Crear o actualizar contacto en CRM (ActiveCampaign)
+app.post('/api/crm/create-or-update', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const { correo, nombres, apellidos, celular, cedula } = req.body;
+
+    if (!correo) {
+      return res.status(400).json({ success: false, error: 'El correo es requerido' });
+    }
+
+    const result = await strapiService.createOrUpdateCRMContact({
+      correo,
+      nombres,
+      apellidos,
+      celular,
+      cedula
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error creating/updating CRM contact:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
