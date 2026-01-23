@@ -1377,10 +1377,15 @@ function initWebPig() {
     }
   }
 
-  // Ventas en cuenta corriente button
+  // Ventas en cuenta corriente button (solo usuarios autorizados)
   const ventasCCBtn = document.getElementById('ventasCCBtn');
+  const ventasCCAllowed = ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'];
   if (ventasCCBtn) {
-    ventasCCBtn.addEventListener('click', loadVentasCC);
+    if (ventasCCAllowed.includes(window.userEmail)) {
+      ventasCCBtn.addEventListener('click', loadVentasCC);
+    } else {
+      ventasCCBtn.style.display = 'none';
+    }
   }
 
   // Volver a Web Pig button
