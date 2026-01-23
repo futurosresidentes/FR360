@@ -2755,6 +2755,12 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   background-color: #f8f9fa;
 }
 
+.ventas-cc-table thead th {
+  background: #e65100 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
 /* Responsive para móvil */
 @media (max-width: 768px) {
   #refreshEpaycoBtn {

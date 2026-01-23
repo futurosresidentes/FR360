@@ -355,8 +355,94 @@ async function generarYEnviarPazYSalvo(data) {
   };
 }
 
+/**
+ * Sube un archivo genérico a Supabase Storage
+ * @param {Object} data - Datos del archivo
+ * @param {string} data.bucketName - Nombre del bucket (se crea si no existe)
+ * @param {string} data.fileName - Nombre del archivo
+ * @param {string} data.mimeType - Tipo MIME del archivo
+ * @param {string} data.base64Content - Contenido del archivo en base64
+ * @returns {Promise<Object>} - { success, url, error }
+ */
+async function subirArchivoSupabase(data) {
+  const { bucketName, fileName, mimeType, base64Content } = data;
+
+  console.log('📤 [Supabase] Subiendo archivo:', fileName);
+  console.log('📤 [Supabase] Bucket:', bucketName);
+  console.log('📤 [Supabase] Tipo MIME:', mimeType);
+  console.log('📤 [Supabase] Tamaño base64:', base64Content?.length || 0, 'caracteres');
+
+  if (!bucketName || !fileName || !mimeType || !base64Content) {
+    console.error('❌ [Supabase] Faltan parámetros:', { bucketName: !!bucketName, fileName: !!fileName, mimeType: !!mimeType, base64Content: !!base64Content });
+    return {
+      success: false,
+      error: 'Faltan parámetros requeridos para subir archivo'
+    };
+  }
+
+  try {
+    const supabase = getSupabase();
+
+    // Asegurar que el bucket existe
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === bucketName);
+
+    if (!bucketExists) {
+      console.log(`📦 [Supabase] Creando bucket ${bucketName}...`);
+      const { error: createError } = await supabase.storage.createBucket(bucketName, {
+        public: true,
+        fileSizeLimit: 10485760 // 10MB
+      });
+      if (createError && !createError.message.includes('already exists')) {
+        throw new Error(`Error creando bucket: ${createError.message}`);
+      }
+    }
+
+    // Convertir base64 a buffer
+    const buffer = Buffer.from(base64Content, 'base64');
+    console.log('📤 [Supabase] Buffer creado, tamaño:', buffer.length, 'bytes');
+
+    // Generar path único con timestamp
+    const timestamp = Date.now();
+    const filePath = `${timestamp}-${fileName}`;
+
+    // Subir el archivo
+    const { data: uploadData, error } = await supabase.storage
+      .from(bucketName)
+      .upload(filePath, buffer, {
+        contentType: mimeType,
+        upsert: false
+      });
+
+    if (error) {
+      throw new Error(`Error subiendo archivo: ${error.message}`);
+    }
+
+    // Obtener URL pública
+    const { data: publicUrl } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    console.log('✅ [Supabase] Archivo subido exitosamente:', publicUrl.publicUrl);
+
+    return {
+      success: true,
+      url: publicUrl.publicUrl,
+      path: filePath
+    };
+
+  } catch (error) {
+    console.error('❌ [Supabase] Error subiendo archivo:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   generarPazYSalvo,
   enviarPazYSalvoPorCallbell,
-  generarYEnviarPazYSalvo
+  generarYEnviarPazYSalvo,
+  subirArchivoSupabase
 };

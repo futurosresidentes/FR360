@@ -1157,6 +1157,202 @@ async function loadWebhooks() {
   }
 }
 
+// ===== VENTAS EN CUENTA CORRIENTE =====
+let ventasCCActive = false;
+let ventasCCData = []; // Store ventas for processing
+
+async function loadVentasCC() {
+  const container = document.getElementById('webpigContainer');
+  const controls = document.querySelector('.webpig-controls');
+  const title = document.getElementById('webpigTitle');
+  const refreshBtn = document.getElementById('refreshWebhooksBtn');
+  const ventasBtn = document.getElementById('ventasCCBtn');
+  const volverBtn = document.getElementById('volverWebPigBtn');
+
+  try {
+    ventasBtn.disabled = true;
+    ventasBtn.textContent = '⏳ Cargando...';
+
+    // Hide controls and refresh button, show volver
+    if (controls) controls.style.display = 'none';
+    refreshBtn.style.display = 'none';
+    volverBtn.style.display = '';
+    title.innerHTML = '<span style="color:#e65100;">💴 Ventas en Cuenta Corriente</span>';
+
+    const response = await fetch('/api/webpig/ventas-cc');
+    const data = await response.json();
+
+    if (data.success) {
+      ventasCCData = data.ventas;
+      renderVentasCCTable(container, data.ventas);
+      attachVentasCCHandlers(container);
+      ventasCCActive = true;
+    } else {
+      container.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+    }
+  } catch (error) {
+    container.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+  } finally {
+    ventasBtn.disabled = false;
+    ventasBtn.textContent = '💴 Ventas en cuenta corriente';
+  }
+}
+
+function volverAWebPig() {
+  const controls = document.querySelector('.webpig-controls');
+  const title = document.getElementById('webpigTitle');
+  const refreshBtn = document.getElementById('refreshWebhooksBtn');
+  const volverBtn = document.getElementById('volverWebPigBtn');
+  const container = document.getElementById('webpigContainer');
+
+  // Restore UI
+  if (controls) controls.style.display = '';
+  refreshBtn.style.display = '';
+  volverBtn.style.display = 'none';
+  title.innerHTML = 'Web Pig 🐷 - Transacciones Recientes <span id="webpigEffectiveness" style="font-size: 0.85em; color: #999; font-weight: normal;"></span>';
+  container.innerHTML = '';
+  ventasCCActive = false;
+
+  // Reload webhooks
+  loadWebhooks();
+}
+
+function renderVentasCCTable(container, ventas) {
+  if (!ventas || ventas.length === 0) {
+    container.innerHTML = '<p style="padding:20px;text-align:center;color:#666;">No hay ventas en cuenta corriente registradas.</p>';
+    return;
+  }
+
+  const formatDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatMoney = (v) => v != null ? Number(v).toLocaleString('es-CO') : '';
+
+  let html = `<table class="ventas-cc-table" style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:#e65100;color:#fff;">
+        <th style="padding:6px 8px;">Fecha</th>
+        <th style="padding:6px 8px;">Documento</th>
+        <th style="padding:6px 8px;">Nombre</th>
+        <th style="padding:6px 8px;">Correo</th>
+        <th style="padding:6px 8px;">Celular</th>
+        <th style="padding:6px 8px;">Nro Acuerdo</th>
+        <th style="padding:6px 8px;">Producto</th>
+        <th style="padding:6px 8px;">Valor</th>
+        <th style="padding:6px 8px;">Comercial</th>
+        <th style="padding:6px 8px;">Comprobante</th>
+        <th style="padding:6px 8px;">Estado</th>
+        <th style="padding:6px 8px;">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  ventas.forEach(v => {
+    const nombre = `${v.nombres || ''} ${v.apellidos || ''}`.trim();
+    const producto = v.producto?.nombre || '';
+    const comercial = v.comercial?.nombre || '';
+    const estadoIcon = v.estado === 'procesado' ? '☑️' : '';
+    const accionBtn = v.estado === 'procesado'
+      ? '<span title="Procesado">☑️</span>'
+      : `<button class="btn-procesar-vcc" data-document-id="${v.documentId}" title="Procesar venta" style="cursor:pointer;background:none;border:none;font-size:1.3em;">📜</button>`;
+    const comprobanteLink = v.comprobante_url
+      ? `<a href="${v.comprobante_url}" target="_blank" style="color:#e65100;">Ver</a>`
+      : '';
+
+    html += `<tr style="border-bottom:1px solid #eee;">
+      <td style="padding:5px 8px;white-space:nowrap;">${formatDate(v.createdAt)}</td>
+      <td style="padding:5px 8px;">${v.numero_documento || ''}</td>
+      <td style="padding:5px 8px;">${nombre}</td>
+      <td style="padding:5px 8px;">${v.correo || ''}</td>
+      <td style="padding:5px 8px;">${v.celular || ''}</td>
+      <td style="padding:5px 8px;">${v.nro_acuerdo || ''}</td>
+      <td style="padding:5px 8px;">${producto}</td>
+      <td style="padding:5px 8px;text-align:right;">$${formatMoney(v.valor)}</td>
+      <td style="padding:5px 8px;">${comercial}</td>
+      <td style="padding:5px 8px;text-align:center;">${comprobanteLink}</td>
+      <td style="padding:5px 8px;text-align:center;">${estadoIcon || v.estado}</td>
+      <td style="padding:5px 8px;text-align:center;">${accionBtn}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function attachVentasCCHandlers(container) {
+  container.querySelectorAll('.btn-procesar-vcc').forEach(btn => {
+    btn.addEventListener('click', () => procesarVentaCC(btn));
+  });
+}
+
+async function procesarVentaCC(btn) {
+  const documentId = btn.dataset.documentId;
+  const venta = ventasCCData.find(v => v.documentId === documentId);
+  if (!venta) return alert('No se encontró la venta');
+
+  if (!confirm(`¿Procesar venta de ${venta.nombres} ${venta.apellidos}?\n\nSe creará/actualizará en CRM y World Office.`)) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  try {
+    const response = await fetch(`/api/webpig/ventas-cc/${documentId}/procesar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero_documento: venta.numero_documento,
+        nombres: venta.nombres,
+        apellidos: venta.apellidos,
+        correo: venta.correo,
+        celular: venta.celular,
+        ciudad: venta.ciudad || '',
+        direccion: venta.direccion || '',
+        comercial_nombre: venta.comercial?.nombre || '',
+        comercialId: venta.comercial?.id || null,
+        producto_nombre: venta.producto?.nombre || '',
+        productoId: venta.producto?.id || null,
+        valor: venta.valor || 0,
+        nro_acuerdo: venta.nro_acuerdo || ''
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Update UI
+      const tr = btn.closest('tr');
+      const estadoCell = tr.querySelector('td:nth-last-child(2)');
+      if (estadoCell) estadoCell.textContent = '☑️';
+      btn.replaceWith(Object.assign(document.createElement('span'), { textContent: '☑️', title: 'Procesado' }));
+
+      // Update local data
+      venta.estado = 'procesado';
+
+      // Show results
+      let msg = '✅ Venta procesada exitosamente';
+      if (data.resultados.crm?.error) msg += `\n⚠️ CRM: ${data.resultados.crm.error}`;
+      if (data.resultados.worldOffice?.error) msg += `\n⚠️ WO Cliente: ${data.resultados.worldOffice.error}`;
+      if (data.resultados.invoice?.error) msg += `\n⚠️ WO Factura: ${data.resultados.invoice.error}`;
+      if (data.resultados.invoice?.numeroFactura) msg += `\n📄 Factura WO: ${data.resultados.invoice.numeroFactura}`;
+      if (data.resultados.accounting?.error) msg += `\n⚠️ Contabilización: ${data.resultados.accounting.error}`;
+      if (data.resultados.facturacion?.error) msg += `\n⚠️ Facturación Strapi: ${data.resultados.facturacion.error}`;
+      if (data.resultados.facturacion?.success) msg += `\n📊 Facturación registrada`;
+      alert(msg);
+    } else {
+      alert(`❌ Error: ${data.error}`);
+      btn.disabled = false;
+      btn.textContent = '📜';
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+    btn.disabled = false;
+    btn.textContent = '📜';
+  }
+}
+
 // Initialize Web Pig
 function initWebPig() {
   const btn = document.getElementById('refreshWebhooksBtn');
@@ -1179,6 +1375,18 @@ function initWebPig() {
         }
       });
     }
+  }
+
+  // Ventas en cuenta corriente button
+  const ventasCCBtn = document.getElementById('ventasCCBtn');
+  if (ventasCCBtn) {
+    ventasCCBtn.addEventListener('click', loadVentasCC);
+  }
+
+  // Volver a Web Pig button
+  const volverBtn = document.getElementById('volverWebPigBtn');
+  if (volverBtn) {
+    volverBtn.addEventListener('click', volverAWebPig);
   }
 
   if (closeBtn) {

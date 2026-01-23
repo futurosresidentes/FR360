@@ -18,6 +18,7 @@ const googleDriveService = require('./services/googleDriveService');
 const pdfService = require('./services/pdfService');
 const cobranzaService = require('./services/cobranzaService');
 const cobrancioWebService = require('./services/cobrancioWebService');
+const worldOfficeService = require('./services/worldOfficeService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -612,6 +613,189 @@ app.post('/api/webpig/webhooks/:id/regularize-advance-payment', ensureAuthentica
   }
 });
 
+// GET ventas en cuenta corriente from Strapi
+app.get('/api/webpig/ventas-cc', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const url = `${process.env.STRAPI_BASE_URL}/api/ventas-corrientes?populate=*&sort=createdAt:desc&pagination[pageSize]=100`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${process.env.STRAPI_TOKEN}` }
+    });
+    const data = await response.json();
+    res.json({ success: true, ventas: data.data || [] });
+  } catch (error) {
+    console.error('[WebPig] Error fetching ventas CC:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST procesar venta en cuenta corriente (CRM + World Office)
+app.post('/api/webpig/ventas-cc/:documentId/procesar', ensureAuthenticated, ensureDomain, async (req, res) => {
+  const { documentId } = req.params;
+  const venta = req.body;
+
+  console.log(`[VentasCC] 📜 Procesando venta: ${documentId}`);
+
+  const resultados = { crm: null, worldOffice: null, invoice: null };
+
+  try {
+    // 1. Crear/actualizar en CRM (ActiveCampaign)
+    try {
+      resultados.crm = await strapiService.createOrUpdateCRMContact({
+        correo: venta.correo,
+        cedula: venta.numero_documento,
+        nombres: venta.nombres,
+        apellidos: venta.apellidos,
+        celular: venta.celular
+      });
+      console.log(`[VentasCC] ✅ CRM completado`);
+    } catch (crmError) {
+      console.error(`[VentasCC] ❌ Error CRM:`, crmError.message);
+      resultados.crm = { error: crmError.message };
+    }
+
+    // 2. Crear/actualizar en World Office
+    try {
+      resultados.worldOffice = await worldOfficeService.findOrCreateCustomer({
+        identityDocument: venta.numero_documento,
+        givenName: venta.nombres,
+        familyName: venta.apellidos,
+        email: venta.correo,
+        phone: venta.celular,
+        city: venta.ciudad || '',
+        address: venta.direccion || '',
+        comercial: venta.comercial_nombre || ''
+      });
+      console.log(`[VentasCC] ✅ World Office cliente completado`);
+    } catch (woError) {
+      console.error(`[VentasCC] ❌ Error World Office cliente:`, woError.message);
+      resultados.worldOffice = { error: woError.message };
+    }
+
+    // 3. Crear factura en World Office (solo si el cliente fue creado/encontrado exitosamente)
+    if (resultados.worldOffice && !resultados.worldOffice.error && resultados.worldOffice.customerId) {
+      try {
+        // Calcular bookOffset: buscar cuotas previas procesadas del mismo nro_acuerdo
+        let bookOffset = 0;
+        if (venta.nro_acuerdo) {
+          const prevUrl = `${process.env.STRAPI_BASE_URL}/api/ventas-corrientes?filters[nro_acuerdo][$eq]=${encodeURIComponent(venta.nro_acuerdo)}&filters[estado][$eq]=procesado&fields[0]=valor`;
+          const prevRes = await fetch(prevUrl, {
+            headers: { Authorization: `Bearer ${process.env.STRAPI_TOKEN}` }
+          });
+          if (prevRes.ok) {
+            const prevData = await prevRes.json();
+            const totalPrevio = (prevData.data || []).reduce((sum, item) => {
+              const val = Number(item.attributes?.valor || item.valor) || 0;
+              return sum + val;
+            }, 0);
+            bookOffset = Math.ceil(totalPrevio / 200000);
+            console.log(`[VentasCC] 📚 nro_acuerdo=${venta.nro_acuerdo}, totalPrevio=${totalPrevio}, bookOffset=${bookOffset}`);
+          }
+        }
+
+        resultados.invoice = await worldOfficeService.createInvoice({
+          customerId: resultados.worldOffice.customerId,
+          comercialWOId: resultados.worldOffice.comercialWOId,
+          amount: Number(venta.valor) || 0,
+          productName: venta.producto_nombre || 'Venta cuenta corriente',
+          bookOffset
+        });
+        console.log(`[VentasCC] ✅ Factura WO creada: ${resultados.invoice.numeroFactura || 'simulada'}`);
+
+        // 4. Contabilizar factura en World Office
+        if (resultados.invoice.documentoId && !resultados.invoice.simulado) {
+          try {
+            resultados.accounting = await worldOfficeService.accountInvoice(resultados.invoice.documentoId);
+            console.log(`[VentasCC] ✅ Factura contabilizada: Doc ID ${resultados.invoice.documentoId}`);
+          } catch (accError) {
+            console.error(`[VentasCC] ❌ Error contabilizando factura:`, accError.message);
+            resultados.accounting = { error: accError.message };
+          }
+        }
+      } catch (invError) {
+        console.error(`[VentasCC] ❌ Error factura WO:`, invError.message);
+        resultados.invoice = { error: invError.message };
+      }
+    }
+
+    // 5. Actualizar estado en Strapi a "procesado"
+    const updateUrl = `${process.env.STRAPI_BASE_URL}/api/ventas-corrientes/${documentId}`;
+    await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ data: { estado: 'procesado' } })
+    });
+    console.log(`[VentasCC] ✅ Strapi actualizado a "procesado"`);
+
+    // 6. Crear registro en facturaciones (Strapi)
+    try {
+      const hoyCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yy = String(now.getFullYear()).slice(-2);
+      const valorNum = Number(venta.valor) || 0;
+      const transaccion = `CTE${venta.numero_documento}${valorNum}${dd}${mm}${yy}`;
+
+      const facturacionData = {
+        numero_documento: venta.numero_documento,
+        transaccion,
+        valor_bruto: valorNum,
+        valor_sin_iva: valorNum,
+        vlr_antes_de_iva: 0,
+        valor_neto: valorNum,
+        acuerdo: venta.nro_acuerdo === 'contado' ? 'Contado' : (venta.nro_acuerdo || 'Contado'),
+        fecha_inicio: hoyCol,
+        activacion: 'Hoy',
+        paz_y_salvo: 'No',
+        comentarios: null,
+        nombres: venta.nombres,
+        apellidos: venta.apellidos,
+        ciudad: venta.ciudad || '',
+        direccion: venta.direccion || '',
+        telefono: venta.celular || '',
+        correo: venta.correo || '',
+        id_tercero_WO: resultados.worldOffice?.customerId || null,
+        doc_venta_wo: resultados.invoice?.documentoId || null,
+        fecha: hoyCol,
+        tipo_documento: 1,
+        comercial: venta.comercialId || null,
+        producto: venta.productoId || null
+      };
+
+      const factUrl = `${process.env.STRAPI_BASE_URL}/api/facturaciones`;
+      const factRes = await fetch(factUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ data: facturacionData })
+      });
+
+      if (factRes.ok) {
+        const factResult = await factRes.json();
+        resultados.facturacion = { success: true, id: factResult.data?.id };
+        console.log(`[VentasCC] ✅ Facturación creada en Strapi: ID ${factResult.data?.id}`);
+      } else {
+        const errText = await factRes.text();
+        console.error(`[VentasCC] ❌ Error creando facturación:`, errText);
+        resultados.facturacion = { error: errText };
+      }
+    } catch (factError) {
+      console.error(`[VentasCC] ❌ Error facturación Strapi:`, factError.message);
+      resultados.facturacion = { error: factError.message };
+    }
+
+    res.json({ success: true, resultados });
+  } catch (error) {
+    console.error(`[VentasCC] ❌ Error general:`, error.message);
+    res.status(500).json({ success: false, error: error.message, resultados });
+  }
+});
+
 // ===== EPAYCO PROXY ENDPOINTS =====
 
 // Helper function: Get ePayco auth token
@@ -1106,14 +1290,12 @@ app.get('/api/carteras-masivo/auto', async (req, res) => {
             // PASO 2: Si NO encontró en ventas, verificar estado según fecha límite
             const fechaLimite = cuota.fecha_limite;
             if (fechaLimite && fechaLimite !== '1970-01-01') {
-              const now = new Date();
-              const colombiaOffset = -5 * 60;
-              const localOffset = now.getTimezoneOffset();
-              const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
-              const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
-              const limite = new Date(fechaLimite + 'T00:00:00-05:00');
-
-              const estadoPago = limite < hoy ? 'en_mora' : 'al_dia';
+              // Obtener fecha de hoy en Colombia (YYYY-MM-DD)
+              const hoyColombiaStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+              // Comparar strings directamente (YYYY-MM-DD) para evitar problemas de zona horaria
+              // Si fecha_limite < hoy → en_mora, si fecha_limite >= hoy → al_dia
+              const estadoPago = fechaLimite < hoyColombiaStr ? 'en_mora' : 'al_dia';
+              console.log(`  📅 DEBUG: fechaLimite="${fechaLimite}", hoy="${hoyColombiaStr}", resultado="${estadoPago}"`);
 
               // Solo actualizar si el estado cambió
               if (cuota.estado_pago !== estadoPago) {
@@ -1532,14 +1714,12 @@ app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, 
             // PASO 2: Si NO encontró en ventas, verificar estado según fecha límite
             const fechaLimite = cuota.fecha_limite;
             if (fechaLimite && fechaLimite !== '1970-01-01') {
-              const now = new Date();
-              const colombiaOffset = -5 * 60;
-              const localOffset = now.getTimezoneOffset();
-              const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
-              const hoy = new Date(colombiaTime.getFullYear(), colombiaTime.getMonth(), colombiaTime.getDate());
-              const limite = new Date(fechaLimite + 'T00:00:00-05:00');
-
-              const estadoPago = limite < hoy ? 'en_mora' : 'al_dia';
+              // Obtener fecha de hoy en Colombia (YYYY-MM-DD)
+              const hoyColombiaStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+              // Comparar strings directamente (YYYY-MM-DD) para evitar problemas de zona horaria
+              // Si fecha_limite < hoy → en_mora, si fecha_limite >= hoy → al_dia
+              const estadoPago = fechaLimite < hoyColombiaStr ? 'en_mora' : 'al_dia';
+              console.log(`  📅 DEBUG: fechaLimite="${fechaLimite}", hoy="${hoyColombiaStr}", resultado="${estadoPago}"`);
 
               // Solo actualizar si el estado cambió
               if (cuota.estado_pago !== estadoPago) {

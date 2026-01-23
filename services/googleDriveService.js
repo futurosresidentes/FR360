@@ -297,8 +297,112 @@ async function generarYEnviarPazYSalvo(data) {
   };
 }
 
+/**
+ * Sube un archivo a Google Drive
+ * @param {Object} data - Datos del archivo
+ * @param {string} data.folderId - ID de la carpeta destino
+ * @param {string} data.fileName - Nombre del archivo
+ * @param {string} data.mimeType - Tipo MIME del archivo
+ * @param {string} data.base64Content - Contenido del archivo en base64
+ * @returns {Promise<Object>} - { success, id, webViewLink, webContentLink, error }
+ */
+async function subirArchivo(data) {
+  const { folderId, fileName, mimeType, base64Content } = data;
+
+  console.log('📤 [GoogleDrive] Subiendo archivo:', fileName);
+  console.log('📤 [GoogleDrive] Carpeta destino:', folderId);
+  console.log('📤 [GoogleDrive] Tipo MIME:', mimeType);
+  console.log('📤 [GoogleDrive] Tamaño base64:', base64Content?.length || 0, 'caracteres');
+
+  if (!folderId || !fileName || !mimeType || !base64Content) {
+    console.error('❌ [GoogleDrive] Faltan parámetros:', { folderId: !!folderId, fileName: !!fileName, mimeType: !!mimeType, base64Content: !!base64Content });
+    return {
+      success: false,
+      error: 'Faltan parámetros requeridos para subir archivo'
+    };
+  }
+
+  try {
+    const { auth } = await getAuthClient();
+    console.log('📤 [GoogleDrive] Cliente autenticado correctamente');
+
+    const drive = google.drive({ version: 'v3', auth });
+
+    // Convertir base64 a buffer
+    const buffer = Buffer.from(base64Content, 'base64');
+    console.log('📤 [GoogleDrive] Buffer creado, tamaño:', buffer.length, 'bytes');
+
+    // Crear el archivo en Drive
+    console.log('📤 [GoogleDrive] Creando archivo en Drive...');
+    let response;
+    try {
+      response = await drive.files.create({
+        requestBody: {
+          name: fileName,
+          parents: [folderId]
+        },
+        media: {
+          mimeType: mimeType,
+          body: require('stream').Readable.from(buffer)
+        },
+        fields: 'id, webViewLink, webContentLink'
+      });
+    } catch (folderError) {
+      console.warn('⚠️ [GoogleDrive] Error subiendo a carpeta específica, intentando sin carpeta:', folderError.message);
+      // Intentar sin especificar carpeta (quedará en el Drive de la Service Account)
+      const bufferRetry = Buffer.from(base64Content, 'base64');
+      response = await drive.files.create({
+        requestBody: {
+          name: fileName
+        },
+        media: {
+          mimeType: mimeType,
+          body: require('stream').Readable.from(bufferRetry)
+        },
+        fields: 'id, webViewLink, webContentLink'
+      });
+    }
+
+    console.log('📤 [GoogleDrive] Archivo creado con ID:', response.data.id);
+
+    // Hacer el archivo público para compartir
+    console.log('📤 [GoogleDrive] Configurando permisos públicos...');
+    await drive.permissions.create({
+      fileId: response.data.id,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
+      }
+    });
+
+    console.log('✅ [GoogleDrive] Archivo subido exitosamente:', response.data.id);
+    console.log('✅ [GoogleDrive] webViewLink:', response.data.webViewLink);
+    console.log('✅ [GoogleDrive] webContentLink:', response.data.webContentLink);
+
+    return {
+      success: true,
+      id: response.data.id,
+      webViewLink: response.data.webViewLink || `https://drive.google.com/file/d/${response.data.id}/view`,
+      webContentLink: response.data.webContentLink
+    };
+
+  } catch (error) {
+    console.error('❌ [GoogleDrive] Error subiendo archivo:', error.message);
+    console.error('❌ [GoogleDrive] Error completo:', error);
+    if (error.response) {
+      console.error('❌ [GoogleDrive] Response status:', error.response.status);
+      console.error('❌ [GoogleDrive] Response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   generarPazYSalvo,
   enviarPazYSalvoPorCallbell,
-  generarYEnviarPazYSalvo
+  generarYEnviarPazYSalvo,
+  subirArchivo
 };

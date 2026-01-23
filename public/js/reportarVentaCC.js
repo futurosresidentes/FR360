@@ -95,6 +95,12 @@
                     <input type="text" id="ventaCCCiudad" placeholder="Ej: Bogotá" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
                   </div>
                 </div>
+                <div style="margin-top:12px;">
+                  <label style="font-size:0.85em; color:#666; display:block; margin-bottom:4px; font-family:inherit;">Comercial</label>
+                  <select id="ventaCCComercial" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
+                    <option value="">-- Seleccione comercial --</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Comprobante -->
@@ -375,12 +381,47 @@
   }
 
   /**
+   * Carga la lista de comerciales de Strapi
+   */
+  let comercialesCache = null;
+  async function cargarComerciales() {
+    const select = document.getElementById('ventaCCComercial');
+    if (!select) return;
+
+    if (comercialesCache) {
+      renderComerciales(select, comercialesCache);
+      return;
+    }
+
+    select.innerHTML = '<option value="">Cargando...</option>';
+    try {
+      const comerciales = await window.api.getComerciales();
+      comercialesCache = comerciales || [];
+      renderComerciales(select, comercialesCache);
+    } catch (error) {
+      console.error('Error cargando comerciales:', error);
+      select.innerHTML = '<option value="">Error al cargar</option>';
+    }
+  }
+
+  function renderComerciales(select, comerciales) {
+    select.innerHTML = '<option value="">-- Seleccione comercial --</option>';
+    comerciales.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.id;
+      option.textContent = c.nombre;
+      select.appendChild(option);
+    });
+  }
+
+  /**
    * Muestra los campos de dirección y ciudad
    */
   function mostrarCamposDireccion() {
     const container = document.getElementById('camposDireccion');
     if (container) {
       container.style.display = 'block';
+      cargarComerciales();
     }
   }
 
@@ -391,9 +432,10 @@
     const container = document.getElementById('camposDireccion');
     if (container) {
       container.style.display = 'none';
-      // Limpiar valores
       document.getElementById('ventaCCDireccion').value = '';
       document.getElementById('ventaCCCiudad').value = '';
+      const comercialSelect = document.getElementById('ventaCCComercial');
+      if (comercialSelect) comercialSelect.value = '';
     }
   }
 
@@ -568,6 +610,7 @@
     const mensaje = {
       text: `🆕 *Nueva Venta en Cuenta Corriente*\n\n` +
             `👤 *Estudiante:* ${datos.nombres} ${datos.apellidos}\n` +
+            `🪪 *Cédula:* ${datos.cedula}\n` +
             `📱 *Celular:* ${datos.celular}\n` +
             `📧 *Correo:* ${datos.correo}\n` +
             `📦 *Producto:* ${datos.producto}\n` +
@@ -636,9 +679,11 @@
       // Obtener cédula del estudiante (necesitamos buscarla)
       const cedula = datosEstudianteActual?.cedula || '';
 
-      // Obtener dirección y ciudad si están visibles
+      // Obtener dirección, ciudad y comercial si están visibles
       const direccion = document.getElementById('ventaCCDireccion')?.value || '';
       const ciudad = document.getElementById('ventaCCCiudad')?.value || '';
+      const comercialSelect = document.getElementById('ventaCCComercial');
+      const comercialIdSeleccionado = comercialSelect?.value || null;
 
       // 2. Guardar en Strapi (ventas-corrientes)
       console.log('💾 Guardando venta en Strapi...');
@@ -653,7 +698,7 @@
               apellidos: apellidos,
               correo: correo,
               celular: celular,
-              comercialId: productoData.comercialId || null,
+              comercialId: comercialIdSeleccionado || productoData.comercialId || null,
               productoId: productoData.productoId || null,
               nro_acuerdo: productoData.tipo === 'contado' ? 'contado' : nroAcuerdo,
               valor: valor,
@@ -677,6 +722,7 @@
       await notificarGoogleChat({
         nombres,
         apellidos,
+        cedula,
         celular,
         correo,
         producto: productoData.producto + (productoData.nroCuota ? ` - Cuota ${productoData.nroCuota}` : ''),
