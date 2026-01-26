@@ -37,19 +37,19 @@
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:0.85em; color:#666; font-family:inherit; display:block; margin-bottom:4px;">Nombres</label>
-                  <input type="text" id="ventaCCNombres" readonly style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; background:#e9ecef; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
+                  <input type="text" id="ventaCCNombres" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
                 </div>
                 <div>
                   <label style="font-size:0.85em; color:#666; font-family:inherit; display:block; margin-bottom:4px;">Apellidos</label>
-                  <input type="text" id="ventaCCApellidos" readonly style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; background:#e9ecef; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
+                  <input type="text" id="ventaCCApellidos" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
                 </div>
                 <div>
                   <label style="font-size:0.85em; color:#666; font-family:inherit; display:block; margin-bottom:4px;">Celular</label>
-                  <input type="text" id="ventaCCCelular" readonly style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; background:#e9ecef; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
+                  <input type="text" id="ventaCCCelular" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
                 </div>
                 <div>
                   <label style="font-size:0.85em; color:#666; font-family:inherit; display:block; margin-bottom:4px;">Correo</label>
-                  <input type="text" id="ventaCCCorreo" readonly style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; background:#e9ecef; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
+                  <input type="text" id="ventaCCCorreo" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:inherit; font-size:0.95em; box-sizing:border-box;">
                 </div>
               </div>
             </div>
@@ -82,6 +82,14 @@
                 <input type="text" id="ventaCCValor" placeholder="Ej: 150000" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
               </div>
 
+              <!-- Comercial (siempre visible cuando hay producto seleccionado) -->
+              <div id="campoComercial" style="display:none; margin-bottom:12px;">
+                <label style="font-size:0.85em; color:#666; display:block; margin-bottom:4px; font-family:inherit;">Comercial</label>
+                <select id="ventaCCComercial" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
+                  <option value="">-- Seleccione comercial --</option>
+                </select>
+              </div>
+
               <!-- Dirección y Ciudad (solo para contado o cuota 1) -->
               <div id="camposDireccion" style="display:none; margin-bottom:12px; background:#fff8e1; padding:12px; border-radius:8px; border:1px solid #ffe082;">
                 <p style="margin:0 0 12px 0; font-size:0.85em; color:#f57c00; font-family:inherit;">📍 Datos de envío (requeridos para ventas nuevas)</p>
@@ -94,12 +102,6 @@
                     <label style="font-size:0.85em; color:#666; display:block; margin-bottom:4px; font-family:inherit;">Ciudad</label>
                     <input type="text" id="ventaCCCiudad" placeholder="Ej: Bogotá" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
                   </div>
-                </div>
-                <div style="margin-top:12px;">
-                  <label style="font-size:0.85em; color:#666; display:block; margin-bottom:4px; font-family:inherit;">Comercial</label>
-                  <select id="ventaCCComercial" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
-                    <option value="">-- Seleccione comercial --</option>
-                  </select>
                 </div>
               </div>
 
@@ -183,6 +185,14 @@
       e.target.value = e.target.value.replace(/[^\d]/g, '');
       validarFormulario();
     });
+
+    // Validar al editar campos del estudiante
+    ['ventaCCNombres', 'ventaCCApellidos', 'ventaCCCelular', 'ventaCCCorreo'].forEach(id => {
+      document.getElementById(id).addEventListener('input', validarFormulario);
+    });
+
+    // Normalizar celular colombiano al salir del campo
+    document.getElementById('ventaCCCelular').addEventListener('blur', normalizarCelular);
 
     // Cuando cambia el producto seleccionado, verificar si mostrar campos de dirección
     const productoSelect = document.getElementById('ventaCCProducto');
@@ -421,7 +431,6 @@
     const container = document.getElementById('camposDireccion');
     if (container) {
       container.style.display = 'block';
-      cargarComerciales();
     }
   }
 
@@ -434,9 +443,49 @@
       container.style.display = 'none';
       document.getElementById('ventaCCDireccion').value = '';
       document.getElementById('ventaCCCiudad').value = '';
-      const comercialSelect = document.getElementById('ventaCCComercial');
-      if (comercialSelect) comercialSelect.value = '';
     }
+  }
+
+  /**
+   * Muestra el campo comercial abierto (para contado)
+   */
+  function mostrarComercialAbierto() {
+    const container = document.getElementById('campoComercial');
+    const select = document.getElementById('ventaCCComercial');
+    if (container && select) {
+      container.style.display = 'block';
+      select.disabled = false;
+      cargarComerciales();
+    }
+  }
+
+  /**
+   * Muestra el campo comercial pre-seleccionado y bloqueado (para acuerdos)
+   */
+  function mostrarComercialDesdeAcuerdo(comercialId) {
+    const container = document.getElementById('campoComercial');
+    const select = document.getElementById('ventaCCComercial');
+    if (!container || !select) return;
+
+    container.style.display = 'block';
+    select.disabled = true;
+
+    // Cargar comerciales y pre-seleccionar
+    cargarComerciales().then(() => {
+      if (comercialId) {
+        select.value = String(comercialId);
+      }
+    });
+  }
+
+  /**
+   * Oculta el campo comercial
+   */
+  function ocultarComercial() {
+    const container = document.getElementById('campoComercial');
+    const select = document.getElementById('ventaCCComercial');
+    if (container) container.style.display = 'none';
+    if (select) { select.value = ''; select.disabled = false; }
   }
 
   /**
@@ -485,8 +534,9 @@
     }
 
     cuotasPendientesCache = [];
-    // Mostrar campos de dirección para contado
+    // Mostrar campos de dirección y comercial abierto para contado
     mostrarCamposDireccion();
+    mostrarComercialAbierto();
   }
 
   /**
@@ -505,6 +555,7 @@
       }
       cuotasPendientesCache = [];
       ocultarCamposDireccion();
+      ocultarComercial();
       return;
     }
 
@@ -521,6 +572,7 @@
     if (pendientes.length === 0) {
       select.innerHTML = '<option value="">No hay cuotas pendientes</option>';
       ocultarCamposDireccion();
+      ocultarComercial();
       return;
     }
 
@@ -532,7 +584,7 @@
       option.value = JSON.stringify({
         tipo: 'cuota',
         producto: productoNombre,
-        productoId: productoId,
+        productoId: cuota.productoId || productoId,
         comercialId: comercialId,
         nroCuota: cuota.nro_cuota,
         cuotaId: cuota.id,
@@ -543,6 +595,46 @@
     });
 
     select.disabled = false;
+
+    // Completar datos del estudiante desde Strapi si están vacíos, y bloquear
+    const strapiData = resultado.data || {};
+    const camposAutorellenar = [
+      { id: 'ventaCCNombres', valor: strapiData.nombres },
+      { id: 'ventaCCApellidos', valor: strapiData.apellidos },
+      { id: 'ventaCCCelular', valor: strapiData.celular },
+      { id: 'ventaCCCorreo', valor: strapiData.correo }
+    ];
+    camposAutorellenar.forEach(({ id, valor }) => {
+      const el = document.getElementById(id);
+      if (el && !el.value.trim() && valor) {
+        el.value = valor;
+        el.readOnly = true;
+        el.style.background = '#e9ecef';
+      }
+    });
+    // Normalizar celular colombiano
+    normalizarCelular();
+    validarFormulario();
+
+    // Comercial: pre-seleccionar desde el acuerdo y bloquear
+    mostrarComercialDesdeAcuerdo(comercialId);
+  }
+
+  /**
+   * Normaliza el celular colombiano: si es un número de 10 dígitos que empieza por 3, agrega +57
+   */
+  function normalizarCelular() {
+    const input = document.getElementById('ventaCCCelular');
+    if (!input) return;
+    let val = input.value.trim().replace(/\s+/g, '');
+    // Si es 10 dígitos y empieza por 3 (celular colombiano)
+    if (/^3\d{9}$/.test(val)) {
+      input.value = '+57' + val;
+    }
+    // Si es 57 + 10 dígitos sin el +
+    else if (/^57[3]\d{9}$/.test(val)) {
+      input.value = '+' + val;
+    }
   }
 
   /**
@@ -551,9 +643,13 @@
   function validarFormulario() {
     const producto = document.getElementById('ventaCCProducto').value;
     const valor = document.getElementById('ventaCCValor').value.trim();
+    const nombres = document.getElementById('ventaCCNombres').value.trim();
+    const apellidos = document.getElementById('ventaCCApellidos').value.trim();
+    const celular = document.getElementById('ventaCCCelular').value.trim();
+    const correo = document.getElementById('ventaCCCorreo').value.trim();
     const reportarBtn = document.getElementById('reportarVentaCCBtn');
 
-    const valido = producto && valor && comprobanteFile;
+    const valido = producto && valor && comprobanteFile && nombres && apellidos && celular && correo;
     reportarBtn.disabled = !valido;
   }
 
@@ -616,6 +712,9 @@
             `📦 *Producto:* ${datos.producto}\n` +
             `💰 *Valor:* $${Number(datos.valor).toLocaleString('es-CO')}\n` +
             `📄 *Acuerdo:* ${datos.nroAcuerdo || 'Contado'}\n` +
+            (datos.comercial ? `🧑‍💼 *Comercial:* ${datos.comercial}\n` : '') +
+            (datos.ciudad ? `🏙️ *Ciudad:* ${datos.ciudad}\n` : '') +
+            (datos.direccion ? `📍 *Dirección:* ${datos.direccion}\n` : '') +
             `🔗 *Comprobante:* ${datos.comprobanteUrl || 'Pendiente'}\n` +
             `📅 *Fecha:* ${new Date().toLocaleString('es-CO')}`
     };
@@ -719,6 +818,7 @@
       }
 
       // 3. Notificar a Google Chat
+      const comercialNombre = comercialSelect?.selectedOptions[0]?.textContent || '';
       await notificarGoogleChat({
         nombres,
         apellidos,
@@ -729,6 +829,7 @@
         valor,
         nroAcuerdo: productoData.tipo === 'contado' ? 'Contado' : nroAcuerdo,
         comprobanteUrl,
+        comercial: comercialNombre,
         direccion,
         ciudad
       });
@@ -755,11 +856,27 @@
     // Guardar datos del estudiante para uso posterior (incluyendo cédula)
     datosEstudianteActual = datosEstudiante;
 
-    // Prediligenciar datos del estudiante
-    document.getElementById('ventaCCNombres').value = datosEstudiante.nombres || '';
-    document.getElementById('ventaCCApellidos').value = datosEstudiante.apellidos || '';
-    document.getElementById('ventaCCCelular').value = datosEstudiante.celular || '';
-    document.getElementById('ventaCCCorreo').value = datosEstudiante.correo || '';
+    // Prediligenciar datos del estudiante y bloquear campos con datos
+    ['ventaCCNombres', 'ventaCCApellidos', 'ventaCCCelular', 'ventaCCCorreo'].forEach(id => {
+      const el = document.getElementById(id);
+      el.value = '';
+      el.readOnly = false;
+      el.style.background = '';
+    });
+    const camposCRM = [
+      { id: 'ventaCCNombres', valor: datosEstudiante.nombres },
+      { id: 'ventaCCApellidos', valor: datosEstudiante.apellidos },
+      { id: 'ventaCCCelular', valor: datosEstudiante.celular },
+      { id: 'ventaCCCorreo', valor: datosEstudiante.correo }
+    ];
+    camposCRM.forEach(({ id, valor }) => {
+      const el = document.getElementById(id);
+      if (valor) {
+        el.value = valor;
+        el.readOnly = true;
+        el.style.background = '#e9ecef';
+      }
+    });
 
     // Limpiar campos de venta
     document.getElementById('ventaCCNroAcuerdo').value = '';
@@ -771,6 +888,7 @@
     document.getElementById('ventaCCDireccion').value = '';
     document.getElementById('ventaCCCiudad').value = '';
     ocultarCamposDireccion();
+    ocultarComercial();
 
     // Limpiar comprobante
     comprobanteFile = null;

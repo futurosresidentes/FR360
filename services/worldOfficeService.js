@@ -130,13 +130,7 @@ async function retryWithBackoff(fn, maxRetries = WO_MAX_RETRIES, retryDelay = WO
  * Obtiene la fecha actual en formato Colombia (YYYY-MM-DD)
  */
 function getColombiaDate() {
-  const now = new Date();
-  // Ajustar a UTC-5 (Colombia)
-  const colombiaOffset = -5 * 60;
-  const localOffset = now.getTimezoneOffset();
-  const colombiaTime = new Date(now.getTime() + (localOffset - colombiaOffset) * 60000);
-
-  return colombiaTime.toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 }
 
 /**
@@ -455,12 +449,12 @@ async function createInvoice(data) {
   const invoicePayload = {
     fecha: getColombiaDate(),
     prefijo: 16,
-    concepto: data.productName || 'Factura',
+    concepto: (data.productName || 'Factura').replace(/Cuota/gi, 'Parte'),
     documentoTipo: 'FV',
     idEmpresa: 1,
     idTerceroExterno: data.customerId,
     idTerceroInterno: data.comercialWOId || DEFAULT_COMERCIAL_ID,
-    idFormaPago: 1001,
+    idFormaPago: 1005, // Cta Cte - Contado
     idMoneda: 31,
     trm: 1,
     porcentajeDescuento: false,

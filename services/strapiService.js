@@ -708,10 +708,34 @@ async function consultarAcuerdo(nroAcuerdo) {
     const comercialId = attrPrimero.comercial?.data?.id || attrPrimero.comercial?.id || null;
     const comercialNombre = attrPrimero.comercial?.data?.attributes?.nombre || attrPrimero.comercial?.nombre || '';
 
+    // Buscar productos específicos por cuota (ej: "Élite - 9 meses - Cuota 1")
+    try {
+      const prodSearchUrl = `${STRAPI_BASE_URL}/api/productos?filters[nombre][$contains]=${encodeURIComponent(productoNombre)}&pagination[pageSize]=50`;
+      const prodResponse = await axios.get(prodSearchUrl, {
+        headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+      });
+      const productosRelacionados = (prodResponse.data?.data || []).map(p => ({
+        id: p.id,
+        nombre: p.attributes?.nombre || p.nombre
+      }));
+
+      // Asignar productoId específico a cada cuota
+      cuotas.forEach(cuota => {
+        const nombreCuota = `${productoNombre} - Cuota ${cuota.nro_cuota}`;
+        const prodCuota = productosRelacionados.find(p => p.nombre === nombreCuota);
+        cuota.productoId = prodCuota ? prodCuota.id : productoId;
+      });
+    } catch (prodError) {
+      console.warn('[consultarAcuerdo] No se pudieron buscar productos por cuota:', prodError.message);
+      cuotas.forEach(cuota => { cuota.productoId = productoId; });
+    }
+
     const resultado = {
       success: true,
       data: {
         numero_documento: attrPrimero.numero_documento || '',
+        nombres: attrPrimero.nombres || '',
+        apellidos: attrPrimero.apellidos || '',
         producto: productoNombre,
         productoId: productoId,
         comercial: comercialNombre,
