@@ -31,8 +31,7 @@ async function retryWithBackoff(fn, maxRetries = 5, retryDelay = 1000) {
       lastError = error;
 
       if (attempt < maxRetries) {
-        const delay = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-        console.log(`⏱️ Esperando ${delay}ms antes del próximo intento...`);
+        const delay = retryDelay * Math.pow(2, attempt - 1);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -78,14 +77,11 @@ async function getProducts(options = {}) {
     const raw = Array.isArray(response.data.data) ? response.data.data : [];
 
     if (mode === 'description') {
-      console.log('🔍 Consultando descripción para producto:', productName);
       if (raw.length === 0) {
-        console.log('❌ No se encontró el producto');
         return null;
       }
       const product = raw[0].attributes || raw[0];
       const description = product.sub_categoria || product.nombre;
-      console.log('✅ Descripción encontrada:', description);
       return description;
     }
 
@@ -186,19 +182,13 @@ async function fetchCrmStrapiOnly(uid) {
   const url = `${STRAPI_BASE_URL}/api/crms?filters[numero_documento][$eq]=${uid}`;
 
   return retryWithBackoff(async (attempt) => {
-    console.log(`🔄 CRM Strapi intento ${attempt}/5 para UID: ${uid}`);
-
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${STRAPI_TOKEN}`
       }
     });
 
-    console.log(`📡 CRM Strapi respuesta intento ${attempt}: HTTP ${response.status}`);
-
     if (response.status === 200) {
-      console.log(`✅ CRM Strapi exitoso en intento ${attempt}`);
-
       const list = Array.isArray(response.data.data) ? response.data.data : [];
       if (!list.length) return null;
 
@@ -232,31 +222,20 @@ async function fetchCrmStrapiBatch(uids) {
   ).join('&');
   const url = `${baseUrl}?${filterParams}`;
 
-  console.log(`📝 URL construida (primeros 200 chars): ${url.substring(0, 200)}...`);
-
   try {
     return await retryWithBackoff(async (attempt) => {
-      console.log(`🔄 CRM Strapi BATCH intento ${attempt}/5 para ${uids.length} cédulas`);
-
       const response = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${STRAPI_TOKEN}`
         }
       });
 
-      console.log(`📡 CRM Strapi BATCH respuesta intento ${attempt}: HTTP ${response.status}`);
-
       if (response.status === 200) {
-        console.log(`✅ CRM Strapi BATCH exitoso en intento ${attempt}`);
-
         const list = Array.isArray(response.data.data) ? response.data.data : [];
-        console.log(`📊 CRM Strapi BATCH encontró ${list.length} registros de ${uids.length} solicitados`);
 
         const result = {};
         list.forEach(record => {
-          console.log(`🔍 record:`, JSON.stringify(record, null, 2));
           const att = record.attributes || record;
-          console.log(`🔍 att:`, JSON.stringify(att, null, 2));
           const numDoc = String(att.numero_documento || '').trim();
           if (numDoc) {
             result[numDoc] = {
@@ -266,7 +245,6 @@ async function fetchCrmStrapiBatch(uids) {
               apellidos: att.apellidos || '',
               numero_documento: numDoc
             };
-            console.log(`✅ Agregado a result[${numDoc}]:`, result[numDoc]);
           }
         });
 
@@ -276,9 +254,7 @@ async function fetchCrmStrapiBatch(uids) {
       }
     });
   } catch (error) {
-    console.log(`💥 CRM Strapi BATCH falló después de 5 intentos`);
-    console.log(`🔴 Último error: ${error.message}`);
-    console.log(`⚠️ Retornando objeto vacío para permitir continuar el proceso`);
+    console.error('[CRM Batch] Error:', error.message);
     return {};
   }
 }
@@ -350,7 +326,6 @@ async function fetchCrmByCelular(celular) {
     return null;
   }
 
-  console.log(`🔍 Buscando CRM por celular: ${normalized}`);
 
   const url = `${STRAPI_BASE_URL}/api/crms?filters[celular][$contains]=${encodeURIComponent(normalized)}&pagination[pageSize]=1`;
 
@@ -366,15 +341,10 @@ async function fetchCrmByCelular(celular) {
     }
 
     const row = response.data?.data?.[0];
-    if (!row) {
-      console.log(`❌ No se encontró CRM con celular: ${normalized}`);
-      return null;
-    }
+    if (!row) return null;
 
     const a = row.attributes || row;
     const uid = String(a.numero_documento || a.identityDocument || '').replace(/\D/g, '');
-
-    console.log(`✅ CRM encontrado por celular. Documento: ${uid}`);
 
     return {
       uid: uid,
@@ -404,7 +374,6 @@ async function updateCelularCRM(correo, nuevoCelular) {
   }
 
   try {
-    console.log(`📞 Actualizando celular en CRM para correo: ${correo}`);
 
     // 1. Obtener contact ID
     const getContactUrl = `${AC_BASE_URL}/contacts?email=${encodeURIComponent(correo)}`;
@@ -444,7 +413,6 @@ async function updateCelularCRM(correo, nuevoCelular) {
     }
 
     const result = await updateResponse.json();
-    console.log('✅ Celular actualizado en CRM correctamente');
     return result;
   } catch (error) {
     console.error('❌ Error actualizando celular en CRM:', error.message);
@@ -460,7 +428,6 @@ async function updateCelularCRM(correo, nuevoCelular) {
  */
 async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
   try {
-    console.log(`📞 Actualizando celular en Strapi Carteras para cédula: ${cedula}`);
 
     // 1. Obtener carteras del usuario
     const carterasUrl = `${STRAPI_BASE_URL}/api/carteras?filters[numero_documento][$eq]=${encodeURIComponent(cedula)}`;
@@ -475,7 +442,6 @@ async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
     const carterasData = await carterasResponse.json();
 
     if (!carterasData.data || carterasData.data.length === 0) {
-      console.log('⚠️ No se encontraron carteras para actualizar');
       return { updated: 0 };
     }
 
@@ -499,10 +465,9 @@ async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
     }
 
     await Promise.all(updates);
-    console.log(`✅ Celular actualizado en ${carterasData.data.length} carteras de Strapi`);
     return { updated: carterasData.data.length };
   } catch (error) {
-    console.error('❌ Error actualizando celular en Strapi Carteras:', error.message);
+    console.error('[updateCelularStrapiCarteras] Error:', error.message);
     throw error;
   }
 }
@@ -515,7 +480,6 @@ async function updateCelularStrapiCarteras(cedula, nuevoCelular) {
  */
 async function updateCelularFR360Links(cedula, nuevoCelular) {
   try {
-    console.log(`📞 Actualizando celular en FR360 Links para cédula: ${cedula}`);
 
     // 1. Obtener links del usuario usando axios (igual que getLinksByIdentityDocument)
     const linksUrl = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=100&page=1&identityDocument=${encodeURIComponent(cedula)}`;
@@ -526,14 +490,12 @@ async function updateCelularFR360Links(cedula, nuevoCelular) {
     });
 
     if (linksResponse.status !== 200 || linksResponse.data.status !== 'success' || !Array.isArray(linksResponse.data.data)) {
-      console.log('⚠️ No se encontraron links para actualizar');
       return { updated: 0 };
     }
 
     const linksData = linksResponse.data.data;
 
     if (linksData.length === 0) {
-      console.log('⚠️ No se encontraron links para actualizar');
       return { updated: 0 };
     }
 
@@ -554,10 +516,9 @@ async function updateCelularFR360Links(cedula, nuevoCelular) {
     }
 
     await Promise.all(updates);
-    console.log(`✅ Celular actualizado en ${linksData.length} links de FR360`);
     return { updated: linksData.length };
   } catch (error) {
-    console.error('❌ Error actualizando celular en FR360 Links:', error.message);
+    console.error('[updateCelularFR360Links] Error:', error.message);
     throw error;
   }
 }
@@ -570,7 +531,7 @@ async function updateCelularFR360Links(cedula, nuevoCelular) {
 async function saveConfianzaRecord(data) {
   const ENDPOINT = `${STRAPI_BASE_URL}/api/confianzas`;
 
-  console.log('📝 Guardando registro de confianza en Strapi:', data);
+  console.log('[Confianza] Guardando registro para:', data.cedula);
 
   try {
     // Obtener fecha actual en zona horaria de Colombia
@@ -617,8 +578,6 @@ async function saveConfianzaRecord(data) {
       }
     };
 
-    console.log('📤 Payload para Strapi:', JSON.stringify(payload, null, 2));
-
     const response = await axios.post(ENDPOINT, payload, {
       headers: {
         'Authorization': `Bearer ${STRAPI_TOKEN}`,
@@ -626,7 +585,6 @@ async function saveConfianzaRecord(data) {
       }
     });
 
-    console.log('✅ Registro guardado exitosamente en Strapi:', response.status);
     return { success: true, data: response.data };
 
   } catch (error) {
@@ -646,7 +604,6 @@ async function saveConfianzaRecord(data) {
  */
 async function consultarAcuerdo(nroAcuerdo) {
   try {
-    console.log('Consultando acuerdo:', nroAcuerdo);
 
     const url = `${STRAPI_BASE_URL}/api/carteras?populate=*&filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}&pagination[pageSize]=100`;
 
@@ -666,10 +623,7 @@ async function consultarAcuerdo(nroAcuerdo) {
       };
     }
 
-    console.log('Respuesta de la API - total registros:', response.data?.data?.length);
-
     if (!response.data.data || response.data.data.length === 0) {
-      console.log('No se encontró el acuerdo');
       return {
         success: false,
         error: 'NOT_FOUND',
@@ -751,7 +705,6 @@ async function consultarAcuerdo(nroAcuerdo) {
       comercialId: comercialId
     };
 
-    console.log('Acuerdo encontrado con', cuotas.length, 'cuotas');
     return resultado;
 
   } catch (error) {
@@ -789,15 +742,147 @@ async function sincronizarCrmPorNumeroDocumento(uid) {
 }
 
 /**
- * Crear acuerdo (agreement)
- * @param {...any} args - Agreement creation arguments
- * @returns {Promise<Object>} Created agreement
+ * Genera nro_acuerdo único con formato: yymmdd + 8 dígitos de milisegundos
+ * Ejemplo: 26012746991184 (2026-01-27 + 46991184ms)
+ * @returns {string} Número de acuerdo
  */
-async function crearAcuerdo(...args) {
-  console.log('⚠️ crearAcuerdo needs full implementation');
-  console.log('📝 Args received:', args);
+function generarNroAcuerdo() {
+  const now = new Date();
+  const col = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  const yy = String(col.getFullYear()).slice(-2);
+  const mm = String(col.getMonth() + 1).padStart(2, '0');
+  const dd = String(col.getDate()).padStart(2, '0');
+  const ms = String(Date.now() % 100000000).padStart(8, '0');
+  return `${yy}${mm}${dd}${ms}`;
+}
 
-  throw new Error('crearAcuerdo not fully implemented yet - requires Strapi POST integration');
+/**
+ * Crear acuerdo de pago con registros de cartera en Strapi
+ * @param {string} nombres
+ * @param {string} apellidos
+ * @param {string} cedula
+ * @param {string} correo
+ * @param {string} celular
+ * @param {string|number} valor - Valor total
+ * @param {string} comercialNombre - Nombre del comercial
+ * @param {Array} planPagos - [{fecha, valor}]
+ * @param {string} productoNombre - Nombre del producto
+ * @param {string} inicioTipo - 'primerPago' o 'fecha'
+ * @param {string} inicioFecha - Fecha de inicio (si inicioTipo es 'fecha')
+ * @returns {Promise<Object>}
+ */
+async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, comercialNombre, planPagos, productoNombre, inicioTipo, inicioFecha) {
+  console.log('[crearAcuerdo] Iniciando creación de acuerdo...');
+  console.log('[crearAcuerdo] Estudiante:', nombres, apellidos, '- CC:', cedula);
+  console.log('[crearAcuerdo] Producto:', productoNombre, '- Valor:', valor);
+  console.log('[crearAcuerdo] Comercial:', comercialNombre);
+  console.log('[crearAcuerdo] Inicio:', inicioTipo, inicioFecha || '');
+  console.log('[crearAcuerdo] Cuotas:', planPagos.length);
+
+  // 1. Buscar producto y comercial en Strapi
+  const [productos, comerciales] = await Promise.all([
+    getProducts({ mode: 'catalog' }),
+    getComerciales()
+  ]);
+
+  const producto = productos.find(p => p.nombre === productoNombre);
+  const comercial = comerciales.find(c => c.nombre === comercialNombre);
+
+  if (!producto) {
+    throw new Error(`Producto no encontrado en Strapi: "${productoNombre}"`);
+  }
+  if (!comercial) {
+    throw new Error(`Comercial no encontrado en Strapi: "${comercialNombre}"`);
+  }
+
+  console.log('[crearAcuerdo] Producto ID:', producto.id);
+  console.log('[crearAcuerdo] Comercial ID:', comercial.id);
+
+  // 2. Generar nro_acuerdo (yymmdd + 8 dígitos ms)
+  const nroAcuerdo = generarNroAcuerdo();
+  console.log('[crearAcuerdo] Nro acuerdo generado:', nroAcuerdo);
+
+  // 3. Determinar inicio_plataforma
+  const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
+
+  // 4. Buscar productos específicos por cuota (ej: "Élite - 9 meses - Cuota 1")
+  let productosCuota = [];
+  try {
+    const prodSearchUrl = `${STRAPI_BASE_URL}/api/productos?filters[nombre][$contains]=${encodeURIComponent(productoNombre)}&pagination[pageSize]=50`;
+    const prodResponse = await axios.get(prodSearchUrl, {
+      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+    });
+    productosCuota = (prodResponse.data?.data || []).map(p => ({
+      id: p.id,
+      nombre: p.attributes?.nombre || p.nombre
+    }));
+    console.log('[crearAcuerdo] Productos cuota encontrados:', productosCuota.length);
+  } catch (err) {
+    console.warn('[crearAcuerdo] No se pudieron buscar productos por cuota:', err.message);
+  }
+
+  // 5. Crear registros de cartera (uno por cuota)
+  const carterasCreadas = [];
+  for (let i = 0; i < planPagos.length; i++) {
+    const cuota = planPagos[i];
+    const nroCuota = i + 1;
+
+    // Buscar producto específico para esta cuota
+    const nombreCuota = `${productoNombre} - Cuota ${nroCuota}`;
+    const prodCuota = productosCuota.find(p => p.nombre === nombreCuota);
+    const prodId = prodCuota ? prodCuota.id : producto.id;
+
+    // Formatear fecha_limite (de ISO a YYYY-MM-DD)
+    const fechaLimite = cuota.fecha ? cuota.fecha.substring(0, 10) : '';
+
+    const payload = {
+      data: {
+        numero_documento: cedula,
+        nombres: nombres,
+        apellidos: apellidos,
+        correo: correo,
+        celular: celular,
+        nro_acuerdo: nroAcuerdo,
+        cuota_nro: nroCuota,
+        estado_pago: 'al_dia',
+        valor_cuota: Number(cuota.valor),
+        fecha_limite: fechaLimite,
+        valor_pagado: 0,
+        estado_firma: 'sin_firmar',
+        inicio_plataforma: inicioPlataforma,
+        producto: { id: prodId },
+        comercial: { id: comercial.id }
+      }
+    };
+
+    console.log(`[crearAcuerdo] Creando cartera cuota ${nroCuota}/${planPagos.length} - Producto ID: ${prodId} - Fecha: ${fechaLimite} - Valor: ${cuota.valor}`);
+
+    try {
+      const response = await axios.post(`${STRAPI_BASE_URL}/api/carteras`, payload, {
+        headers: {
+          'Authorization': `Bearer ${STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      carterasCreadas.push(response.data);
+      console.log(`[crearAcuerdo] Cartera cuota ${nroCuota} creada OK`);
+    } catch (postError) {
+      console.error(`[crearAcuerdo] Error creando cuota ${nroCuota}:`, postError.response?.data ? JSON.stringify(postError.response.data) : postError.message);
+      throw postError;
+    }
+  }
+
+  console.log(`[crearAcuerdo] ${carterasCreadas.length} carteras creadas para acuerdo ${nroAcuerdo}`);
+
+  return {
+    success: true,
+    nroAcuerdo,
+    carterasCreadas: carterasCreadas.length,
+    productoId: producto.id,
+    comercialId: comercial.id,
+    comercialNombre: comercial.nombre
+  };
 }
 
 /**
@@ -844,7 +929,6 @@ async function getComerciales() {
   const url = `${STRAPI_BASE_URL}/api/comerciales?pagination[pageSize]=200&sort=nombre:asc`;
 
   try {
-    console.log('📋 Fetching comerciales from Strapi...');
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${STRAPI_TOKEN}`
@@ -866,7 +950,6 @@ async function getComerciales() {
       };
     });
 
-    console.log(`✅ Fetched ${comerciales.length} comerciales`);
     return comerciales;
 
   } catch (error) {
@@ -885,8 +968,6 @@ async function updateFacturacionComercial(documentId, comercialId) {
   const url = `${STRAPI_BASE_URL}/api/facturaciones/${documentId}`;
 
   try {
-    console.log(`📝 Updating facturacion ${documentId} with comercial ${comercialId}...`);
-
     const payload = {
       data: {
         comercial: comercialId
@@ -901,13 +982,11 @@ async function updateFacturacionComercial(documentId, comercialId) {
     });
 
     if (response.status === 200) {
-      console.log('✅ Facturacion updated successfully');
       return {
         success: true,
         data: response.data
       };
     } else {
-      console.error('❌ Unexpected response status:', response.status);
       return {
         success: false,
         error: `Unexpected status: ${response.status}`
@@ -915,7 +994,7 @@ async function updateFacturacionComercial(documentId, comercialId) {
     }
 
   } catch (error) {
-    console.error('❌ Error updating facturacion:', error.message);
+    console.error('[updateFacturacionComercial] Error:', error.message);
 
     if (error.response) {
       return {
@@ -942,7 +1021,6 @@ async function updateFacturacion(documentId, data) {
   const url = `${STRAPI_BASE_URL}/api/facturaciones/${documentId}`;
 
   try {
-    console.log(`📝 Updating facturacion ${documentId} with data:`, data);
 
     // Construir payload solo con campos permitidos
     const payload = {
@@ -959,8 +1037,6 @@ async function updateFacturacion(documentId, data) {
     if (data.acuerdo !== undefined) payload.data.acuerdo = data.acuerdo;
     if (data.producto !== undefined) payload.data.producto = data.producto;
 
-    console.log('📤 Sending payload to Strapi:', JSON.stringify(payload, null, 2));
-
     const response = await axios.put(url, payload, {
       headers: {
         'Authorization': `Bearer ${STRAPI_TOKEN}`,
@@ -969,13 +1045,11 @@ async function updateFacturacion(documentId, data) {
     });
 
     if (response.status === 200) {
-      console.log('✅ Facturacion updated successfully');
       return {
         success: true,
         data: response.data
       };
     } else {
-      console.error('❌ Unexpected response status:', response.status);
       return {
         success: false,
         error: `Unexpected status: ${response.status}`
@@ -983,10 +1057,9 @@ async function updateFacturacion(documentId, data) {
     }
 
   } catch (error) {
-    console.error('❌ Error updating facturacion:', error.message);
+    console.error('[updateFacturacion] Error:', error.message);
 
     if (error.response) {
-      console.error('Response data:', error.response.data);
       return {
         success: false,
         error: error.response.data?.error?.message || error.message,
@@ -1011,7 +1084,6 @@ async function fetchAnticipadosPendientes() {
   const url = `${STRAPI_BASE_URL}/api/carteras?filters[$and][0][$or][0][estado_pago][$eq]=al_dia&filters[$and][0][$or][1][estado_pago][$eq]=en_mora&filters[$and][1][estado_firma][$eq]=firmado&pagination[pageSize]=5000&populate=*`;
 
   try {
-    console.log('📊 Consultando carteras pendientes para Anticipados 2026...');
 
     const response = await axios.get(url, {
       headers: {
@@ -1024,7 +1096,6 @@ async function fetchAnticipadosPendientes() {
     }
 
     const raw = Array.isArray(response.data.data) ? response.data.data : [];
-    console.log(`📋 Total de cuotas pendientes encontradas: ${raw.length}`);
 
     // Agrupar por numero_documento
     const byDocument = {};
@@ -1088,10 +1159,6 @@ async function fetchAnticipadosPendientes() {
     const totalAdeudado = estudiantes.reduce((sum, est) => sum + est.totalAdeudado, 0);
     const totalAlDia = estudiantes.reduce((sum, est) => sum + est.totalAlDia, 0);
 
-    console.log(`✅ Encontrados ${totalEstudiantes} estudiantes con 2+ cuotas pendientes`);
-    console.log(`💰 Total adeudado: $${totalAdeudado.toLocaleString('es-CO')}`);
-    console.log(`✅ Total al día (sin mora): $${totalAlDia.toLocaleString('es-CO')}`);
-
     return {
       success: true,
       estudiantes,
@@ -1121,7 +1188,7 @@ async function fetchAnticipadosPendientes() {
 async function guardarVentaCorriente(data) {
   const ENDPOINT = `${STRAPI_BASE_URL}/api/ventas-corrientes`;
 
-  console.log('💾 [Strapi] Guardando venta corriente:', JSON.stringify(data, null, 2));
+  console.log('[Strapi] Guardando venta corriente para:', data.numero_documento);
 
   try {
     // Construir payload con todos los campos de ventas-corrientes
@@ -1144,17 +1211,12 @@ async function guardarVentaCorriente(data) {
 
     const payload = { data: payloadData };
 
-    console.log('📤 [Strapi] Payload completo:', JSON.stringify(payload, null, 2));
-    console.log('📤 [Strapi] Endpoint:', ENDPOINT);
-
     const response = await axios.post(ENDPOINT, payload, {
       headers: {
         'Authorization': `Bearer ${STRAPI_TOKEN}`,
         'Content-Type': 'application/json'
       }
     });
-
-    console.log('✅ [Strapi] Venta corriente guardada exitosamente:', response.status);
     return { success: true, data: response.data };
 
   } catch (error) {
@@ -1209,7 +1271,7 @@ async function createOrUpdateCRMContact(data) {
     throw new Error('ACTIVECAMPAIGN_API_TOKEN no está configurado');
   }
 
-  console.log(`📇 [CRM] Iniciando create-or-update para: ${data.correo}`);
+  console.log('[CRM] Create-or-update para:', data.correo);
 
   // Función interna para crear contacto
   async function createContact() {
@@ -1235,8 +1297,6 @@ async function createOrUpdateCRMContact(data) {
       }
     };
 
-    console.log(`📇 [CRM] Intentando crear contacto: ${data.correo}`);
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -1247,12 +1307,9 @@ async function createOrUpdateCRMContact(data) {
     });
 
     const responseData = await response.json().catch(() => ({}));
-    console.log(`📇 [CRM] Response status: ${response.status}`);
-    console.log(`📇 [CRM] Response data:`, JSON.stringify(responseData, null, 2));
 
     // Si fue creado exitosamente
     if (response.ok) {
-      console.log(`✅ [CRM] Contacto creado exitosamente: ${responseData.contact?.id}`);
       return {
         created: true,
         contact: responseData.contact
@@ -1269,7 +1326,6 @@ async function createOrUpdateCRMContact(data) {
       );
 
       if (isDuplicate) {
-        console.log(`📇 [CRM] Contacto duplicado detectado: ${data.correo}`);
         return {
           created: false,
           duplicate: true,
@@ -1286,8 +1342,6 @@ async function createOrUpdateCRMContact(data) {
   async function findContactByEmail(email) {
     const url = `${AC_BASE_URL}/contacts?email=${encodeURIComponent(email)}`;
 
-    console.log(`📇 [CRM] Buscando contacto por email: ${email}`);
-
     const response = await fetch(url, {
       headers: {
         'Api-Token': API_TOKEN
@@ -1298,10 +1352,8 @@ async function createOrUpdateCRMContact(data) {
       const result = await response.json();
 
       if (result.contacts && result.contacts.length > 0) {
-        console.log(`✅ [CRM] Contacto encontrado: ${result.contacts[0].id}`);
         return result.contacts[0];
       } else {
-        console.log(`⚠️ [CRM] Contacto no encontrado`);
         return null;
       }
     }
@@ -1333,7 +1385,6 @@ async function createOrUpdateCRMContact(data) {
       }
     };
 
-    console.log(`📇 [CRM] Actualizando contacto ${contactId}`);
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -1346,7 +1397,6 @@ async function createOrUpdateCRMContact(data) {
 
     if (response.ok) {
       const result = await response.json();
-      console.log(`✅ [CRM] Contacto actualizado exitosamente: ${contactId}`);
       return result.contact;
     }
 
@@ -1356,7 +1406,6 @@ async function createOrUpdateCRMContact(data) {
 
   // Ejecutar estrategia create-first con retry
   return await retryWithBackoff(async (attempt) => {
-    console.log(`📇 [CRM] Intento ${attempt} de create-or-update`);
 
     // 1. Intentar crear primero
     const createResult = await createContact();
@@ -1372,8 +1421,6 @@ async function createOrUpdateCRMContact(data) {
 
     // 2. Si es duplicado, buscar y actualizar
     if (createResult.duplicate) {
-      console.log(`📇 [CRM] Contacto duplicado, buscando para actualizar...`);
-
       const existingContact = await findContactByEmail(data.correo);
 
       if (!existingContact) {

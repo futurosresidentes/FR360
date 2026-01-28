@@ -19,6 +19,7 @@ const pdfService = require('./services/pdfService');
 const cobranzaService = require('./services/cobranzaService');
 const cobrancioWebService = require('./services/cobrancioWebService');
 const worldOfficeService = require('./services/worldOfficeService');
+const aucoService = require('./services/aucoService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -1978,9 +1979,80 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await fr360Service.resolvePagoYActualizarCartera(args[0]);
         break;
 
-      case 'crearAcuerdo':
-        result = await strapiService.crearAcuerdo(...args);
+      case 'crearAcuerdo': {
+        const [nombres, apellidos, cedula, correo, celular, valor, comercialNombre, planPagos, productoNombre, inicioTipo, inicioFecha] = args;
+
+        // 1. Crear registros de cartera en Strapi
+        console.log('[crearAcuerdo] === PASO 1: Crear carteras en Strapi ===');
+        const strapiResult = await strapiService.crearAcuerdo(
+          nombres, apellidos, cedula, correo, celular, valor,
+          comercialNombre, planPagos, productoNombre, inicioTipo, inicioFecha
+        );
+
+        if (!strapiResult.success) {
+          result = strapiResult;
+          break;
+        }
+
+        // 2. Generar PDF y subir a AUCO para firma electrónica
+        console.log('[crearAcuerdo] === PASO 2: Generar PDF y subir a AUCO ===');
+        let aucoResult = null;
+        try {
+          const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
+
+          // Formatear cuotas para AUCO
+          const cuotasAuco = planPagos.map((cuota, i) => {
+            const fechaObj = new Date(cuota.fecha);
+            const dd = String(fechaObj.getDate()).padStart(2, '0');
+            const mm = String(fechaObj.getMonth() + 1).padStart(2, '0');
+            const yyyy = fechaObj.getFullYear();
+            return {
+              nro_cuota: i + 1,
+              valor: cuota.valor,
+              fecha_limite: `${dd}/${mm}/${yyyy}`,
+              link_pago: ''
+            };
+          });
+
+          // Fecha de primera cuota en formato dd/mm/yyyy
+          const primeraFechaObj = new Date(planPagos[0].fecha);
+          const primeraFechaStr = `${String(primeraFechaObj.getDate()).padStart(2, '0')}/${String(primeraFechaObj.getMonth() + 1).padStart(2, '0')}/${primeraFechaObj.getFullYear()}`;
+
+          const aucoData = {
+            nombres,
+            apellidos,
+            cedula,
+            correo,
+            celular,
+            nroAcuerdo: strapiResult.nroAcuerdo,
+            producto: productoNombre,
+            monto: valor,
+            cuotas: cuotasAuco,
+            inicioPlataforma,
+            comercial: comercialNombre,
+            primeraCuota: planPagos[0].valor,
+            primeraFecha: primeraFechaStr,
+            primerLink: ''
+          };
+
+          console.log('[crearAcuerdo] Datos AUCO:', JSON.stringify(aucoData, null, 2));
+          aucoResult = await aucoService.generarYSubirAcuerdo(aucoData);
+          console.log('[crearAcuerdo] AUCO resultado:', JSON.stringify(aucoResult));
+        } catch (aucoError) {
+          console.error('[crearAcuerdo] Error en AUCO:', aucoError.message);
+          // No fallar por AUCO - los registros en Strapi ya se crearon
+        }
+
+        result = {
+          success: true,
+          nroAcuerdo: strapiResult.nroAcuerdo,
+          nombreArchivo: `Acuerdo de pago nro. ${strapiResult.nroAcuerdo}. Membresía ${productoNombre}`,
+          aucoDocumentId: aucoResult?.documentId || null,
+          htmlPreview: aucoResult?.htmlPreview || '',
+          carterasCreadas: strapiResult.carterasCreadas
+        };
         break;
+      }
 
       case 'consultarAcuerdo':
         result = await strapiService.consultarAcuerdo(args[0]);

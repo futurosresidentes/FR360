@@ -1231,7 +1231,7 @@ function renderVentasCCTable(container, ventas) {
 
   const formatMoney = (v) => v != null ? Number(v).toLocaleString('es-CO') : '';
 
-  let html = `<table class="ventas-cc-table" style="width:100%;border-collapse:collapse;">
+  let html = `<table class="ventas-cc-table" style="width:100%;border-collapse:collapse;font-size:12px;">
     <thead>
       <tr style="background:#e65100;color:#fff;">
         <th style="padding:6px 8px;">Fecha</th>

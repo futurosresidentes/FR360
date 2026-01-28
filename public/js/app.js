@@ -4717,6 +4717,12 @@
     async function processInstallmentPayment() {
       console.log('🚀 Iniciando creación de acuerdo');
 
+      // Solo daniel.cardona puede crear acuerdos de pago
+      if (USER_EMAIL !== 'daniel.cardona@sentiretaller.com') {
+        alert('⛔ Solo daniel.cardona@sentiretaller.com puede crear acuerdos de pago.');
+        return;
+      }
+
       try {
         // Validar que existe plan de pagos
         if (!planState || planState.length === 0) {
@@ -4791,14 +4797,14 @@
       }
     }
 
-    // Función para mostrar el resultado del acuerdo creado
+    // Función para mostrar el resultado del acuerdo creado con preview
     function showAgreementSuccess(result) {
       const linkResult = document.getElementById('linkResult');
 
       linkResult.innerHTML = `
         <div style="background: #f0f8f0; border: 2px solid #13bf81; border-radius: 8px; padding: 16px; margin-top: 16px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <span style="color: #13bf81; font-size: 20px;">✅</span>
+            <span style="color: #13bf81; font-size: 20px;">&#10004;</span>
             <h3 style="margin: 0; color: #13bf81; font-size: 16px;">Acuerdo creado exitosamente</h3>
           </div>
 
@@ -4812,22 +4818,27 @@
             <span style="flex: 1; font-weight: 600; color: #075183;">${result.nroAcuerdo}</span>
           </div>
 
-          <div style="display: flex; gap: 8px;">
-            <button
-              onclick="window.open('${result.documentoUrl}', '_blank')"
-              style="background: #075183; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
-            >
-              📄 Abrir Documento
-            </button>
-            <button
-              onclick="copyToClipboard('${result.documentoUrl}')"
-              style="background: #13bf81; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
-            >
-              📋 Copiar Link
-            </button>
+          ${result.htmlPreview ? `
+          <div style="margin-top: 12px;">
+            <p style="font-weight: 600; margin-bottom: 8px; color: #333;">Vista previa del documento:</p>
+            <iframe
+              id="acuerdoPreviewFrame"
+              style="width: 100%; height: 700px; border: 1px solid #ddd; border-radius: 4px; background: #fff;"
+              sandbox="allow-same-origin"
+            ></iframe>
           </div>
+          ` : ''}
         </div>
       `;
+
+      // Escribir el HTML en el iframe de forma segura
+      if (result.htmlPreview) {
+        const iframe = document.getElementById('acuerdoPreviewFrame');
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(result.htmlPreview);
+        iframeDoc.close();
+      }
     }
 
     // Handle buscar acuerdo button click

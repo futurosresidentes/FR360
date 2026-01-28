@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: Letter;
+      margin: 0;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11.5px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .page {
+      padding: 25mm 20mm 25mm 20mm;
+      position: relative;
+    }
+    .header {
+      margin-bottom: 30px;
+    }
+    .header img {
+      height: 50px;
+    }
+    .title {
+      text-align: center;
+      margin: 30px 0 20px 0;
+    }
+    .title h1 {
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 2px;
+    }
+    .title h2 {
+      font-size: 13px;
+      font-weight: bold;
+      color: #333;
+    }
+    .body-text {
+      text-align: justify;
+      margin-bottom: 14px;
+    }
+    .clausula-titulo {
+      text-align: center;
+      font-weight: bold;
+      font-size: 12.5px;
+      margin: 20px 0 14px 0;
+    }
+    .clausula {
+      text-align: justify;
+      margin-bottom: 14px;
+    }
+    .clausula strong {
+      font-weight: bold;
+    }
+    .plan-pagos-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+    ul.autorizacion {
+      margin: 10px 0 14px 30px;
+      list-style-type: disc;
+    }
+    ul.autorizacion li {
+      text-align: justify;
+      margin-bottom: 8px;
+    }
+    .firma-section {
+      margin-top: 40px;
+    }
+    .firma-section .label {
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 60px;
+    }
+    .firma-section .nombre {
+      font-weight: bold;
+    }
+    .firma-section .cedula {
+      font-weight: bold;
+    }
+    .elaborado {
+      margin-top: 30px;
+      color: #999;
+      font-style: italic;
+      font-size: 10.5px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 10px;
+      color: #666;
+      margin-top: 40px;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    a {
+      color: #00897B;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- Header con logo -->
+    <div class="header">
+      <img src="{{logo}}" alt="Futuros Residentes">
+    </div>
+
+    <!-- Título -->
+    <div class="title">
+      <h1>ACUERDO DE PAGO Nro. {{consecutivo}}</h1>
+      <h2>Membresía {{membresia}}</h2>
+    </div>
+
+    <!-- Introducción -->
+    <p class="body-text">
+      Yo, <strong>{{estudiante}}</strong> identificado con cédula de ciudadanía No. <strong>{{ccestudiante}}</strong> en adelante DEUDOR, celebro el presente acuerdo de pago a favor de Sentire Taller S.A.S. identificada con Nit. 900993829-3 en adelante ACREEDOR, bajo las siguientes:
+    </p>
+
+    <!-- CLÁUSULAS -->
+    <p class="clausula-titulo">CLÁUSULAS</p>
+
+    <p class="clausula">
+      <strong>PRIMERA. VALOR.</strong> Por medio del presente acuerdo de pago se deja constancia que el deudor debe al acreedor un valor de ($ <strong>{{monto}}</strong>) por concepto de financiamiento de la membresía {{membresia}}.
+    </p>
+
+    <p class="clausula">
+      <strong>SEGUNDA. MODALIDAD DE PAGO.</strong> Las partes de común acuerdo pactan que el DEUDOR pagará a favor del ACREEDOR, los valores que se relacionan a continuación en las fechas estipuladas, así:
+    </p>
+
+    <!-- Plan de pagos -->
+    <div class="plan-pagos-container">
+      {{plandepagos}}
+    </div>
+
+    <p class="clausula">
+      <strong>TERCERA. EJECUCIÓN.</strong> {{ejecucion}}
+    </p>
+
+    <p class="clausula">
+      <strong>PARÁGRAFO.</strong> En caso de que el estudiante presente inconvenientes en el ingreso a la plataforma por motivos personales, incapacidad, estudios o viaje, Futuros Residentes evaluará la contingencia específica de cada estudiante, reservándose la posibilidad de conceder o negar la suspensión de la plataforma. Avalada la suspensión por parte de Futuros Residentes, el estudiante debe tener en cuenta que el término de suspensión será máximo de dos (2) meses; y el tiempo de suspensión será compensado al momento de finalización del curso. Sí Futuros Residentes no avala la suspensión del curso, el tiempo dejado de utilizar no será compensado.
+    </p>
+
+    <p class="clausula">
+      <strong>CUARTA. CLÁUSULA DE MULTA POR MORA.</strong> El DEUDOR reconoce que el presente financiamiento no genera intereses ordinarios ni moratorios. Sin embargo, si incurre en mora por el no pago de una cuota en la fecha pactada, y transcurridos tres (3) días calendario sin que se haya efectuado el pago correspondiente, deberá pagar una multa única equivalente al cinco por ciento (5%) del valor de la cuota vencida e impaga. Esta multa se causará una sola vez por cada cuota en mora, no devengará intereses, no se capitalizará ni generará penalidades adicionales por el mismo incumplimiento. La multa se pacta como una indemnización de carácter fijo por los costos administrativos y operativos en que incurre el ACREEDOR como consecuencia del retraso.
+    </p>
+
+    <p class="clausula">
+      <strong>PARÁGRAFO PRIMERO.</strong> La mora en los pagos autoriza a Futuros Residentes para bloquear los accesos en la plataforma educativa, dicho bloqueo permanecerá hasta el día siguiente hábil en que el estudiante se ponga al día con los pagos.
+    </p>
+
+    <p class="clausula">
+      <strong>PARÁGRAFO SEGUNDO.</strong> El tiempo en que el estudiante permanezca bloqueado por motivo de mora no suspenderá el tiempo de acceso en la plataforma educativa, y por ende el mismo no será adicionado ni compensado en la duración total del curso.
+    </p>
+
+    <p class="clausula">
+      <strong>PARÁGRAFO TERCERO.</strong> El pago de la multa no exime al DEUDOR de su obligación principal ni impide la aplicación de otras medidas pactadas en este acuerdo para los casos de mora.
+    </p>
+
+    <p class="clausula">
+      <strong>QUINTA. CLAUSULA ACELERATORIA.</strong> Las partes acuerdan que, en caso de que EL DEUDOR incurra en el incumplimiento de una (1) o más cuotas, consecutivas o no, de las pactadas en el presente acuerdo de pago, se producirá de pleno derecho el vencimiento anticipado de la totalidad de la obligación pendiente. En tal caso, EL ACREEDOR quedará facultado para exigir el pago inmediato del saldo total adeudado, sin necesidad de declaración judicial o requerimiento previo, bastando para tal efecto el envío de una comunicación escrita a EL DEUDOR, en la cual se indique el incumplimiento y se exija el pago total del saldo pendiente, dentro de los quince (15) días calendario siguientes a su recepción.
+    </p>
+
+    <p class="clausula">
+      Esta cláusula se pacta como una garantía de cumplimiento y no implica novación ni altera la naturaleza del acuerdo. El saldo exigible incluirá únicamente el capital restante y, de haberse causado, la multa por mora establecida en la cláusula cuarta del presente acuerdo, sin que se generen intereses ordinarios ni moratorios.
+    </p>
+
+    <p class="clausula">
+      <strong>SEXTA. AUTORIZACIÓN.</strong> El deudor autoriza a Sentire Taller S.A.S. identificada con Nit. 900.993.829 o a quién represente sus derechos u ostente en el futuro la misma posición contractual de acreedor a:
+    </p>
+
+    <ul class="autorizacion">
+      <li>Consultar, en cualquier tiempo, en DataCrédito o en cualquier otra base de datos manejada por un operador de información financiera y crediticia, toda la información relevante para conocer su desempeño como deudor, su capacidad de pago, la viabilidad para entablar o mantener una relación contractual y demás finalidades establecidas en el Artículo 15 de la Ley 1266 de 2008.</li>
+      <li>Reportar a DataCrédito o a cualquier otra base de datos manejada por un operador datos, tratados o sin tratar, sobre el cumplimiento o incumplimiento de sus obligaciones crediticias, sus deberes legales de contenido patrimonial, sus datos de ubicación y contacto (número de teléfono fijo, número de teléfono celular, dirección del domicilio, dirección laboral y correo electrónico), sus solicitudes de crédito así como otros atinentes a sus relaciones comerciales, financieras y en general socioeconómicas que haya entregado o que consten en registros públicos, bases de datos públicas o documentos públicos.</li>
+      <li>La autorización anterior no impedirá al abajo firmante o su representada ejercer el derecho a corroborar en cualquier tiempo en LA ENTIDAD, en DataCrédito o en la central de información de riesgo a la cual se hayan suministrado los datos, que la información suministrada es veraz, completa, exacta y actualizada, y en caso de que no lo sea, a que se deje constancia de su desacuerdo, a exigir la rectificación y a ser informado sobre las correcciones efectuadas.</li>
+    </ul>
+
+    <p class="clausula">
+      <strong>SEXTA. REPORTE.</strong> En caso de presentarse mora en los pagos superior a 30 días, Sentire Taller S.A.S. podrá realizar los reportes necesarios para el cumplimiento de la presente obligación. En todo caso, Sentire Taller S.A.S. le dará a conocer antes de dicho reporte el estado de su crédito, y procederá a realizar las correspondientes notificaciones para que tenga la oportunidad de pagar la deuda y que su reporte sea positivo.
+    </p>
+
+    <p class="clausula">
+      <strong>SÉPTIMA.</strong> Al presente acuerdo de pago le son aplicables los términos y condiciones generales de Futuros Residentes, los cuales podrá visualizar en nuestra página web o visitando el siguiente enlace: <a href="https://cursofuturosresidentes.com/terminos-y-condiciones/">https://cursofuturosresidentes.com/terminos-y-condiciones/</a>.
+    </p>
+
+    <p class="clausula">
+      Como constancia y aceptación de las cláusulas del presente acuerdo de pago, se firma en la ciudad de Medellín el {{dia}} de {{mes}} de {{ano}}.
+    </p>
+
+    <!-- Firma -->
+    <div class="firma-section">
+      <p class="label">DEUDOR</p>
+      <p>{{signature:0}}</p>
+      <p class="nombre">{{estudiante}}</p>
+      <p class="cedula">C.C. {{ccestudiante}}</p>
+      <p>Deudor.</p>
+    </div>
+
+    <p class="elaborado">Acuerdo elaborado por {{comercial}}</p>
+
+    <!-- Footer -->
+    <div class="footer">
+      Sentire Taller SAS - NIT: 900.993.829-3<br>
+      Correo electrónico: info@cursofuturosresidentes.com<br>
+      Medellín, Antioquia.
+    </div>
+  </div>
+</body>
+</html>
