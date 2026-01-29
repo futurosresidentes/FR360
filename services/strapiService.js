@@ -174,6 +174,62 @@ async function fetchAcuerdos(uid) {
 }
 
 /**
+ * Actualizar cuotas de un acuerdo (Otrosí - renegociación)
+ * @param {string} nroAcuerdo - Número del acuerdo
+ * @param {Array} changes - Array de cambios [{documentId, valor_cuota, fecha_limite}]
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function actualizarCuotasOtrosi(nroAcuerdo, changes) {
+  console.log(`[Otrosí] Actualizando ${changes.length} cuota(s) del acuerdo ${nroAcuerdo}`);
+
+  try {
+    const results = [];
+
+    for (const change of changes) {
+      const { documentId, valor_cuota, fecha_limite } = change;
+
+      const url = `${STRAPI_BASE_URL}/api/carteras/${documentId}`;
+      const payload = {
+        data: {
+          valor_cuota: valor_cuota,
+          fecha_limite: fecha_limite
+        }
+      };
+
+      console.log(`[Otrosí] Actualizando cuota ${documentId}: valor=${valor_cuota}, fecha=${fecha_limite}`);
+
+      const response = await axios.put(url, payload, {
+        headers: {
+          'Authorization': `Bearer ${STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      results.push({
+        documentId,
+        success: response.status === 200,
+        status: response.status
+      });
+    }
+
+    const allSuccess = results.every(r => r.success);
+    console.log(`[Otrosí] Resultado: ${allSuccess ? '✅ Todo OK' : '⚠️ Algunos fallaron'}`);
+
+    return {
+      success: allSuccess,
+      message: `${results.filter(r => r.success).length} de ${results.length} cuota(s) actualizadas.`,
+      results
+    };
+  } catch (error) {
+    console.error('[Otrosí] Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
  * Fetch CRM record from Strapi by identity document
  * @param {string} uid - Identity document number
  * @returns {Promise<Object|null>} CRM record or null
@@ -1445,6 +1501,7 @@ module.exports = {
   getProducts,
   fetchVentas,
   fetchAcuerdos,
+  actualizarCuotasOtrosi,
   fetchCrmStrapiOnly,
   fetchCrmStrapiBatch,
   fetchCrmByEmail,

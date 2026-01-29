@@ -1959,6 +1959,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchAcuerdos(args[0]);
         break;
 
+      case 'actualizarCuotasOtrosi':
+        result = await strapiService.actualizarCuotasOtrosi(args[0], args[1]);
+        break;
+
       case 'getComerciales':
         result = await strapiService.getComerciales();
         break;

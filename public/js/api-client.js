@@ -191,6 +191,10 @@ class FR360ApiClient {
     return this._call('fetchAcuerdos', uid);
   }
 
+  async actualizarCuotasOtrosi(nroAcuerdo, changes) {
+    return this._call('actualizarCuotasOtrosi', nroAcuerdo, changes);
+  }
+
   async getComerciales() {
     return this._call('getComerciales');
   }

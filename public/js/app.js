@@ -2512,6 +2512,7 @@
                 <th>Valor<br>pagado</th>
                 <th>Link<br>Mora</th>
                 <th>Acciones</th>
+                <th>Otrosí</th>
                 <th>Paz y<br>salvo</th>
               </tr>
             </thead>
@@ -2590,6 +2591,11 @@
             : `<td class="qcell"></td>`;
 
           html += `<td class="qcell edit-icon" style="text-align:center; cursor:pointer">✏️</td>`;
+
+          // celda combinada Otrosí (se llenará luego según permisos y estado)
+          if (i === 0) {
+            html += `<td rowspan="${rowSpan}" class="head-cols otrosi-cell"></td>`;
+          }
 
           // celda combinada Paz y salvo (se llenará luego según el estado del acuerdo)
           if (i === 0) {
@@ -2886,6 +2892,18 @@
           if (psCell) {
             psCell.innerHTML = allPaid ? `<button class="ps-btn" title="Expedir paz y salvo">🔖</button>` : '';
           }
+
+          // botón Otrosí - solo para usuarios autorizados y si hay cuotas NO pagadas
+          const otrosiCell = first.querySelector('.otrosi-cell');
+          const otrosiAllowed = ['david.cardona@sentiretaller.com', 'daniel.cardona@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
+          const hasUnpaid = estados.some(s => s !== 'pagado');
+          if (otrosiCell) {
+            if (otrosiAllowed.includes(USER_EMAIL) && hasUnpaid) {
+              otrosiCell.innerHTML = `<button class="otrosi-btn" title="Crear Otrosí - Renegociar cuotas">📝</button>`;
+            } else {
+              otrosiCell.innerHTML = '';
+            }
+          }
         });
 
         // handler del botón paz y salvo
@@ -2966,6 +2984,175 @@
               btn.disabled = false;
             }
           });
+        });
+
+        // handler del botón Otrosí - renegociar cuotas
+        tableDiv.querySelectorAll('.otrosi-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tr = btn.closest('tr');
+            const nroAcuerdo = tr.dataset.nroAcuerdo || '';
+            const productoNombre = tr.dataset.productoNombre || '';
+
+            // Recopilar cuotas NO pagadas de este acuerdo
+            const allRows = tableDiv.querySelectorAll(`tr[data-nro-acuerdo="${nroAcuerdo}"]`);
+            const unpaidCuotas = [];
+
+            allRows.forEach(row => {
+              const estado = (row.dataset.estadoPago || '').toLowerCase();
+              if (estado !== 'pagado') {
+                unpaidCuotas.push({
+                  documentId: row.dataset.documentId || '',
+                  cuotaNro: row.dataset.cuotaNro || '',
+                  valorCuota: row.dataset.valorCuota || '',
+                  fechaLimite: row.dataset.fechaLimite || '',
+                  estado: estado
+                });
+              }
+            });
+
+            if (unpaidCuotas.length === 0) {
+              alert('Todas las cuotas de este acuerdo ya están pagadas.');
+              return;
+            }
+
+            showOtrosiModal(nroAcuerdo, productoNombre, unpaidCuotas);
+          });
+        });
+      }
+
+      // Modal para Otrosí - renegociar cuotas
+      function showOtrosiModal(nroAcuerdo, productoNombre, cuotas) {
+        // Remover modal existente si hay
+        const existingModal = document.getElementById('otrosiModal');
+        if (existingModal) existingModal.remove();
+
+        let cuotasHtml = '';
+        cuotas.forEach((c) => {
+          cuotasHtml += `
+            <tr data-document-id="${c.documentId}" data-original-valor="${c.valorCuota}" data-original-fecha="${c.fechaLimite}">
+              <td style="padding:8px; text-align:center;">${c.cuotaNro}</td>
+              <td style="padding:8px;">
+                <input type="number" class="otrosi-valor" value="${c.valorCuota}" style="width:120px; padding:4px; text-align:right;">
+              </td>
+              <td style="padding:8px;">
+                <input type="date" class="otrosi-fecha" value="${c.fechaLimite}" style="padding:4px;">
+              </td>
+              <td style="padding:8px; text-align:center; color:#666;">${c.estado === 'en_mora' ? '🔴 En mora' : '🟡 Al día'}</td>
+            </tr>
+          `;
+        });
+
+        const modalHtml = `
+          <div id="otrosiModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
+            <div style="background:#fff; border-radius:8px; padding:24px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="margin:0; color:#075183;">📝 Otrosí - Renegociar Cuotas</h3>
+                <button id="closeOtrosiModal" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+              </div>
+
+              <div style="background:#f5f5f5; padding:12px; border-radius:4px; margin-bottom:16px;">
+                <p style="margin:0;"><strong>Acuerdo:</strong> ${nroAcuerdo}</p>
+                <p style="margin:4px 0 0;"><strong>Producto:</strong> ${productoNombre}</p>
+              </div>
+
+              <p style="margin-bottom:12px; color:#666;">Cuotas pendientes de pago (${cuotas.length}):</p>
+
+              <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+                <thead>
+                  <tr style="background:#075183; color:#fff;">
+                    <th style="padding:8px;">Cuota</th>
+                    <th style="padding:8px;">Valor Cuota</th>
+                    <th style="padding:8px;">Fecha Límite</th>
+                    <th style="padding:8px;">Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="otrosiCuotasBody">
+                  ${cuotasHtml}
+                </tbody>
+              </table>
+
+              <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button id="cancelOtrosi" style="background:#ccc; color:#333; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
+                  Cancelar
+                </button>
+                <button id="saveOtrosi" style="background:#075183; color:#fff; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
+                  💾 Guardar Cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Event listeners
+        document.getElementById('closeOtrosiModal').addEventListener('click', () => {
+          document.getElementById('otrosiModal').remove();
+        });
+
+        document.getElementById('cancelOtrosi').addEventListener('click', () => {
+          document.getElementById('otrosiModal').remove();
+        });
+
+        document.getElementById('otrosiModal').addEventListener('click', (e) => {
+          if (e.target.id === 'otrosiModal') {
+            document.getElementById('otrosiModal').remove();
+          }
+        });
+
+        document.getElementById('saveOtrosi').addEventListener('click', async () => {
+          const rows = document.querySelectorAll('#otrosiCuotasBody tr');
+          const changes = [];
+
+          rows.forEach(row => {
+            const documentId = row.dataset.documentId;
+            const originalValor = row.dataset.originalValor;
+            const originalFecha = row.dataset.originalFecha;
+            const newValor = row.querySelector('.otrosi-valor').value;
+            const newFecha = row.querySelector('.otrosi-fecha').value;
+
+            if (newValor !== originalValor || newFecha !== originalFecha) {
+              changes.push({
+                documentId,
+                valor_cuota: Number(newValor),
+                fecha_limite: newFecha
+              });
+            }
+          });
+
+          if (changes.length === 0) {
+            alert('No hay cambios para guardar.');
+            return;
+          }
+
+          const confirmar = confirm(`¿Guardar ${changes.length} cambio(s) en las cuotas del acuerdo ${nroAcuerdo}?`);
+          if (!confirmar) return;
+
+          const saveBtn = document.getElementById('saveOtrosi');
+          saveBtn.disabled = true;
+          saveBtn.textContent = '⏳ Guardando...';
+
+          try {
+            const response = await api.actualizarCuotasOtrosi(nroAcuerdo, changes);
+
+            if (response.success) {
+              alert(`✅ ${response.message || 'Cuotas actualizadas exitosamente.'}`);
+              document.getElementById('otrosiModal').remove();
+              // Recargar acuerdos
+              const cedula = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
+              if (cedula) {
+                api.fetchAcuerdos(cedula).then(renderAcuerdos);
+              }
+            } else {
+              alert(`❌ Error: ${response.error || 'Error al actualizar las cuotas.'}`);
+              saveBtn.disabled = false;
+              saveBtn.textContent = '💾 Guardar Cambios';
+            }
+          } catch (error) {
+            alert(`❌ Error de conexión: ${error.message}`);
+            saveBtn.disabled = false;
+            saveBtn.textContent = '💾 Guardar Cambios';
+          }
         });
       }
 
