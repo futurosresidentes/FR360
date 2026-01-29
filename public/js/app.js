@@ -2899,7 +2899,7 @@
           const hasUnpaid = estados.some(s => s !== 'pagado');
           if (otrosiCell) {
             if (otrosiAllowed.includes(USER_EMAIL) && hasUnpaid) {
-              otrosiCell.innerHTML = `<button class="otrosi-btn" title="Crear Otrosí - Renegociar cuotas">📝</button>`;
+              otrosiCell.innerHTML = `<button class="otrosi-btn" title="Crear Otrosí - Renegociar cuotas" style="background:none; border:none; font-size:1.3em; cursor:pointer;">📜</button>`;
             } else {
               otrosiCell.innerHTML = '';
             }
@@ -3026,6 +3026,9 @@
         const existingModal = document.getElementById('otrosiModal');
         if (existingModal) existingModal.remove();
 
+        // Calcular total pendiente original
+        const totalPendiente = cuotas.reduce((sum, c) => sum + Number(c.valorCuota || 0), 0);
+
         let cuotasHtml = '';
         cuotas.forEach((c) => {
           cuotasHtml += `
@@ -3046,24 +3049,25 @@
           <div id="otrosiModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
             <div style="background:#fff; border-radius:8px; padding:24px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h3 style="margin:0; color:#075183;">📝 Otrosí - Renegociar Cuotas</h3>
+                <h3 style="margin:0; color:#f70f79;">📜 Otrosí - Renegociar Cuotas</h3>
                 <button id="closeOtrosiModal" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
               </div>
 
-              <div style="background:#f5f5f5; padding:12px; border-radius:4px; margin-bottom:16px;">
+              <div style="background:#ffe6f1; padding:12px; border-radius:4px; margin-bottom:16px;">
                 <p style="margin:0;"><strong>Acuerdo:</strong> ${nroAcuerdo}</p>
                 <p style="margin:4px 0 0;"><strong>Producto:</strong> ${productoNombre}</p>
+                <p style="margin:4px 0 0;"><strong>Total pendiente:</strong> $${totalPendiente.toLocaleString('es-CO')} <span id="otrosiTotalActual" style="color:#666;"></span></p>
               </div>
 
               <p style="margin-bottom:12px; color:#666;">Cuotas pendientes de pago (${cuotas.length}):</p>
 
               <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
                 <thead>
-                  <tr style="background:#075183; color:#fff;">
-                    <th style="padding:8px;">Cuota</th>
-                    <th style="padding:8px;">Valor Cuota</th>
-                    <th style="padding:8px;">Fecha Límite</th>
-                    <th style="padding:8px;">Estado</th>
+                  <tr>
+                    <th style="padding:8px; background:#f70f79; color:#fff;">Cuota</th>
+                    <th style="padding:8px; background:#f70f79; color:#fff;">Valor Cuota</th>
+                    <th style="padding:8px; background:#f70f79; color:#fff;">Fecha Límite</th>
+                    <th style="padding:8px; background:#f70f79; color:#fff;">Estado</th>
                   </tr>
                 </thead>
                 <tbody id="otrosiCuotasBody">
@@ -3075,8 +3079,8 @@
                 <button id="cancelOtrosi" style="background:#ccc; color:#333; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
                   Cancelar
                 </button>
-                <button id="saveOtrosi" style="background:#075183; color:#fff; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
-                  💾 Guardar Cambios
+                <button id="saveOtrosi" style="background:#f70f79; color:#fff; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
+                  📜 Elaborar otrosí
                 </button>
               </div>
             </div>
@@ -3100,58 +3104,239 @@
           }
         });
 
+        // === Lógica de cascada de fechas ===
+        // Cuando se modifica una fecha, las siguientes se mueven conservando el día original
+        function getEndOfMonth(year, month) {
+          return new Date(year, month + 1, 0).getDate();
+        }
+
+        function addMonthsKeepingDay(baseDate, monthsToAdd, targetDay) {
+          const [year, month] = baseDate.split('-').map(Number);
+          let newYear = year;
+          let newMonth = month - 1 + monthsToAdd;
+
+          while (newMonth > 11) { newMonth -= 12; newYear++; }
+          while (newMonth < 0) { newMonth += 12; newYear--; }
+
+          const endOfMonth = getEndOfMonth(newYear, newMonth);
+          const newDay = Math.min(targetDay, endOfMonth);
+
+          return `${newYear}-${String(newMonth + 1).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+        }
+
+        const dateInputs = document.querySelectorAll('#otrosiCuotasBody .otrosi-fecha');
+        dateInputs.forEach((input, index) => {
+          input.addEventListener('change', () => {
+            const currentDate = input.value;
+            if (!currentDate) return;
+
+            // El día objetivo es el día de la fecha modificada
+            const targetDay = parseInt(currentDate.split('-')[2], 10);
+
+            // Aplicar a las fechas siguientes, sumando 1 mes cada vez desde la fecha modificada
+            for (let i = index + 1; i < dateInputs.length; i++) {
+              const monthsFromChanged = i - index;
+              dateInputs[i].value = addMonthsKeepingDay(currentDate, monthsFromChanged, targetDay);
+            }
+          });
+        });
+
+        // === Lógica de redistribución de valores ===
+        const valorInputs = document.querySelectorAll('#otrosiCuotasBody .otrosi-valor');
+        const totalOriginal = totalPendiente;
+
+        function updateTotalDisplay() {
+          const currentTotal = Array.from(valorInputs).reduce((sum, inp) => sum + Number(inp.value || 0), 0);
+          const diff = currentTotal - totalOriginal;
+          const totalSpan = document.getElementById('otrosiTotalActual');
+          if (totalSpan) {
+            if (diff > 0) {
+              totalSpan.textContent = `(Actual: $${currentTotal.toLocaleString('es-CO')} +$${diff.toLocaleString('es-CO')})`;
+              totalSpan.style.color = '#13bf81';
+            } else if (diff < 0) {
+              totalSpan.textContent = `(Actual: $${currentTotal.toLocaleString('es-CO')} -$${Math.abs(diff).toLocaleString('es-CO')})`;
+              totalSpan.style.color = '#c01414';
+            } else {
+              totalSpan.textContent = '';
+            }
+          }
+        }
+
+        valorInputs.forEach((input, index) => {
+          input.addEventListener('change', () => {
+            const cuotasRestantes = valorInputs.length - index - 1;
+            if (cuotasRestantes <= 0) {
+              updateTotalDisplay();
+              return;
+            }
+
+            // Calcular suma de cuotas anteriores + la modificada
+            let sumaAnterior = 0;
+            for (let i = 0; i <= index; i++) {
+              sumaAnterior += Number(valorInputs[i].value || 0);
+            }
+
+            // Calcular saldo a distribuir
+            let saldoRestante = totalOriginal - sumaAnterior;
+
+            // Si el saldo es negativo, las cuotas siguientes quedan en 0
+            if (saldoRestante < 0) saldoRestante = 0;
+
+            // Distribuir equitativamente entre las cuotas restantes
+            const valorPorCuota = Math.round(saldoRestante / cuotasRestantes);
+
+            for (let i = index + 1; i < valorInputs.length; i++) {
+              if (i === valorInputs.length - 1) {
+                // Última cuota: asignar el resto para evitar errores de redondeo
+                const sumaHastaAhora = sumaAnterior + (valorPorCuota * (cuotasRestantes - 1));
+                valorInputs[i].value = Math.max(0, totalOriginal - sumaHastaAhora);
+              } else {
+                valorInputs[i].value = valorPorCuota;
+              }
+            }
+
+            updateTotalDisplay();
+          });
+
+          // También actualizar display cuando se edita manualmente sin redistribuir
+          input.addEventListener('input', updateTotalDisplay);
+        });
+
         document.getElementById('saveOtrosi').addEventListener('click', async () => {
           const rows = document.querySelectorAll('#otrosiCuotasBody tr');
-          const changes = [];
+          const cuotasData = [];
 
+          // Recopilar TODAS las cuotas con sus nuevos valores
           rows.forEach(row => {
             const documentId = row.dataset.documentId;
-            const originalValor = row.dataset.originalValor;
-            const originalFecha = row.dataset.originalFecha;
+            const cuotaNro = row.querySelector('td:first-child').textContent.trim();
             const newValor = row.querySelector('.otrosi-valor').value;
             const newFecha = row.querySelector('.otrosi-fecha').value;
 
-            if (newValor !== originalValor || newFecha !== originalFecha) {
-              changes.push({
-                documentId,
-                valor_cuota: Number(newValor),
-                fecha_limite: newFecha
-              });
-            }
+            cuotasData.push({
+              documentId,
+              cuotaNro: Number(cuotaNro),
+              valor_cuota: Number(newValor),
+              fecha_limite: newFecha
+            });
           });
 
-          if (changes.length === 0) {
-            alert('No hay cambios para guardar.');
+          // Validar que el total no sea menor al pendiente original
+          const totalActual = cuotasData.reduce((sum, c) => sum + c.valor_cuota, 0);
+          if (totalActual < totalOriginal) {
+            alert(`❌ El valor total de las cuotas ($${totalActual.toLocaleString('es-CO')}) no puede ser menor al total pendiente ($${totalOriginal.toLocaleString('es-CO')}).`);
             return;
           }
 
-          const confirmar = confirm(`¿Guardar ${changes.length} cambio(s) en las cuotas del acuerdo ${nroAcuerdo}?`);
+          // Obtener datos del cliente
+          const clienteNombres = document.getElementById('nombres')?.value || '';
+          const clienteApellidos = document.getElementById('apellidos')?.value || '';
+          const clienteCedula = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
+
+          if (!clienteNombres || !clienteApellidos || !clienteCedula) {
+            alert('❌ No se encontraron los datos del cliente.');
+            return;
+          }
+
+          const nombreCompleto = `${clienteNombres} ${clienteApellidos}`.trim();
+
+          const confirmar = confirm(
+            `¿Elaborar otrosí para el acuerdo ${nroAcuerdo}?\n\n` +
+            `Cliente: ${nombreCompleto}\n` +
+            `Cédula: ${clienteCedula}\n` +
+            `Cuotas a modificar: ${cuotasData.length}`
+          );
           if (!confirmar) return;
 
           const saveBtn = document.getElementById('saveOtrosi');
           saveBtn.disabled = true;
-          saveBtn.textContent = '⏳ Guardando...';
+          saveBtn.textContent = '⏳ Generando...';
 
           try {
-            const response = await api.actualizarCuotasOtrosi(nroAcuerdo, changes);
+            const response = await api.elaborarOtrosi({
+              nroAcuerdo,
+              nombre: nombreCompleto,
+              cedula: clienteCedula,
+              cuotas: cuotasData
+            });
 
             if (response.success) {
-              alert(`✅ ${response.message || 'Cuotas actualizadas exitosamente.'}`);
-              document.getElementById('otrosiModal').remove();
+              // Guardar el HTML para abrir después
+              window._otrosiHtmlContent = response.htmlContent;
+
+              // Mostrar resultado con link al documento
+              const modal = document.getElementById('otrosiModal');
+              modal.querySelector('div > div').innerHTML = `
+                <div style="text-align:center; padding:20px;">
+                  <div style="font-size:48px; margin-bottom:16px;">✅</div>
+                  <h3 style="color:#f70f79; margin-bottom:16px;">Otrosí generado exitosamente</h3>
+                  <p style="margin-bottom:8px;"><strong>Acuerdo:</strong> ${nroAcuerdo}</p>
+                  <p style="margin-bottom:16px;"><strong>Cliente:</strong> ${nombreCompleto}</p>
+                  ${response.htmlContent ? `
+                    <div style="display:flex; gap:12px; justify-content:center; margin-bottom:16px;">
+                      <button id="verOtrosiBtn"
+                         style="display:inline-block; background:#f70f79; color:#fff; padding:12px 24px; border-radius:4px; border:none; cursor:pointer; font-size:14px;">
+                        📄 Ver documento
+                      </button>
+                      <button id="descargarOtrosiBtn"
+                         style="display:inline-block; background:#075183; color:#fff; padding:12px 24px; border-radius:4px; border:none; cursor:pointer; font-size:14px;">
+                        ⬇️ Descargar
+                      </button>
+                    </div>
+                  ` : ''}
+                  <button onclick="document.getElementById('otrosiModal').remove()"
+                          style="background:#ccc; color:#333; border:none; padding:10px 20px; border-radius:4px; cursor:pointer;">
+                    Cerrar
+                  </button>
+                </div>
+              `;
+
+              // Handler para abrir el documento
+              const verBtn = document.getElementById('verOtrosiBtn');
+              if (verBtn) {
+                verBtn.addEventListener('click', () => {
+                  const blob = new Blob([window._otrosiHtmlContent], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, '_blank');
+                });
+              }
+
+              // Handler para descargar el PDF
+              const descargarBtn = document.getElementById('descargarOtrosiBtn');
+              if (descargarBtn && response.pdfBase64) {
+                window._otrosiPdfBase64 = response.pdfBase64;
+                descargarBtn.addEventListener('click', () => {
+                  const byteCharacters = atob(window._otrosiPdfBase64);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: 'application/pdf' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Otrosi-Acuerdo-${nroAcuerdo}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                });
+              }
+
               // Recargar acuerdos
-              const cedula = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
-              if (cedula) {
-                api.fetchAcuerdos(cedula).then(renderAcuerdos);
+              if (clienteCedula) {
+                api.fetchAcuerdos(clienteCedula).then(renderAcuerdos);
               }
             } else {
-              alert(`❌ Error: ${response.error || 'Error al actualizar las cuotas.'}`);
+              alert(`❌ Error: ${response.error || 'Error al generar el otrosí.'}`);
               saveBtn.disabled = false;
-              saveBtn.textContent = '💾 Guardar Cambios';
+              saveBtn.textContent = '📜 Elaborar otrosí';
             }
           } catch (error) {
             alert(`❌ Error de conexión: ${error.message}`);
             saveBtn.disabled = false;
-            saveBtn.textContent = '💾 Guardar Cambios';
+            saveBtn.textContent = '📜 Elaborar otrosí';
           }
         });
       }

@@ -1,4 +1,14 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const puppeteer = require('puppeteer');
+const { createClient } = require('@supabase/supabase-js');
+
+// Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 // Strapi API configuration
 const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
@@ -220,6 +230,147 @@ async function actualizarCuotasOtrosi(nroAcuerdo, changes) {
       message: `${results.filter(r => r.success).length} de ${results.length} cuota(s) actualizadas.`,
       results
     };
+  } catch (error) {
+    console.error('[Otrosí] Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Elaborar documento Otrosí, actualizar cuotas en Strapi y guardar en Supabase
+ * @param {Object} data - Datos del otrosí
+ * @param {string} data.nroAcuerdo - Número del acuerdo
+ * @param {string} data.nombre - Nombre completo del deudor
+ * @param {string} data.cedula - Cédula del deudor
+ * @param {Array} data.cuotas - Cuotas [{documentId, cuotaNro, valor_cuota, fecha_limite}]
+ * @returns {Promise<Object>} { success, documentUrl, error }
+ */
+async function elaborarOtrosi(data) {
+  const { nroAcuerdo, nombre, cedula, cuotas } = data;
+  console.log(`[Otrosí] Elaborando otrosí para acuerdo ${nroAcuerdo} - ${nombre}`);
+
+  try {
+    // 1. Leer template HTML (NO se modifican cuotas en Strapi)
+    const templatePath = path.join(__dirname, '..', 'templates', 'otrosi.html');
+    let html = fs.readFileSync(templatePath, 'utf8');
+
+    // 2. Obtener fecha actual en Colombia
+    const now = new Date();
+    const col = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const dia = col.getDate();
+    const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const mes = meses[col.getMonth()];
+    const ano = col.getFullYear();
+
+    // 3. Generar tabla de cuotas HTML
+    let tablaCuotas = '';
+    cuotas.forEach(c => {
+      const fechaParts = c.fecha_limite.split('-');
+      const fechaFormateada = `${fechaParts[2]}/${fechaParts[1]}/${fechaParts[0]}`;
+      const valorFormateado = `$${Number(c.valor_cuota).toLocaleString('es-CO')}`;
+      tablaCuotas += `
+        <tr>
+          <td>${c.cuotaNro}</td>
+          <td>${fechaFormateada}</td>
+          <td>${valorFormateado}</td>
+        </tr>
+      `;
+    });
+
+    // 4. Reemplazar placeholders
+    // Cargar logo como base64
+    let logoBase64 = '';
+    try {
+      const logoPath = path.join(__dirname, '..', 'public', 'images', 'logo-futuros-residentes.jpg');
+      const buffer = fs.readFileSync(logoPath);
+      logoBase64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    } catch (err) {
+      console.log('[Otrosí] Logo no encontrado, usando URL externa');
+      logoBase64 = 'https://cursofuturosresidentes.com/wp-content/uploads/2024/07/FR-logo-2.png';
+    }
+
+    html = html
+      .replace(/\{\{acuerdo\}\}/g, nroAcuerdo)
+      .replace(/\{\{nombre\}\}/g, nombre)
+      .replace(/\{\{cedula\}\}/g, cedula)
+      .replace(/\{\{tablaCuotas\}\}/g, tablaCuotas)
+      .replace(/\{\{dia\}\}/g, dia)
+      .replace(/\{\{mes\}\}/g, mes)
+      .replace(/\{\{ano\}\}/g, ano)
+      .replace(/\{\{logo\}\}/g, logoBase64);
+
+    // 5. Subir a Supabase Storage
+    const bucketName = 'otrosi-documents';
+    const fileName = `otrosi-${nroAcuerdo}-${Date.now()}.html`;
+
+    // Asegurar que el bucket existe
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === bucketName);
+
+    if (!bucketExists) {
+      console.log('[Otrosí] Creando bucket otrosi-documents...');
+      const { error: createError } = await supabase.storage.createBucket(bucketName, {
+        public: true,
+        fileSizeLimit: 10485760
+      });
+      if (createError && !createError.message.includes('already exists')) {
+        throw new Error(`Error creando bucket: ${createError.message}`);
+      }
+    }
+
+    // Subir archivo
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, Buffer.from(html, 'utf8'), {
+        contentType: 'text/html',
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw new Error(`Error subiendo documento: ${uploadError.message}`);
+    }
+
+    // Obtener URL pública
+    const { data: publicUrl } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    console.log(`[Otrosí] ✅ HTML subido: ${publicUrl.publicUrl}`);
+
+    // 6. Generar PDF con Puppeteer
+    console.log('[Otrosí] Generando PDF...');
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    let pdfBase64 = '';
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({
+        format: 'Letter',
+        printBackground: true,
+        margin: { top: '15mm', bottom: '15mm', left: '20mm', right: '20mm' }
+      });
+      pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
+      console.log(`[Otrosí] ✅ PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
+    } finally {
+      await browser.close();
+    }
+
+    return {
+      success: true,
+      documentUrl: publicUrl.publicUrl,
+      htmlContent: html,
+      pdfBase64: pdfBase64,
+      message: 'Otrosí generado exitosamente'
+    };
+
   } catch (error) {
     console.error('[Otrosí] Error:', error.message);
     return {
@@ -1502,6 +1653,7 @@ module.exports = {
   fetchVentas,
   fetchAcuerdos,
   actualizarCuotasOtrosi,
+  elaborarOtrosi,
   fetchCrmStrapiOnly,
   fetchCrmStrapiBatch,
   fetchCrmByEmail,
