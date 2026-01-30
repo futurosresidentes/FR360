@@ -160,11 +160,14 @@ function reemplazarPlaceholders(html, data) {
 }
 
 /**
- * Convierte HTML a PDF usando Puppeteer
+ * Convierte HTML a PDF usando Puppeteer con header/footer en todas las páginas
  * @param {string} html - HTML completo
+ * @param {Object} options - Opciones adicionales
+ * @param {string} options.headerTemplate - HTML del header
+ * @param {string} options.footerTemplate - HTML del footer
  * @returns {Promise<Buffer>} PDF como buffer
  */
-async function htmlToPDF(html) {
+async function htmlToPDF(html, options = {}) {
   console.log('[AUCO] Convirtiendo HTML a PDF...');
 
   let browser;
@@ -188,11 +191,20 @@ async function htmlToPDF(html) {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    const pdfBuffer = await page.pdf({
+    const pdfOptions = {
       format: 'Letter',
       printBackground: true,
-      margin: { top: '30mm', bottom: '40mm', left: '20mm', right: '20mm' }
-    });
+      margin: { top: '38mm', bottom: '35mm', left: '20mm', right: '20mm' }
+    };
+
+    // Si hay header/footer templates, activarlos
+    if (options.headerTemplate || options.footerTemplate) {
+      pdfOptions.displayHeaderFooter = true;
+      pdfOptions.headerTemplate = options.headerTemplate || '<span></span>';
+      pdfOptions.footerTemplate = options.footerTemplate || '<span></span>';
+    }
+
+    const pdfBuffer = await page.pdf(pdfOptions);
 
     return Buffer.from(pdfBuffer);
   } finally {
@@ -304,7 +316,7 @@ async function generarYSubirAcuerdo(data) {
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
         * { font-family: 'Montserrat', sans-serif !important; }
-        .signature-container { min-height: 120px; padding: 20px 0; }
+        .signature-container { min-height: 150px; padding: 25px 0; font-size: 28px; }
       </style>
     `;
     // Inyectar después de <head> o al inicio si no existe
@@ -316,23 +328,40 @@ async function generarYSubirAcuerdo(data) {
       htmlFinal = montserratStyles + htmlFinal;
     }
 
-    // 4. Envolver el placeholder de firma en un contenedor más grande
+    // 4. Envolver el placeholder de firma en un contenedor más grande con fuente 28px
     htmlFinal = htmlFinal.replace(
       '{{signature:0}}',
-      '<div class="signature-container" style="min-height: 120px; padding: 20px 0;">{{signature:0}}</div>'
+      '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px;">{{signature:0}}</div>'
     );
 
     // 5. Limpiar placeholder de firma para el preview
     const htmlPreview = htmlFinal.replace(
       /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/,
-      '<div class="signature-container" style="min-height: 120px; padding: 20px 0; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+      '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
     );
 
-    // 6. Convertir a PDF
-    const pdfBuffer = await htmlToPDF(htmlFinal);
+    // 6. Crear templates de header y footer para todas las páginas
+    const logoBase64 = getLogoBase64();
+
+    const headerTemplate = `
+      <div style="width: 100%; padding: 10px 40px; box-sizing: border-box;">
+        <img src="${logoBase64}" style="height: 45px; display: block; margin: 0 auto;" />
+      </div>
+    `;
+
+    const footerTemplate = `
+      <div style="width: 100%; text-align: center; font-size: 9px; font-family: 'Montserrat', Arial, sans-serif; color: #666; padding: 15px 40px; box-sizing: border-box; border-top: 1px solid #ddd;">
+        <div style="margin-bottom: 3px;"><strong>Sentire Taller SAS</strong> · NIT 900.983.829-3</div>
+        <div style="margin-bottom: 3px;">Correo electrónico: info@cursosfuturosresidentes.com</div>
+        <div>Medellín, Antioquia.</div>
+      </div>
+    `;
+
+    // 7. Convertir a PDF con header/footer en todas las páginas
+    const pdfBuffer = await htmlToPDF(htmlFinal, { headerTemplate, footerTemplate });
     console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    // 7. Subir a AUCO
+    // 8. Subir a AUCO
     const resultado = await uploadToAuco(data, pdfBuffer);
 
     console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
