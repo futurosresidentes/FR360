@@ -167,7 +167,7 @@ app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
     console.log('[API v1] PASO 1: Crear carteras en Strapi');
     const strapiResult = await strapiService.crearAcuerdo(
       nombres, apellidos, cedula, correo, celular, valor,
-      comercialNombre || '', planPagos, productoNombre, inicioTipo || 'primerPago', inicioFecha || ''
+      comercialNombre || '', planPagos, productoNombre, inicioTipo || '', inicioFecha || ''
     );
 
     if (!strapiResult.success) {
