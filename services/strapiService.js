@@ -1009,8 +1009,8 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
   const nroAcuerdo = generarNroAcuerdo();
   console.log('[crearAcuerdo] Nro acuerdo generado:', nroAcuerdo);
 
-  // 3. Determinar inicio_plataforma
-  const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
+  // 3. Determinar inicio_plataforma (null si no hay fecha, Strapi no acepta string vacío para campos date)
+  const inicioPlataforma = inicioFecha || null;
 
   // 4. Buscar productos específicos por cuota (ej: "Élite - 9 meses - Cuota 1")
   let productosCuota = [];
