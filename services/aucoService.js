@@ -8,10 +8,19 @@
  * 4. Enviar PDF a AUCO API para firma electrónica
  */
 
-const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
+
+// Puppeteer: usar chromium en producción, puppeteer normal en desarrollo
+const isProduction = process.env.NODE_ENV === 'production';
+let puppeteer, chromium;
+if (isProduction) {
+  puppeteer = require('puppeteer-core');
+  chromium = require('@sparticuz/chromium');
+} else {
+  puppeteer = require('puppeteer');
+}
 
 // Configuración
 const AUCO_API_URL = process.env.AUCO_API_URL || 'https://api.auco.ai/v1.5';
@@ -158,10 +167,22 @@ function reemplazarPlaceholders(html, data) {
 async function htmlToPDF(html) {
   console.log('[AUCO] Convirtiendo HTML a PDF...');
 
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  let browser;
+  if (isProduction) {
+    // Producción: usar @sparticuz/chromium
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless
+    });
+  } else {
+    // Desarrollo: usar puppeteer normal
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+  }
 
   try {
     const page = await browser.newPage();

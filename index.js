@@ -2046,6 +2046,12 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           console.log('[crearAcuerdo] Datos AUCO:', JSON.stringify(aucoData, null, 2));
           aucoResult = await aucoService.generarYSubirAcuerdo(aucoData);
           console.log('[crearAcuerdo] AUCO resultado:', JSON.stringify(aucoResult));
+
+          // Actualizar codigo_auco en las carteras
+          if (aucoResult?.documentId) {
+            const aucoUpdateResult = await strapiService.actualizarCodigoAuco(strapiResult.nroAcuerdo, aucoResult.documentId);
+            console.log('[crearAcuerdo] Codigo AUCO actualizado:', aucoUpdateResult);
+          }
         } catch (aucoError) {
           console.error('[crearAcuerdo] Error en AUCO:', aucoError.message);
           // No fallar por AUCO - los registros en Strapi ya se crearon

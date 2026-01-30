@@ -1028,7 +1028,12 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
     console.warn('[crearAcuerdo] No se pudieron buscar productos por cuota:', err.message);
   }
 
-  // 5. Crear registros de cartera (uno por cuota)
+  // 5. Calcular valores totales para el acuerdo
+  const nroCuotas = planPagos.length;
+  const valorTotalAcuerdo = planPagos.reduce((sum, c) => sum + Number(c.valor), 0);
+  const fechaFirma = new Date().toISOString().substring(0, 10); // Fecha de hoy YYYY-MM-DD
+
+  // 6. Crear registros de cartera (uno por cuota)
   const carterasCreadas = [];
   for (let i = 0; i < planPagos.length; i++) {
     const cuota = planPagos[i];
@@ -1041,6 +1046,7 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
 
     // Formatear fecha_limite (de ISO a YYYY-MM-DD)
     const fechaLimite = cuota.fecha ? cuota.fecha.substring(0, 10) : '';
+    const valorCuota = Number(cuota.valor);
 
     const payload = {
       data: {
@@ -1051,9 +1057,15 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
         celular: celular,
         nro_acuerdo: nroAcuerdo,
         cuota_nro: nroCuota,
+        nro_cuotas: nroCuotas,
         estado_pago: 'al_dia',
-        valor_cuota: Number(cuota.valor),
+        valor_cuota: valorCuota,
+        valor_cuota_original: valorCuota,
         fecha_limite: fechaLimite,
+        fecha_limite_original: fechaLimite,
+        valor_total_acuerdo: valorTotalAcuerdo,
+        valor_total_acuerdo_original: valorTotalAcuerdo,
+        fecha_firma: fechaFirma,
         valor_pagado: 0,
         estado_firma: 'sin_firmar',
         inicio_plataforma: inicioPlataforma,
@@ -1648,6 +1660,54 @@ async function createOrUpdateCRMContact(data) {
   }, 3, 1000); // 3 reintentos, 1 segundo inicial
 }
 
+/**
+ * Actualiza el codigo_auco en todas las carteras de un acuerdo
+ * @param {string} nroAcuerdo - Número del acuerdo
+ * @param {string} codigoAuco - ID del documento en AUCO
+ * @returns {Promise<Object>} Resultado de la actualización
+ */
+async function actualizarCodigoAuco(nroAcuerdo, codigoAuco) {
+  console.log(`[actualizarCodigoAuco] Actualizando acuerdo ${nroAcuerdo} con codigo_auco: ${codigoAuco}`);
+
+  try {
+    // 1. Obtener todas las carteras del acuerdo
+    const url = `${STRAPI_BASE_URL}/api/carteras?filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}&pagination[pageSize]=50`;
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+    });
+
+    const carteras = response.data?.data || [];
+    if (carteras.length === 0) {
+      console.warn(`[actualizarCodigoAuco] No se encontraron carteras para acuerdo ${nroAcuerdo}`);
+      return { success: false, error: 'No se encontraron carteras' };
+    }
+
+    // 2. Actualizar cada cartera con el codigo_auco
+    let actualizadas = 0;
+    for (const cartera of carteras) {
+      const documentId = cartera.documentId;
+      const updateUrl = `${STRAPI_BASE_URL}/api/carteras/${documentId}`;
+
+      await axios.put(updateUrl, {
+        data: { codigo_auco: codigoAuco }
+      }, {
+        headers: {
+          'Authorization': `Bearer ${STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      actualizadas++;
+    }
+
+    console.log(`[actualizarCodigoAuco] ${actualizadas} carteras actualizadas con codigo_auco`);
+    return { success: true, carterasActualizadas: actualizadas };
+
+  } catch (error) {
+    console.error(`[actualizarCodigoAuco] Error:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -1671,5 +1731,6 @@ module.exports = {
   updateFacturacion,
   fetchAnticipadosPendientes,
   guardarVentaCorriente,
-  createOrUpdateCRMContact
+  createOrUpdateCRMContact,
+  actualizarCodigoAuco
 };
