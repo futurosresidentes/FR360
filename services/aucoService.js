@@ -191,7 +191,7 @@ async function htmlToPDF(html) {
     const pdfBuffer = await page.pdf({
       format: 'Letter',
       printBackground: true,
-      margin: { top: '20mm', bottom: '25mm', left: '20mm', right: '20mm' }
+      margin: { top: '30mm', bottom: '40mm', left: '20mm', right: '20mm' }
     });
 
     return Buffer.from(pdfBuffer);
@@ -292,21 +292,47 @@ async function generarYSubirAcuerdo(data) {
     const templateHtml = await getTemplate('acuerdo-pago');
 
     // 2. Reemplazar placeholders
-    const htmlFinal = reemplazarPlaceholders(templateHtml, {
+    let htmlFinal = reemplazarPlaceholders(templateHtml, {
       ...data,
       consecutivo: data.nroAcuerdo,
       membresia: data.producto,
       ccestudiante: data.cedula
     });
 
-    // 3. Limpiar placeholder de firma para el preview
-    const htmlPreview = htmlFinal.replace('{{signature:0}}', '<em style="color:#999;">[Firma electrónica pendiente]</em>');
+    // 3. Inyectar fuente Montserrat y estilos globales
+    const montserratStyles = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+        * { font-family: 'Montserrat', sans-serif !important; }
+        .signature-container { min-height: 120px; padding: 20px 0; }
+      </style>
+    `;
+    // Inyectar después de <head> o al inicio si no existe
+    if (htmlFinal.includes('<head>')) {
+      htmlFinal = htmlFinal.replace('<head>', '<head>' + montserratStyles);
+    } else if (htmlFinal.includes('<html>')) {
+      htmlFinal = htmlFinal.replace('<html>', '<html><head>' + montserratStyles + '</head>');
+    } else {
+      htmlFinal = montserratStyles + htmlFinal;
+    }
 
-    // 4. Convertir a PDF
+    // 4. Envolver el placeholder de firma en un contenedor más grande
+    htmlFinal = htmlFinal.replace(
+      '{{signature:0}}',
+      '<div class="signature-container" style="min-height: 120px; padding: 20px 0;">{{signature:0}}</div>'
+    );
+
+    // 5. Limpiar placeholder de firma para el preview
+    const htmlPreview = htmlFinal.replace(
+      /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/,
+      '<div class="signature-container" style="min-height: 120px; padding: 20px 0; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+    );
+
+    // 6. Convertir a PDF
     const pdfBuffer = await htmlToPDF(htmlFinal);
     console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    // 5. Subir a AUCO
+    // 7. Subir a AUCO
     const resultado = await uploadToAuco(data, pdfBuffer);
 
     console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
