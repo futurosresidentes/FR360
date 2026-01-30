@@ -1048,31 +1048,35 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
     const fechaLimite = cuota.fecha ? cuota.fecha.substring(0, 10) : '';
     const valorCuota = Number(cuota.valor);
 
-    const payload = {
-      data: {
-        numero_documento: cedula,
-        nombres: nombres,
-        apellidos: apellidos,
-        correo: correo,
-        celular: celular,
-        nro_acuerdo: nroAcuerdo,
-        cuota_nro: nroCuota,
-        nro_cuotas: nroCuotas,
-        estado_pago: 'al_dia',
-        valor_cuota: valorCuota,
-        valor_cuota_original: valorCuota,
-        fecha_limite: fechaLimite,
-        fecha_limite_original: fechaLimite,
-        valor_total_acuerdo: valorTotalAcuerdo,
-        valor_total_acuerdo_original: valorTotalAcuerdo,
-        fecha_firma: fechaFirma,
-        valor_pagado: 0,
-        estado_firma: 'sin_firmar',
-        inicio_plataforma: inicioPlataforma,
-        producto: { id: prodId },
-        comercial: { id: comercial.id }
-      }
+    const payloadData = {
+      numero_documento: cedula,
+      nombres: nombres,
+      apellidos: apellidos,
+      correo: correo,
+      celular: celular,
+      nro_acuerdo: nroAcuerdo,
+      cuota_nro: nroCuota,
+      nro_cuotas: nroCuotas,
+      estado_pago: 'al_dia',
+      valor_cuota: valorCuota,
+      valor_cuota_original: valorCuota,
+      fecha_limite: fechaLimite,
+      fecha_limite_original: fechaLimite,
+      valor_total_acuerdo: valorTotalAcuerdo,
+      valor_total_acuerdo_original: valorTotalAcuerdo,
+      fecha_firma: fechaFirma,
+      valor_pagado: 0,
+      estado_firma: 'sin_firmar',
+      producto: { id: prodId },
+      comercial: { id: comercial.id }
     };
+
+    // Solo incluir inicio_plataforma si tiene valor (Strapi no acepta null/vacío para campos date)
+    if (inicioPlataforma) {
+      payloadData.inicio_plataforma = inicioPlataforma;
+    }
+
+    const payload = { data: payloadData };
 
     console.log(`[crearAcuerdo] Creando cartera cuota ${nroCuota}/${planPagos.length} - Producto ID: ${prodId} - Fecha: ${fechaLimite} - Valor: ${cuota.valor}`);
 
