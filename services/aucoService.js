@@ -328,40 +328,48 @@ async function generarYSubirAcuerdo(data) {
       htmlFinal = montserratStyles + htmlFinal;
     }
 
-    // 4. Envolver el placeholder de firma en un contenedor más grande con fuente 28px
+    // 4. Remover logo del body (ya que va en el header de todas las páginas)
+    // Buscar y eliminar la primera imagen que contenga el logo
+    htmlFinal = htmlFinal.replace(/<img[^>]*src="data:image\/jpeg;base64[^"]*"[^>]*>/i, '');
+
+    // 5. Remover footer del body (ya que va en el footer de todas las páginas)
+    // Buscar y eliminar el div con info de Sentire Taller al final
+    htmlFinal = htmlFinal.replace(/<div[^>]*>[\s\S]*?Sentire Taller SAS[\s\S]*?Medellín[\s\S]*?<\/div>\s*<\/div>\s*$/i, '');
+    // Alternativa: remover por patrón de NIT
+    htmlFinal = htmlFinal.replace(/<div[^>]*style="[^"]*text-align:\s*center[^"]*"[^>]*>[\s\S]*?NIT[\s\S]*?Medellín[\s\S]*?<\/div>/gi, '');
+
+    // 6. Envolver el placeholder de firma en un contenedor más grande con fuente 28px
     htmlFinal = htmlFinal.replace(
       '{{signature:0}}',
       '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px;">{{signature:0}}</div>'
     );
 
-    // 5. Limpiar placeholder de firma para el preview
+    // 7. Limpiar placeholder de firma para el preview
     const htmlPreview = htmlFinal.replace(
       /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/,
       '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
     );
 
-    // 6. Crear templates de header y footer para todas las páginas
+    // 8. Crear templates de header y footer para todas las páginas
     const logoBase64 = getLogoBase64();
 
     const headerTemplate = `
-      <div style="width: 100%; padding: 10px 40px; box-sizing: border-box;">
-        <img src="${logoBase64}" style="height: 45px; display: block; margin: 0 auto;" />
+      <div style="width: 100%; padding: 15px 20mm 10px 20mm; box-sizing: border-box;">
+        <img src="${logoBase64}" style="height: 40px; display: block;" />
       </div>
     `;
 
     const footerTemplate = `
-      <div style="width: 100%; text-align: center; font-size: 9px; font-family: 'Montserrat', Arial, sans-serif; color: #666; padding: 15px 40px; box-sizing: border-box; border-top: 1px solid #ddd;">
-        <div style="margin-bottom: 3px;"><strong>Sentire Taller SAS</strong> · NIT 900.983.829-3</div>
-        <div style="margin-bottom: 3px;">Correo electrónico: info@cursosfuturosresidentes.com</div>
-        <div>Medellín, Antioquia.</div>
+      <div style="width: 100%; text-align: center; font-size: 8px; font-family: 'Montserrat', Arial, sans-serif; color: #666; padding: 10px 20mm; box-sizing: border-box;">
+        <div><strong>Sentire Taller SAS</strong> · NIT 900.983.829-3 · info@cursosfuturosresidentes.com · Medellín, Antioquia</div>
       </div>
     `;
 
-    // 7. Convertir a PDF con header/footer en todas las páginas
+    // 9. Convertir a PDF con header/footer en todas las páginas
     const pdfBuffer = await htmlToPDF(htmlFinal, { headerTemplate, footerTemplate });
     console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    // 8. Subir a AUCO
+    // 10. Subir a AUCO
     const resultado = await uploadToAuco(data, pdfBuffer);
 
     console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
