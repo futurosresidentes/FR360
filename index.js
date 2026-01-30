@@ -95,6 +95,160 @@ app.get('/crm', ensureAuthenticated, ensureDomain, (req, res) => {
   });
 });
 
+// === API EXTERNA CON API KEY (para integraciones server-to-server) ===
+
+// Middleware para validar API Key
+const validateApiKey = (req, res, next) => {
+  const apiKey = process.env.EXTERNAL_API_KEY;
+
+  if (!apiKey) {
+    console.error('[API] EXTERNAL_API_KEY no configurada');
+    return res.status(500).json({ success: false, error: 'API Key no configurada en servidor' });
+  }
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Authorization header requerido' });
+  }
+
+  const token = authHeader.substring(7); // Quitar "Bearer "
+
+  if (token !== apiKey) {
+    return res.status(401).json({ success: false, error: 'API Key inválida' });
+  }
+
+  next();
+};
+
+// POST /api/v1/auco/generar-acuerdo - Genera acuerdo de pago con firma electrónica
+app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
+  try {
+    const {
+      nombres,
+      apellidos,
+      cedula,
+      correo,
+      celular,
+      valor,
+      comercialNombre,
+      planPagos,
+      productoNombre,
+      inicioTipo,
+      inicioFecha
+    } = req.body;
+
+    // Validación de campos requeridos
+    const camposRequeridos = { nombres, apellidos, cedula, correo, celular, valor, planPagos, productoNombre };
+    const camposFaltantes = Object.entries(camposRequeridos)
+      .filter(([_, v]) => !v)
+      .map(([k]) => k);
+
+    if (camposFaltantes.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')}`
+      });
+    }
+
+    if (!Array.isArray(planPagos) || planPagos.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'planPagos debe ser un array con al menos una cuota'
+      });
+    }
+
+    console.log('[API v1] === Generar Acuerdo AUCO ===');
+    console.log('[API v1] Cliente:', nombres, apellidos, '-', cedula);
+    console.log('[API v1] Producto:', productoNombre, '- Valor:', valor);
+    console.log('[API v1] Cuotas:', planPagos.length);
+
+    // PASO 1: Crear registros de cartera en Strapi
+    console.log('[API v1] PASO 1: Crear carteras en Strapi');
+    const strapiResult = await strapiService.crearAcuerdo(
+      nombres, apellidos, cedula, correo, celular, valor,
+      comercialNombre || '', planPagos, productoNombre, inicioTipo || 'primerPago', inicioFecha || ''
+    );
+
+    if (!strapiResult.success) {
+      console.error('[API v1] Error en Strapi:', strapiResult.error);
+      return res.status(400).json(strapiResult);
+    }
+
+    console.log('[API v1] Carteras creadas. NroAcuerdo:', strapiResult.nroAcuerdo);
+
+    // PASO 2: Generar PDF y subir a AUCO para firma electrónica
+    console.log('[API v1] PASO 2: Generar PDF y subir a AUCO');
+    let aucoResult = null;
+
+    try {
+      const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
+
+      // Formatear cuotas para AUCO
+      const cuotasAuco = planPagos.map((cuota, i) => {
+        const fechaObj = new Date(cuota.fecha);
+        const dd = String(fechaObj.getDate()).padStart(2, '0');
+        const mm = String(fechaObj.getMonth() + 1).padStart(2, '0');
+        const yyyy = fechaObj.getFullYear();
+        return {
+          nro_cuota: i + 1,
+          valor: cuota.valor,
+          fecha_limite: `${dd}/${mm}/${yyyy}`,
+          link_pago: cuota.linkPago || ''
+        };
+      });
+
+      // Fecha de primera cuota
+      const primeraFechaObj = new Date(planPagos[0].fecha);
+      const primeraFechaStr = `${String(primeraFechaObj.getDate()).padStart(2, '0')}/${String(primeraFechaObj.getMonth() + 1).padStart(2, '0')}/${primeraFechaObj.getFullYear()}`;
+
+      const aucoData = {
+        nombres,
+        apellidos,
+        cedula,
+        correo,
+        celular,
+        nroAcuerdo: strapiResult.nroAcuerdo,
+        producto: productoNombre,
+        monto: valor,
+        cuotas: cuotasAuco,
+        inicioPlataforma,
+        comercial: comercialNombre || '',
+        primeraCuota: planPagos[0].valor,
+        primeraFecha: primeraFechaStr,
+        primerLink: planPagos[0].linkPago || ''
+      };
+
+      aucoResult = await aucoService.generarYSubirAcuerdo(aucoData);
+      console.log('[API v1] AUCO documentId:', aucoResult?.documentId);
+
+      // Actualizar codigo_auco en las carteras
+      if (aucoResult?.documentId) {
+        await strapiService.actualizarCodigoAuco(strapiResult.nroAcuerdo, aucoResult.documentId);
+        console.log('[API v1] Código AUCO actualizado en carteras');
+      }
+    } catch (aucoError) {
+      console.error('[API v1] Error en AUCO (no crítico):', aucoError.message);
+      // No fallar - los registros en Strapi ya se crearon
+    }
+
+    // Respuesta exitosa
+    res.json({
+      success: true,
+      nroAcuerdo: strapiResult.nroAcuerdo,
+      aucoDocumentId: aucoResult?.documentId || null,
+      carterasCreadas: strapiResult.carterasCreadas || planPagos.length
+    });
+
+  } catch (error) {
+    console.error('[API v1] Error general:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // === API ENDPOINTS (TODOS PROTEGIDOS) ===
 
 // ===== WEB PIG PROXY ENDPOINTS (MUST BE BEFORE GENERIC /api/:functionName) =====
