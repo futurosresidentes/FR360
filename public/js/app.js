@@ -945,6 +945,16 @@
       if (uid !== lastUid) triggerSearch();
     });
 
+    // ——— Botón para borrar datos y reiniciar consulta ———
+    const clearFormBtn = document.getElementById('clearFormBtn');
+    if (clearFormBtn) {
+      clearFormBtn.addEventListener('click', () => {
+        searchId.value = '';
+        lastUid = null;
+        resetForm();
+      });
+    }
+
     // ——— Actualiza rango min/max según producto elegido y cuotas ———
     function updatePriceRange() {
       const name = producto.value.trim();
