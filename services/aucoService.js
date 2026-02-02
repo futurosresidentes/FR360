@@ -194,7 +194,7 @@ async function htmlToPDF(html, options = {}) {
     const pdfOptions = {
       format: 'Letter',
       printBackground: true,
-      margin: { top: '25mm', bottom: '25mm', left: '25mm', right: '25mm' }
+      margin: { top: '35mm', bottom: '35mm', left: '25mm', right: '25mm' }
     };
 
     // Si hay header/footer templates, activarlos
