@@ -4085,7 +4085,9 @@
       const rolesTxt = rolesMerged.join(', ');
       // Pintar (nombre + email si existe + roles + estado)
       const emailTxt   = u?.email  ? `<div>${u.email}</div>` : '';
-      const statusLine = u?.status ? `<div>Estado: ${u.status}</div>` : '';
+      const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
+      const pendingBtn = u?.status === 'pending' ? ` <a href="https://admin-appfr-os0a.onrender.com/admin/users?search=${userCedula}" target="_blank" title="Abrir perfil en admin">⚙️</a>` : '';
+      const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
       info.innerHTML = [
         fullName ? `<div>${fullName}${u?.identityDocument ? ` <span class="student-name">(${u.identityType || ''} ${u.identityDocument})</span>` : ''}</div>` : '',
         emailTxt,
@@ -4821,7 +4823,19 @@
         alert('❌ Error al cargar los planes de membresía. Por favor contacta al administrador.\n\nDetalle: ' + (err.message || err));
       }
     }
-    
+
+    // Listener para setear fecha fin automática según el plan seleccionado
+    selHandle.addEventListener('change', () => {
+      const selectedOption = selHandle.options[selHandle.selectedIndex];
+      const planName = selectedOption ? selectedOption.text : '';
+
+      // Si es Simulación especializada UdeA o Simulación UniValle 2026, fecha fin = 28/02/2026
+      if (planName.includes('Simulación especializada UdeA') || planName.includes('Simulación UniValle 2026')) {
+        inpExpiry.value = '2026-02-28';
+        calcularDuracion(); // Recalcular duración basada en la nueva fecha fin
+      }
+    });
+
 
     const modalResponse = document.getElementById('modalResponse');
     const btnSubmit     = addMembForm.querySelector('button[type="submit"]');
@@ -4907,15 +4921,6 @@
 
     // Botón "➕ Agregar plan
     addMembBtn.addEventListener('click', async () => {
-      // 1) Si había membresía activa, pregunta confirmación
-      if (activeMembershipFRAPP) {
-        const fin = new Date(activeMembershipFRAPP.expiryDate)
-          .toLocaleDateString('es-CO');
-        if (!confirm(
-          `El estudiante ya tiene una membresía activa hasta ${fin}.\n¿Deseas continuar?`
-        )) return;
-      }
-
       resetModal();
 
       const uid = searchId.value.replace(/\D/g,'').trim();
