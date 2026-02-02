@@ -1712,6 +1712,256 @@ async function actualizarCodigoAuco(nroAcuerdo, codigoAuco) {
   }
 }
 
+/**
+ * Obtiene la suma de valor_neto de facturaciones por mes y año
+ * @param {number} year - Año a consultar
+ * @param {number} month - Mes a consultar (1-12)
+ * @param {number} endDay - Día límite (exclusivo) para consultas parciales. Si es null, trae el mes completo.
+ * @returns {Promise<Object>} { total: number, count: number }
+ */
+async function getFacturacionByMonth(year, month, endDay = null) {
+  // Construir rango de fechas para el mes
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+
+  let endDate;
+  if (endDay && endDay > 1) {
+    // Consulta parcial: hasta el día indicado (exclusivo)
+    endDate = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+  } else {
+    // Mes completo
+    const endMonth = month === 12 ? 1 : month + 1;
+    const endYear = month === 12 ? year + 1 : year;
+    endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+  }
+
+  console.log(`[Finanzas] Consultando facturación ${month}/${year}: ${startDate} a ${endDate}${endDay ? ' (parcial)' : ''}`);
+
+  try {
+    // Consultar facturaciones del mes con paginación
+    // Usar campo 'fecha' (fecha de la facturación)
+    let allRecords = [];
+    let page = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      // Filtrar por fecha y por producto.marca = "Futuros Residentes"
+      const url = `${STRAPI_BASE_URL}/api/facturaciones?filters[fecha][$gte]=${startDate}&filters[fecha][$lt]=${endDate}&filters[producto][marca][$eq]=${encodeURIComponent('Futuros Residentes')}&fields[0]=valor_neto&pagination[page]=${page}&pagination[pageSize]=${pageSize}`;
+
+      console.log(`[Finanzas] Query page ${page}: ${url}`);
+
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+      });
+
+      const records = response.data?.data || [];
+      allRecords = allRecords.concat(records);
+
+      // Debug: mostrar primer registro para verificar estructura
+      if (page === 1 && records.length > 0) {
+        console.log(`[Finanzas] Estructura registro:`, JSON.stringify(records[0]).substring(0, 200));
+      }
+
+      const pagination = response.data?.meta?.pagination;
+      hasMore = pagination && page < pagination.pageCount;
+      page++;
+    }
+
+    // Sumar valor_neto
+    let total = 0;
+    allRecords.forEach(record => {
+      const valorNeto = record.attributes?.valor_neto || record.valor_neto || 0;
+      total += Number(valorNeto) || 0;
+    });
+
+    console.log(`[Finanzas] ${month}/${year}: ${allRecords.length} registros, total: $${total.toLocaleString('es-CO')}`);
+
+    return {
+      year,
+      month,
+      total,
+      count: allRecords.length
+    };
+  } catch (error) {
+    console.error(`[Finanzas] Error consultando ${month}/${year}:`, error.message);
+    if (error.response) {
+      console.error(`[Finanzas] Response status:`, error.response.status);
+      console.error(`[Finanzas] Response data:`, JSON.stringify(error.response.data).substring(0, 500));
+    }
+    return { year, month, total: 0, count: 0, error: error.message };
+  }
+}
+
+/**
+ * Obtiene la suma de valor_neto de facturaciones para un día específico
+ * @param {number} year - Año a consultar
+ * @param {number} month - Mes a consultar (1-12)
+ * @param {number} day - Día a consultar
+ * @returns {Promise<Object>} { total: number, count: number }
+ */
+async function getFacturacionByDay(year, month, day) {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const nextDay = day + 1;
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+
+  console.log(`[Finanzas] Consultando día ${day}/${month}/${year}: ${startDate} a ${endDate}`);
+
+  try {
+    const url = `${STRAPI_BASE_URL}/api/facturaciones?filters[fecha][$gte]=${startDate}&filters[fecha][$lt]=${endDate}&filters[producto][marca][$eq]=${encodeURIComponent('Futuros Residentes')}&fields[0]=valor_neto&pagination[pageSize]=100`;
+
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+    });
+
+    const records = response.data?.data || [];
+    let total = 0;
+    records.forEach(record => {
+      const valorNeto = record.attributes?.valor_neto || record.valor_neto || 0;
+      total += Number(valorNeto) || 0;
+    });
+
+    console.log(`[Finanzas] Día ${day}/${month}/${year}: ${records.length} registros, total: $${total.toLocaleString('es-CO')}`);
+
+    return { year, month, day, total, count: records.length };
+  } catch (error) {
+    console.error(`[Finanzas] Error consultando día ${day}/${month}/${year}:`, error.message);
+    return { year, month, day, total: 0, count: 0, error: error.message };
+  }
+}
+
+/**
+ * Obtiene el desglose diario de facturación para un mes
+ * @param {number} year - Año
+ * @param {number} month - Mes (1-12)
+ * @param {number} maxDay - Día máximo a consultar (para meses en curso)
+ * @returns {Promise<Array>} Array de {day, total} para cada día
+ */
+async function getFacturacionDailyBreakdown(year, month, maxDay = 31) {
+  const daysInMonth = new Date(year, month, 0).getDate(); // Días del mes
+  const lastDay = Math.min(maxDay, daysInMonth);
+
+  console.log(`[Finanzas] Obteniendo desglose diario ${month}/${year} (días 1-${lastDay})`);
+
+  // Consultar todo el rango de una vez y agrupar por día
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+
+  // Calcular fecha fin correctamente (primer día del mes siguiente)
+  let endDate;
+  if (lastDay >= daysInMonth) {
+    // Mes completo: usar primer día del mes siguiente
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+  } else {
+    // Mes parcial: usar día siguiente
+    endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay + 1).padStart(2, '0')}`;
+  }
+
+  try {
+    let allRecords = [];
+    let page = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const url = `${STRAPI_BASE_URL}/api/facturaciones?filters[fecha][$gte]=${startDate}&filters[fecha][$lt]=${endDate}&filters[producto][marca][$eq]=${encodeURIComponent('Futuros Residentes')}&fields[0]=valor_neto&fields[1]=fecha&pagination[page]=${page}&pagination[pageSize]=${pageSize}`;
+
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+      });
+
+      const records = response.data?.data || [];
+      allRecords = allRecords.concat(records);
+
+      const pagination = response.data?.meta?.pagination;
+      hasMore = pagination && page < pagination.pageCount;
+      page++;
+    }
+
+    // Agrupar por día
+    const dailyTotals = {};
+    for (let d = 1; d <= lastDay; d++) {
+      dailyTotals[d] = 0;
+    }
+
+    allRecords.forEach(record => {
+      const fecha = record.attributes?.fecha || record.fecha;
+      const valorNeto = record.attributes?.valor_neto || record.valor_neto || 0;
+      if (fecha) {
+        const day = parseInt(fecha.substring(8, 10), 10);
+        if (day >= 1 && day <= lastDay) {
+          dailyTotals[day] += Number(valorNeto) || 0;
+        }
+      }
+    });
+
+    // Convertir a array
+    const result = [];
+    for (let d = 1; d <= lastDay; d++) {
+      result.push({ day: d, total: dailyTotals[d] });
+    }
+
+    console.log(`[Finanzas] Desglose ${month}/${year}: ${allRecords.length} registros en ${lastDay} días`);
+    return result;
+
+  } catch (error) {
+    console.error(`[Finanzas] Error obteniendo desglose diario ${month}/${year}:`, error.message);
+    return [];
+  }
+}
+
+/**
+ * Compara facturación de enero y febrero entre múltiples años
+ * Febrero se calcula parcialmente hasta el día anterior a hoy (para comparación justa)
+ * @param {Array<number>} years - Array de años a comparar
+ * @returns {Promise<Object>} Datos de comparación
+ */
+async function getFacturacionComparison(years = [2024, 2025, 2026]) {
+  // Obtener fecha actual en Colombia
+  const now = new Date();
+  const colombiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  const currentMonth = colombiaTime.getMonth() + 1; // 1-12
+  const currentDay = colombiaTime.getDate();
+
+  console.log(`[Finanzas] Fecha Colombia: ${colombiaTime.toISOString().substring(0, 10)}, día: ${currentDay}`);
+
+  const results = {};
+
+  for (const year of years) {
+    // Enero: siempre completo
+    results[year] = {
+      enero: await getFacturacionByMonth(year, 1),
+      enero_daily: await getFacturacionDailyBreakdown(year, 1, 31)
+    };
+
+    // Febrero completo (todo el mes)
+    results[year].febrero = await getFacturacionByMonth(year, 2);
+
+    // Febrero parcial: incluyendo el día de hoy (para comparar y saber cuánto falta)
+    if (currentMonth >= 2) {
+      results[year].febrero_parcial = await getFacturacionByMonth(year, 2, currentDay + 1);
+      // Febrero hoy: solo el día actual (desde currentDay hasta currentDay+1)
+      results[year].febrero_hoy = await getFacturacionByDay(year, 2, currentDay);
+      // Desglose diario de febrero (incluyendo hoy)
+      results[year].febrero_daily = await getFacturacionDailyBreakdown(year, 2, currentDay);
+    } else {
+      // Estamos en enero, febrero parcial/hoy no tiene datos aún
+      results[year].febrero_parcial = { year, month: 2, total: 0, count: 0 };
+      results[year].febrero_hoy = { year, month: 2, total: 0, count: 0 };
+      results[year].febrero_daily = [];
+    }
+  }
+
+  // Incluir metadata sobre la fecha actual
+  results._meta = {
+    currentMonth,
+    currentDay,
+    fechaColombia: colombiaTime.toISOString().substring(0, 10)
+  };
+
+  return results;
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -1736,5 +1986,7 @@ module.exports = {
   fetchAnticipadosPendientes,
   guardarVentaCorriente,
   createOrUpdateCRMContact,
-  actualizarCodigoAuco
+  actualizarCodigoAuco,
+  getFacturacionByMonth,
+  getFacturacionComparison
 };

@@ -36,7 +36,10 @@
         <% if (typeof userEmail !== 'undefined' && ['daniel.cardona@sentiretaller.com', 'yicela.agudelo@sentiretaller.com', 'ana.quintero@sentiretaller.com'].includes(userEmail)) { %>
         <li data-tab="epayco">ePayco 💳</li>
         <% } %>
-        <li data-tab="anticipados-2026">Anticipados 2026</li>
+        <% if (typeof userEmail !== 'undefined' && ['daniel.cardona@sentiretaller.com', 'juan.pelaez@sentiretaller.com', 'alex.lopez@sentiretaller.com'].includes(userEmail)) { %>
+        <li data-tab="finanzas-2026">Finanzas 2026 📈</li>
+        <% } %>
+        <%# <li data-tab="anticipados-2026">Anticipados 2026</li> %>
         <% if (typeof userEmail !== 'undefined' && userEmail === 'daniel.cardona@sentiretaller.com') { %>
         <li data-tab="carteras-masivo">Carteras Masivo 📊</li>
         <% } %>
@@ -328,8 +331,21 @@
       </div>
       <% } %>
 
-      <!-- ANTICIPADOS 2026 -->
-      <div class="pane right" id="anticipados-2026">
+      <!-- FINANZAS 2026 (solo para usuarios autorizados) -->
+      <% if (typeof userEmail !== 'undefined' && ['daniel.cardona@sentiretaller.com', 'juan.pelaez@sentiretaller.com', 'alex.lopez@sentiretaller.com'].includes(userEmail)) { %>
+      <div class="pane right" id="finanzas-2026">
+        <div class="finanzas-header">
+          <h2>Finanzas 2026 📈</h2>
+          <button id="loadFinanzasBtn" class="btn-primary">🔄 Cargar Datos</button>
+        </div>
+        <div id="finanzasContainer" style="margin-top: 20px;">
+          <p style="color: #666;">Haz clic en "Cargar Datos" para ver la comparación de facturación.</p>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ANTICIPADOS 2026 (oculto) -->
+      <%# <div class="pane right" id="anticipados-2026">
         <div class="udea-header">
           <h2>Anticipados 2026 💰</h2>
           <button id="loadAnticipadosBtn" class="btn-primary">🔄 Cargar Anticipados</button>
@@ -353,7 +369,7 @@
           <p id="anticipadosStatus" style="margin: 0; color: #333;"></p>
         </div>
         <div id="anticipadosTableContainer"></div>
-      </div>
+      </div> %>
 
       <!-- ACTUALIZACIÓN MASIVA DE CARTERAS (solo visible para daniel.cardona@sentiretaller.com) -->
       <% if (typeof userEmail !== 'undefined' && userEmail === 'daniel.cardona@sentiretaller.com') { %>
@@ -860,8 +876,12 @@
   <script src="/js/webpig.js"></script>
   <!-- ePayco module -->
   <script src="/js/epayco.js"></script>
-  <!-- Anticipados 2026 module -->
-  <script src="/js/anticipados-2026.js"></script>
+  <!-- Chart.js para gráficas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Finanzas 2026 module -->
+  <script src="/js/finanzas-2026.js"></script>
+  <!-- Anticipados 2026 module (deshabilitado) -->
+  <!-- <script src="/js/anticipados-2026.js"></script> -->
   <!-- Carteras Masivo module -->
   <script src="/js/carteras-masivo.js"></script>
   <!-- Desbloqueo de morosos module -->

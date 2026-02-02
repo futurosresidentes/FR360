@@ -2235,6 +2235,14 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchAnticipadosPendientes();
         break;
 
+      // === FINANZAS 2026 ===
+      case 'getFacturacionComparison': {
+        // args[0] = array de años a comparar (opcional, default [2023, 2024, 2025])
+        const yearsToCompare = args[0] || [2023, 2024, 2025];
+        result = await strapiService.getFacturacionComparison(yearsToCompare);
+        break;
+      }
+
       // === GOOGLE DRIVE ===
       case 'subirArchivoGoogleDrive':
         // args[0] = { folderId, fileName, mimeType, base64Content }
@@ -2346,7 +2354,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
-            'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes',
+            'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes', 'getFacturacionComparison',
             'obtenerCandidatosDesbloqueo', 'desbloquearUsuario',
             'obtenerCandidatosBloqueo', 'bloquearUsuario',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',
