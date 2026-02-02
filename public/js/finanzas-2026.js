@@ -89,13 +89,13 @@
     const febreroValues = years.map(y => data[y]?.febrero?.total || 0);
     html += renderRow('Febrero', febreroValues);
 
-    // Fila de Febrero parcial (hasta el día anterior a hoy)
+    // Fila de Febrero parcial (hasta hoy)
     const febreroParcialValues = years.map(y => data[y]?.febrero_parcial?.total || 0);
-    html += renderRow('Febrero parcial', febreroParcialValues, '#f8f9fa');
+    html += renderRow('Febrero parcial <span style="color:#999; font-weight:400;">(Hasta hoy)</span>', febreroParcialValues, '#f8f9fa');
 
     // Fila de Febrero hoy (solo el día actual)
     const febreroHoyValues = years.map(y => data[y]?.febrero_hoy?.total || 0);
-    html += renderRow('Febrero hoy', febreroHoyValues);
+    html += renderRow('Febrero hoy <span style="color:#999; font-weight:400;">(Solo hoy)</span>', febreroHoyValues);
 
     html += `
           </tbody>
