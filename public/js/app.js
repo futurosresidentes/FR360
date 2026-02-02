@@ -4829,9 +4829,9 @@
       const selectedOption = selHandle.options[selHandle.selectedIndex];
       const planName = selectedOption ? selectedOption.text : '';
 
-      // Si es Simulación especializada UdeA o Simulación UniValle 2026, fecha fin = 28/02/2026
+      // Si es Simulación especializada UdeA o Simulación UniValle 2026, fecha fin = 31/05/2026
       if (planName.includes('Simulación especializada UdeA') || planName.includes('Simulación UniValle 2026')) {
-        inpExpiry.value = '2026-02-28';
+        inpExpiry.value = '2026-05-31';
         calcularDuracion(); // Recalcular duración basada en la nueva fecha fin
       }
     });
