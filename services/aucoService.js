@@ -194,7 +194,7 @@ async function htmlToPDF(html, options = {}) {
     const pdfOptions = {
       format: 'Letter',
       printBackground: true,
-      margin: { top: '20mm', bottom: '25mm', left: '20mm', right: '20mm' }
+      margin: { top: '25mm', bottom: '25mm', left: '25mm', right: '25mm' }
     };
 
     // Si hay header/footer templates, activarlos
@@ -311,11 +311,28 @@ async function generarYSubirAcuerdo(data) {
       ccestudiante: data.cedula
     });
 
-    // 3. Inyectar fuente Montserrat y estilos globales
+    // 3. Inyectar fuente Montserrat y estilos globales (márgenes estándar APA: 1 pulgada)
     const montserratStyles = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
-        * { font-family: 'Montserrat', sans-serif !important; }
+        * { font-family: 'Montserrat', sans-serif !important; box-sizing: border-box; }
+        body {
+          line-height: 1.6;
+          font-size: 12px;
+          color: #333;
+        }
+        p {
+          margin-bottom: 12px;
+          text-align: justify;
+        }
+        h1, h2, h3, h4 {
+          margin-top: 20px;
+          margin-bottom: 12px;
+        }
+        table {
+          page-break-inside: avoid;
+          margin: 20px 0;
+        }
         .signature-container { min-height: 150px; padding: 25px 0; font-size: 28px; }
       </style>
     `;
