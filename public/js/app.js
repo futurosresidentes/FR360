@@ -3036,28 +3036,138 @@
         const existingModal = document.getElementById('otrosiModal');
         if (existingModal) existingModal.remove();
 
-        // Calcular total pendiente original
-        const totalPendiente = cuotas.reduce((sum, c) => sum + Number(c.valorCuota || 0), 0);
+        // === 1. Buscar membresía Élite activa ===
+        let eliteMembership = null;
+        let fechaFinMembresia = null;
+        if (currentMembershipsData && Array.isArray(currentMembershipsData.memberships)) {
+          eliteMembership = currentMembershipsData.memberships.find(m => {
+            const isActive = m.status === 'active';
+            const planName = (m.membershipPlan?.name || m.roles || '').toLowerCase();
+            const isElite = planName.includes('elite') || planName.includes('élite');
+            return isActive && isElite;
+          });
+          if (eliteMembership && eliteMembership.expiryDate) {
+            // Convertir a fecha local para evitar desfase de timezone
+            const expiryDate = new Date(eliteMembership.expiryDate);
+            const year = expiryDate.getFullYear();
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            fechaFinMembresia = `${year}-${month}-${day}`; // YYYY-MM-DD en hora local
+          }
+        }
 
+        // === 2. Aplicar 5% de recargo si tiene más de 5 días en mora ===
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const cuotasAjustadas = cuotas.map(c => {
+          const fechaLimite = new Date(c.fechaLimite + 'T00:00:00');
+          const diffDias = Math.floor((hoy - fechaLimite) / (1000 * 60 * 60 * 24));
+          const tieneMoraMayor5Dias = diffDias > 5;
+
+          let valorAjustado = Number(c.valorCuota || 0);
+          let tieneRecargo = false;
+
+          if (tieneMoraMayor5Dias) {
+            valorAjustado = Math.round(valorAjustado * 1.05);
+            tieneRecargo = true;
+          }
+
+          return {
+            ...c,
+            valorOriginal: Number(c.valorCuota || 0),
+            valorCuota: valorAjustado,
+            tieneRecargo,
+            diasMora: diffDias > 0 ? diffDias : 0
+          };
+        });
+
+        // Calcular total pendiente (con recargos aplicados)
+        const totalPendiente = cuotasAjustadas.reduce((sum, c) => sum + c.valorCuota, 0);
+        const totalOriginalSinRecargo = cuotasAjustadas.reduce((sum, c) => sum + c.valorOriginal, 0);
+        const totalRecargos = totalPendiente - totalOriginalSinRecargo;
+
+        // === 3. Generar HTML de cuotas ===
         let cuotasHtml = '';
-        cuotas.forEach((c) => {
+        cuotasAjustadas.forEach((c) => {
+          const recargoTag = c.tieneRecargo
+            ? `<span style="color:#c01414; font-size:11px; display:block;">+5% mora (${c.diasMora} días)</span>`
+            : '';
           cuotasHtml += `
-            <tr data-document-id="${c.documentId}" data-original-valor="${c.valorCuota}" data-original-fecha="${c.fechaLimite}">
+            <tr data-document-id="${c.documentId}" data-original-valor="${c.valorOriginal}" data-original-fecha="${c.fechaLimite}">
               <td style="padding:8px; text-align:center;">${c.cuotaNro}</td>
               <td style="padding:8px;">
                 <input type="number" class="otrosi-valor" value="${c.valorCuota}" style="width:120px; padding:4px; text-align:right;">
+                ${recargoTag}
               </td>
               <td style="padding:8px;">
-                <input type="date" class="otrosi-fecha" value="${c.fechaLimite}" style="padding:4px;">
+                <input type="date" class="otrosi-fecha" value="${c.fechaLimite}" style="padding:4px;"${fechaFinMembresia ? ` max="${fechaFinMembresia}"` : ''}>
               </td>
               <td style="padding:8px; text-align:center; color:#666;">${c.estado === 'en_mora' ? '🔴 En mora' : '🟡 Al día'}</td>
             </tr>
           `;
         });
 
+        // === 4. HTML de membresía Élite ===
+        let membresiaHtml = '';
+        if (eliteMembership) {
+          const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-CO') : 'N/A';
+          membresiaHtml = `
+            <div style="background:#e8f4fd; padding:12px; border-radius:4px; margin-bottom:16px; border-left:4px solid #075183;">
+              <p style="margin:0; font-weight:600; color:#075183;">👑 Membresía Élite activa</p>
+              <p style="margin:4px 0 0; font-size:13px;">
+                <strong>Plan:</strong> ${eliteMembership.membershipPlan?.name || 'Élite'}<br>
+                <strong>Inicio:</strong> ${formatDate(eliteMembership.startDate)} |
+                <strong>Fin:</strong> ${formatDate(eliteMembership.expiryDate)}
+              </p>
+              <p style="margin:8px 0 0; font-size:12px; color:#666;">
+                ⚠️ Las cuotas no pueden superar la fecha fin de membresía
+              </p>
+            </div>
+
+            <div style="background:#fff3e0; padding:12px; border-radius:4px; margin-bottom:16px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="otrosiCongelarCheck" style="width:18px; height:18px;">
+                <span>El usuario también desea congelar sus accesos 🥶</span>
+              </label>
+            </div>
+
+            <!-- Sección de congelamiento (oculta inicialmente) -->
+            <div id="otrosiFreezeSection" style="display:none; background:#e3f2fd; padding:16px; border-radius:4px; margin-bottom:16px; border:2px solid #2196f3;">
+              <h4 style="margin:0 0 12px; color:#1565c0;">🥶 Configurar congelamiento</h4>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                <div>
+                  <label style="font-size:12px; color:#666;">Desde</label>
+                  <input type="date" id="otrosiFreezeFrom" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                </div>
+                <div>
+                  <label style="font-size:12px; color:#666;">Hasta</label>
+                  <input type="date" id="otrosiFreezeTo" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                </div>
+                <div>
+                  <label style="font-size:12px; color:#666;">Días restantes</label>
+                  <input type="number" id="otrosiDaysRemaining" readonly style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; background:#f5f5f5;">
+                </div>
+              </div>
+              <p id="otrosiNewEndDate" style="margin:12px 0 0; font-size:13px; color:#1565c0;"></p>
+            </div>
+          `;
+        } else {
+          membresiaHtml = `
+            <div style="background:#fff3cd; padding:12px; border-radius:4px; margin-bottom:16px; border-left:4px solid #ffc107;">
+              <p style="margin:0; color:#856404;">⚠️ No se encontró membresía Élite activa en Plataforma nueva</p>
+            </div>
+          `;
+        }
+
+        // === 5. HTML del recargo total ===
+        const recargoInfoHtml = totalRecargos > 0
+          ? `<p style="margin:4px 0 0; color:#c01414; font-size:13px;">📈 Incluye +$${totalRecargos.toLocaleString('es-CO')} por recargos de mora (5%)</p>`
+          : '';
+
         const modalHtml = `
           <div id="otrosiModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
-            <div style="background:#fff; border-radius:8px; padding:24px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+            <div style="background:#fff; border-radius:8px; padding:24px; max-width:700px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <h3 style="margin:0; color:#f70f79;">📜 Otrosí - Renegociar Cuotas</h3>
                 <button id="closeOtrosiModal" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
@@ -3067,9 +3177,12 @@
                 <p style="margin:0;"><strong>Acuerdo:</strong> ${nroAcuerdo}</p>
                 <p style="margin:4px 0 0;"><strong>Producto:</strong> ${productoNombre}</p>
                 <p style="margin:4px 0 0;"><strong>Total pendiente:</strong> $${totalPendiente.toLocaleString('es-CO')} <span id="otrosiTotalActual" style="color:#666;"></span></p>
+                ${recargoInfoHtml}
               </div>
 
-              <p style="margin-bottom:12px; color:#666;">Cuotas pendientes de pago (${cuotas.length}):</p>
+              ${membresiaHtml}
+
+              <p style="margin-bottom:12px; color:#666;">Cuotas pendientes de pago (${cuotasAjustadas.length}):</p>
 
               <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
                 <thead>
@@ -3098,6 +3211,80 @@
         `;
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // === 6. Configurar lógica de congelamiento ===
+        const congelarCheck = document.getElementById('otrosiCongelarCheck');
+        const freezeSection = document.getElementById('otrosiFreezeSection');
+        const freezeFrom = document.getElementById('otrosiFreezeFrom');
+        const freezeTo = document.getElementById('otrosiFreezeTo');
+        const daysRemainingInput = document.getElementById('otrosiDaysRemaining');
+        const newEndDateP = document.getElementById('otrosiNewEndDate');
+
+        // Guardar fecha fin original para cálculos
+        let fechaFinOriginal = fechaFinMembresia;
+        let diasCongelamiento = 0;
+
+        if (congelarCheck && eliteMembership) {
+          // Calcular días restantes de membresía
+          const hoyDate = new Date();
+          const finDate = new Date(eliteMembership.expiryDate);
+          const diasRestantes = Math.max(0, Math.ceil((finDate - hoyDate) / (1000 * 60 * 60 * 24)));
+
+          congelarCheck.addEventListener('change', () => {
+            if (congelarCheck.checked) {
+              freezeSection.style.display = 'block';
+              // Establecer valores iniciales
+              const today = new Date().toISOString().split('T')[0];
+              freezeFrom.value = today;
+              freezeFrom.min = today;
+              freezeTo.min = today;
+              daysRemainingInput.value = diasRestantes;
+            } else {
+              freezeSection.style.display = 'none';
+              diasCongelamiento = 0;
+              // Restaurar max de fechas de cuotas
+              document.querySelectorAll('#otrosiCuotasBody .otrosi-fecha').forEach(input => {
+                input.max = fechaFinOriginal || '';
+              });
+              newEndDateP.textContent = '';
+            }
+          });
+
+          // Actualizar cuando cambian las fechas de congelamiento
+          const updateFreezeCalc = () => {
+            if (!freezeFrom.value || !freezeTo.value) return;
+
+            const from = new Date(freezeFrom.value + 'T00:00:00');
+            const to = new Date(freezeTo.value + 'T00:00:00');
+            diasCongelamiento = Math.max(0, Math.ceil((to - from) / (1000 * 60 * 60 * 24)));
+
+            if (fechaFinOriginal) {
+              const nuevaFechaFin = new Date(fechaFinOriginal + 'T00:00:00');
+              nuevaFechaFin.setDate(nuevaFechaFin.getDate() + diasCongelamiento);
+              // Formatear en hora local (evitar toISOString que usa UTC)
+              const year = nuevaFechaFin.getFullYear();
+              const month = String(nuevaFechaFin.getMonth() + 1).padStart(2, '0');
+              const day = String(nuevaFechaFin.getDate()).padStart(2, '0');
+              const nuevaFechaFinStr = `${year}-${month}-${day}`;
+
+              newEndDateP.innerHTML = `
+                <strong>Nueva fecha máxima:</strong> ${nuevaFechaFin.toLocaleDateString('es-CO')}
+                <span style="color:#666;">(+${diasCongelamiento} días de congelamiento)</span>
+              `;
+
+              // Actualizar max de fechas de cuotas
+              document.querySelectorAll('#otrosiCuotasBody .otrosi-fecha').forEach(input => {
+                input.max = nuevaFechaFinStr;
+              });
+            }
+          };
+
+          freezeFrom.addEventListener('change', () => {
+            freezeTo.min = freezeFrom.value;
+            updateFreezeCalc();
+          });
+          freezeTo.addEventListener('change', updateFreezeCalc);
+        }
 
         // Event listeners
         document.getElementById('closeOtrosiModal').addEventListener('click', () => {
@@ -3259,8 +3446,20 @@
           if (!confirmar) return;
 
           const saveBtn = document.getElementById('saveOtrosi');
+          const cancelBtn = document.getElementById('cancelOtrosi');
           saveBtn.disabled = true;
-          saveBtn.textContent = '⏳ Generando...';
+          cancelBtn.disabled = true;
+          saveBtn.innerHTML = `
+            <span style="display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:8px;"></span>
+            Generando otrosí...
+          `;
+          // Asegurar que la animación esté definida
+          if (!document.getElementById('otrosiSpinKeyframes')) {
+            const st = document.createElement('style');
+            st.id = 'otrosiSpinKeyframes';
+            st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+            document.head.appendChild(st);
+          }
 
           try {
             const response = await api.elaborarOtrosi({
@@ -3341,12 +3540,14 @@
             } else {
               alert(`❌ Error: ${response.error || 'Error al generar el otrosí.'}`);
               saveBtn.disabled = false;
-              saveBtn.textContent = '📜 Elaborar otrosí';
+              cancelBtn.disabled = false;
+              saveBtn.innerHTML = '📜 Elaborar otrosí';
             }
           } catch (error) {
             alert(`❌ Error de conexión: ${error.message}`);
             saveBtn.disabled = false;
-            saveBtn.textContent = '📜 Elaborar otrosí';
+            cancelBtn.disabled = false;
+            saveBtn.innerHTML = '📜 Elaborar otrosí';
           }
         });
       }
