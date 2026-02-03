@@ -1,8 +1,17 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
+
+// Puppeteer: usar chromium en producción, puppeteer normal en desarrollo
+const isProduction = process.env.NODE_ENV === 'production';
+let puppeteer, chromium;
+if (isProduction) {
+  puppeteer = require('puppeteer-core');
+  chromium = require('@sparticuz/chromium');
+} else {
+  puppeteer = require('puppeteer');
+}
 
 // Supabase client
 const supabase = createClient(
@@ -343,10 +352,22 @@ async function elaborarOtrosi(data) {
 
     // 6. Generar PDF con Puppeteer
     console.log('[Otrosí] Generando PDF...');
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    let browser;
+    if (isProduction) {
+      // Producción: usar @sparticuz/chromium
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless
+      });
+    } else {
+      // Desarrollo: usar puppeteer normal
+      browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
 
     let pdfBase64 = '';
     try {
