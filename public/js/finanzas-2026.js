@@ -73,9 +73,9 @@
       <div style="overflow-x: auto;">
         <table class="finanzas-table" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <thead>
-            <tr style="background-color: #1a5f7a;">
-              <th style="padding: 12px; text-align: center; border: 1px solid #1a5f7a; color: #ffffff !important; font-weight: 700;">Mes</th>
-              ${years.map(y => `<th style="padding: 12px; text-align: center; border: 1px solid #1a5f7a; color: #ffffff !important; font-weight: 700;">${y}</th>`).join('')}
+            <tr style="background-color: #075183;">
+              <th style="padding: 12px; text-align: center; border: 1px solid #075183; color: #fff; font-weight: 700;">Mes</th>
+              ${years.map(y => `<th style="padding: 12px; text-align: center; border: 1px solid #075183; color: #fff; font-weight: 700;">${y}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
