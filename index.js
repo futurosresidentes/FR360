@@ -2243,6 +2243,10 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         break;
       }
 
+      case 'getCarteraResumen':
+        result = await strapiService.getCarteraResumen();
+        break;
+
       // === GOOGLE DRIVE ===
       case 'subirArchivoGoogleDrive':
         // args[0] = { folderId, fileName, mimeType, base64Content }
@@ -2354,7 +2358,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
             'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
-            'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes', 'getFacturacionComparison',
+            'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes', 'getFacturacionComparison', 'getCarteraResumen',
             'obtenerCandidatosDesbloqueo', 'desbloquearUsuario',
             'obtenerCandidatosBloqueo', 'bloquearUsuario',
             'getLinksByIdentityDocument', 'getUserEmail', 'getColombiaTodayParts',

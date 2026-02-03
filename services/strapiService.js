@@ -1962,6 +1962,106 @@ async function getFacturacionComparison(years = [2024, 2025, 2026]) {
   return results;
 }
 
+/**
+ * Obtener resumen de cartera total
+ * @returns {Promise<Object>} Resumen con totales y desglose por canal
+ */
+async function getCarteraResumen() {
+  console.log('[getCarteraResumen] Iniciando consulta de carteras...');
+
+  try {
+    // Traer todas las carteras con paginación
+    let allCarteras = [];
+    let page = 1;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const url = `${STRAPI_BASE_URL}/api/carteras?pagination[page]=${page}&pagination[pageSize]=${pageSize}&fields[0]=valor_cuota&fields[1]=valor_pagado&fields[2]=estado_pago&fields[3]=acuerdo`;
+
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+      });
+
+      const data = response.data?.data || [];
+      allCarteras = allCarteras.concat(data);
+
+      const pagination = response.data?.meta?.pagination;
+      hasMore = pagination && page < pagination.pageCount;
+      page++;
+    }
+
+    console.log(`[getCarteraResumen] Total carteras obtenidas: ${allCarteras.length}`);
+
+    // Función para calcular resumen de un conjunto de carteras
+    function calcularResumen(carteras, nombreGrupo) {
+      let carteraTotal = 0;
+      let pagada = 0;
+      let enMora = 0;
+
+      carteras.forEach(c => {
+        const attrs = c.attributes || c;
+        const valorCuota = Number(attrs.valor_cuota) || 0;
+        const valorPagado = Number(attrs.valor_pagado) || 0;
+        const estadoPago = attrs.estado_pago || '';
+
+        carteraTotal += valorCuota;
+        pagada += valorPagado;
+
+        if (estadoPago === 'en_mora') {
+          enMora += valorCuota;
+        }
+      });
+
+      const porPagar = carteraTotal - pagada;
+
+      return {
+        nombre: nombreGrupo,
+        carteraTotal,
+        pagada,
+        pagadaPct: carteraTotal > 0 ? (pagada / carteraTotal * 100) : 0,
+        porPagar,
+        porPagarPct: carteraTotal > 0 ? (porPagar / carteraTotal * 100) : 0,
+        enMora,
+        enMoraPct: carteraTotal > 0 ? (enMora / carteraTotal * 100) : 0,
+        registros: carteras.length
+      };
+    }
+
+    // Separar por canal: Whatsapp vs Auco (todo lo demás)
+    const carterasWhatsapp = allCarteras.filter(c => {
+      const attrs = c.attributes || c;
+      return attrs.acuerdo === 'Whatsapp';
+    });
+
+    const carterasAuco = allCarteras.filter(c => {
+      const attrs = c.attributes || c;
+      return attrs.acuerdo !== 'Whatsapp';
+    });
+
+    // Calcular resúmenes
+    const resumenTotal = calcularResumen(allCarteras, 'Total');
+    const resumenAuco = calcularResumen(carterasAuco, 'Auco');
+    const resumenWhatsapp = calcularResumen(carterasWhatsapp, 'Whatsapp');
+
+    console.log(`[getCarteraResumen] Resumen calculado - Total: ${resumenTotal.registros}, Auco: ${resumenAuco.registros}, Whatsapp: ${resumenWhatsapp.registros}`);
+
+    return {
+      success: true,
+      total: resumenTotal,
+      auco: resumenAuco,
+      whatsapp: resumenWhatsapp
+    };
+
+  } catch (error) {
+    console.error('[getCarteraResumen] Error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
@@ -1988,5 +2088,6 @@ module.exports = {
   createOrUpdateCRMContact,
   actualizarCodigoAuco,
   getFacturacionByMonth,
-  getFacturacionComparison
+  getFacturacionComparison,
+  getCarteraResumen
 };

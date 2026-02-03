@@ -308,4 +308,103 @@
   // Event listener
   loadBtn.addEventListener('click', loadFinanzas);
 
+  // ==================== CARTERA ====================
+
+  const carteraBtn = document.getElementById('loadCarteraBtn');
+
+  // Renderizar tarjeta de resumen
+  function renderCarteraCard(data, color) {
+    return `
+      <div style="background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid ${color};">
+        <h3 style="margin: 0 0 15px 0; color: ${color}; font-size: 1.2em;">${data.nombre}</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+          <div style="background: #f8f9fa; padding: 12px; border-radius: 6px;">
+            <div style="color: #666; font-size: 0.85em;">Cartera Total</div>
+            <div style="font-weight: 700; font-size: 1.1em; color: #333;">${formatCurrency(data.carteraTotal)}</div>
+            <div style="color: #999; font-size: 0.75em;">${data.registros.toLocaleString()} registros</div>
+          </div>
+          <div style="background: #d4edda; padding: 12px; border-radius: 6px;">
+            <div style="color: #155724; font-size: 0.85em;">Pagada</div>
+            <div style="font-weight: 700; font-size: 1.1em; color: #155724;">${formatCurrency(data.pagada)}</div>
+            <div style="color: #155724; font-size: 0.85em; font-weight: 600;">${data.pagadaPct.toFixed(1)}%</div>
+          </div>
+          <div style="background: #fff3cd; padding: 12px; border-radius: 6px;">
+            <div style="color: #856404; font-size: 0.85em;">Por Pagar</div>
+            <div style="font-weight: 700; font-size: 1.1em; color: #856404;">${formatCurrency(data.porPagar)}</div>
+            <div style="color: #856404; font-size: 0.85em; font-weight: 600;">${data.porPagarPct.toFixed(1)}%</div>
+          </div>
+          <div style="background: #f8d7da; padding: 12px; border-radius: 6px;">
+            <div style="color: #721c24; font-size: 0.85em;">En Mora</div>
+            <div style="font-weight: 700; font-size: 1.1em; color: #721c24;">${formatCurrency(data.enMora)}</div>
+            <div style="color: #721c24; font-size: 0.85em; font-weight: 600;">${data.enMoraPct.toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Renderizar vista de cartera
+  function renderCartera(data) {
+    let html = `
+      <div style="margin-top: 20px;">
+        <h3 style="color: #075183; margin-bottom: 20px;">💰 Resumen de Cartera</h3>
+
+        <!-- Cartera Total -->
+        <div style="margin-bottom: 30px;">
+          ${renderCarteraCard(data.total, '#075183')}
+        </div>
+
+        <!-- Auco y Whatsapp -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+          ${renderCarteraCard(data.auco, '#6c5ce7')}
+          ${renderCarteraCard(data.whatsapp, '#00b894')}
+        </div>
+
+        <p style="margin-top: 15px; color: #666; font-size: 0.85em;">
+          * Auco: acuerdos firmados en plataforma. Whatsapp: acuerdos por canal informal.
+        </p>
+      </div>
+    `;
+
+    container.innerHTML = html;
+  }
+
+  // Cargar datos de cartera
+  async function loadCartera() {
+    if (!carteraBtn) return;
+
+    carteraBtn.disabled = true;
+    carteraBtn.textContent = '⏳ Cargando...';
+    container.innerHTML = '<p style="color: #666;">Consultando cartera...</p>';
+
+    try {
+      const response = await fetch('/api/getCarteraResumen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ args: [] })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error || !result.result?.success) {
+        throw new Error(result.error || result.result?.error || 'Error al cargar cartera');
+      }
+
+      console.log('[Finanzas] Cartera recibida:', result.result);
+      renderCartera(result.result);
+
+    } catch (error) {
+      console.error('[Finanzas] Error cargando cartera:', error);
+      container.innerHTML = `<p style="color: #dc3545;">❌ Error: ${error.message}</p>`;
+    } finally {
+      carteraBtn.disabled = false;
+      carteraBtn.textContent = '💰 Cartera';
+    }
+  }
+
+  // Event listener cartera
+  if (carteraBtn) {
+    carteraBtn.addEventListener('click', loadCartera);
+  }
+
 })();
