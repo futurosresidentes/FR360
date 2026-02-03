@@ -3449,6 +3449,13 @@
           const cancelBtn = document.getElementById('cancelOtrosi');
           saveBtn.disabled = true;
           cancelBtn.disabled = true;
+          // Aplicar estilos visuales de disabled
+          saveBtn.style.opacity = '0.7';
+          saveBtn.style.cursor = 'not-allowed';
+          saveBtn.style.pointerEvents = 'none';
+          cancelBtn.style.opacity = '0.5';
+          cancelBtn.style.cursor = 'not-allowed';
+          cancelBtn.style.pointerEvents = 'none';
           saveBtn.innerHTML = `
             <span style="display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:8px;"></span>
             Generando otrosí...
@@ -3541,12 +3548,24 @@
               alert(`❌ Error: ${response.error || 'Error al generar el otrosí.'}`);
               saveBtn.disabled = false;
               cancelBtn.disabled = false;
+              saveBtn.style.opacity = '1';
+              saveBtn.style.cursor = 'pointer';
+              saveBtn.style.pointerEvents = 'auto';
+              cancelBtn.style.opacity = '1';
+              cancelBtn.style.cursor = 'pointer';
+              cancelBtn.style.pointerEvents = 'auto';
               saveBtn.innerHTML = '📜 Elaborar otrosí';
             }
           } catch (error) {
             alert(`❌ Error de conexión: ${error.message}`);
             saveBtn.disabled = false;
             cancelBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+            saveBtn.style.cursor = 'pointer';
+            saveBtn.style.pointerEvents = 'auto';
+            cancelBtn.style.opacity = '1';
+            cancelBtn.style.cursor = 'pointer';
+            cancelBtn.style.pointerEvents = 'auto';
             saveBtn.innerHTML = '📜 Elaborar otrosí';
           }
         });
