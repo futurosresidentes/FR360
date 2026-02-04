@@ -4361,7 +4361,7 @@
       // Pintar (nombre + email si existe + roles + estado)
       const emailTxt   = u?.email  ? `<div>${u.email}</div>` : '';
       const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
-      const pendingBtn = u?.status === 'pending' ? ` <button onclick="obtenerLinkActivacion('${userCedula}')" style="background:none;border:none;cursor:pointer;font-size:1em;padding:0;margin-left:4px;" title="Obtener link de activación">🔗</button>` : '';
+      const pendingBtn = u?.status === 'pending' ? ` <button onclick="obtenerLinkActivacion('${userCedula}')" style="background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;" title="Copia el link de activación al portapapeles">🔗 (Copiar link activación)</button>` : '';
       const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
       info.innerHTML = [
         fullName ? `<div>${fullName}${u?.identityDocument ? ` <span class="student-name">(${u.identityType || ''} ${u.identityDocument})</span>` : ''}</div>` : '',
