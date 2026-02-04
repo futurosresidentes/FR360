@@ -2056,7 +2056,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           const activationResp = await axios.get(
             `https://admin-appfr-os0a.onrender.com/api/users/activation-link?identityDocument=${args[0]}&identityType=CC`,
             {
-              headers: { 'x-api-key': process.env.FRAPP_ADMIN_API_KEY },
+              headers: { 'x-api-key': process.env.FRAPP_ACTIVATION_LINK_API_KEY },
               timeout: 15000
             }
           );
