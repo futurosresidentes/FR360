@@ -2052,6 +2052,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
       case 'getActivationLink':
         // args[0] = identityDocument
         try {
+          const axios = require('axios');
           const activationResp = await axios.get(
             `https://admin-appfr-os0a.onrender.com/api/users/activation-link?identityDocument=${args[0]}&identityType=CC`,
             {
