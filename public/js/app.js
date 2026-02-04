@@ -50,6 +50,51 @@
       loadingErrors = [];
     }
 
+    // === OBTENER LINK DE ACTIVACIÓN FRAPP ===
+    async function obtenerLinkActivacion(cedula) {
+      try {
+        const btn = event?.target;
+        if (btn) {
+          btn.textContent = '⏳';
+          btn.disabled = true;
+        }
+
+        const response = await fetch('/api/getActivationLink', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ args: [cedula] })
+        });
+
+        const data = await response.json();
+        const result = data.result || data;
+
+        if (result.success && result.data?.activationLink) {
+          await navigator.clipboard.writeText(result.data.activationLink);
+          alert(`✅ Link de activación copiado al portapapeles!\n\nExpira: ${new Date(result.data.expiresAt).toLocaleString('es-CO')}\n${result.data.isNewLink ? '(Link nuevo generado)' : '(Link existente)'}`);
+        } else {
+          // Manejar errores específicos
+          const errorMsg = result.error || 'Error desconocido';
+          if (result.data?.currentStatus === 'active') {
+            alert(`⚠️ ${errorMsg}\n\nEl usuario ya activó su cuenta.`);
+          } else {
+            alert(`❌ Error: ${errorMsg}`);
+          }
+        }
+
+        if (btn) {
+          btn.textContent = '🔗';
+          btn.disabled = false;
+        }
+      } catch (error) {
+        console.error('Error obteniendo link de activación:', error);
+        alert(`❌ Error: ${error.message}`);
+        if (event?.target) {
+          event.target.textContent = '🔗';
+          event.target.disabled = false;
+        }
+      }
+    }
+
     // Sidebar tabs
     document
       .querySelectorAll('#sidebar nav li')
@@ -4316,7 +4361,7 @@
       // Pintar (nombre + email si existe + roles + estado)
       const emailTxt   = u?.email  ? `<div>${u.email}</div>` : '';
       const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
-      const pendingBtn = u?.status === 'pending' ? ` <a href="https://admin-appfr-os0a.onrender.com/admin/users?search=${userCedula}" target="_blank" title="Abrir perfil en admin">⚙️</a>` : '';
+      const pendingBtn = u?.status === 'pending' ? ` <button onclick="obtenerLinkActivacion('${userCedula}')" style="background:none;border:none;cursor:pointer;font-size:1em;padding:0;margin-left:4px;" title="Obtener link de activación">🔗</button>` : '';
       const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
       info.innerHTML = [
         fullName ? `<div>${fullName}${u?.identityDocument ? ` <span class="student-name">(${u.identityType || ''} ${u.identityDocument})</span>` : ''}</div>` : '',

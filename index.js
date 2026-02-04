@@ -2049,6 +2049,26 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await frappService.getProductHandleFromFRAPP(args[0]);
         break;
 
+      case 'getActivationLink':
+        // args[0] = identityDocument
+        try {
+          const activationResp = await axios.get(
+            `https://admin-appfr-os0a.onrender.com/api/users/activation-link?identityDocument=${args[0]}&identityType=CC`,
+            {
+              headers: { 'x-api-key': '7e158080b3197ab12988d80d9487af95' },
+              timeout: 15000
+            }
+          );
+          result = activationResp.data;
+        } catch (e) {
+          if (e.response?.data) {
+            result = e.response.data;
+          } else {
+            result = { success: false, error: e.message };
+          }
+        }
+        break;
+
       // === CALLBELL ===
       case 'getCallbellContact':
         result = await callbellService.getCallbellContact(args[0]);
