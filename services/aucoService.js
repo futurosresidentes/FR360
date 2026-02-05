@@ -194,7 +194,7 @@ async function htmlToPDF(html, options = {}) {
     const pdfOptions = {
       format: 'Letter',
       printBackground: true,
-      margin: { top: '35mm', bottom: '35mm', left: '25mm', right: '25mm' }
+      preferCSSPageSize: true  // Usar márgenes definidos en CSS @page
     };
 
     // Si hay header/footer templates, activarlos
@@ -311,15 +311,27 @@ async function generarYSubirAcuerdo(data) {
       ccestudiante: data.cedula
     });
 
-    // 3. Inyectar fuente Montserrat y estilos globales (márgenes estándar APA: 1 pulgada)
+    // 3. Inyectar fuente Montserrat y estilos globales
     const montserratStyles = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+        /* Márgenes para TODAS las páginas del PDF */
+        @page {
+          margin: 14mm 15mm 14mm 15mm !important; /* top right bottom left */
+        }
+
         * { font-family: 'Montserrat', sans-serif !important; box-sizing: border-box; }
-        body {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
           line-height: 1.6;
           font-size: 12px;
           color: #333;
+        }
+        body > div, body > section, .container, .content, main {
+          margin: 0 !important;
+          padding: 0 !important;
         }
         p {
           margin-bottom: 12px;
@@ -333,28 +345,40 @@ async function generarYSubirAcuerdo(data) {
           page-break-inside: avoid;
           margin: 20px 0;
         }
-        .signature-container { min-height: 150px; padding: 25px 0; font-size: 28px; }
+        .signature-container {
+          min-height: 120px;
+          padding: 10px 0;
+          font-size: 28px;
+          width: 100% !important;
+          display: block;
+        }
+        /* Reducir espacio antes de la firma */
+        .signature-container + p,
+        .signature-container + div,
+        p + .signature-container {
+          margin-top: 5px !important;
+        }
       </style>
     `;
-    // Inyectar después de <head> o al inicio si no existe
-    if (htmlFinal.includes('<head>')) {
-      htmlFinal = htmlFinal.replace('<head>', '<head>' + montserratStyles);
-    } else if (htmlFinal.includes('<html>')) {
-      htmlFinal = htmlFinal.replace('<html>', '<html><head>' + montserratStyles + '</head>');
+    // Inyectar AL FINAL del HTML para que tenga prioridad sobre estilos del template
+    if (htmlFinal.includes('</body>')) {
+      htmlFinal = htmlFinal.replace('</body>', montserratStyles + '</body>');
+    } else if (htmlFinal.includes('</html>')) {
+      htmlFinal = htmlFinal.replace('</html>', montserratStyles + '</html>');
     } else {
-      htmlFinal = montserratStyles + htmlFinal;
+      htmlFinal = htmlFinal + montserratStyles;
     }
 
-    // 4. Envolver el placeholder de firma en un contenedor más grande con fuente 28px
+    // 4. Envolver el placeholder de firma en un contenedor de ancho completo
     htmlFinal = htmlFinal.replace(
       '{{signature:0}}',
-      '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px;">{{signature:0}}</div>'
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>'
     );
 
     // 5. Limpiar placeholder de firma para el preview
     const htmlPreview = htmlFinal.replace(
       /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/,
-      '<div class="signature-container" style="min-height: 150px; padding: 25px 0; font-size: 28px; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
     );
 
     // 6. Convertir a PDF (sin header/footer de Puppeteer - usa los del template HTML)
