@@ -1734,6 +1734,65 @@ async function actualizarCodigoAuco(nroAcuerdo, codigoAuco) {
 }
 
 /**
+ * Actualiza link_pago y link_pago_mora en las carteras de un acuerdo
+ * @param {string} nroAcuerdo - Número del acuerdo
+ * @param {Array} linksData - Array de { cuotaNro, linkPago, linkPagoMora }
+ * @returns {Promise<Object>} Resultado de la actualización
+ */
+async function actualizarLinksCartera(nroAcuerdo, linksData) {
+  console.log(`[actualizarLinksCartera] Actualizando ${linksData.length} cuotas del acuerdo ${nroAcuerdo}`);
+
+  try {
+    // 1. Obtener todas las carteras del acuerdo ordenadas por cuota_nro
+    const url = `${STRAPI_BASE_URL}/api/carteras?filters[nro_acuerdo][$eq]=${encodeURIComponent(nroAcuerdo)}&sort=cuota_nro:asc&pagination[pageSize]=50`;
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
+    });
+
+    const carteras = response.data?.data || [];
+    if (carteras.length === 0) {
+      console.warn(`[actualizarLinksCartera] No se encontraron carteras para acuerdo ${nroAcuerdo}`);
+      return { success: false, error: 'No se encontraron carteras' };
+    }
+
+    // 2. Actualizar cada cartera con sus links
+    let actualizadas = 0;
+    for (const linkInfo of linksData) {
+      const cartera = carteras.find(c => {
+        const attr = c.attributes || c;
+        return attr.cuota_nro === linkInfo.cuotaNro;
+      });
+
+      if (!cartera) {
+        console.warn(`[actualizarLinksCartera] No se encontró cartera para cuota ${linkInfo.cuotaNro}`);
+        continue;
+      }
+
+      const documentId = cartera.documentId;
+      const updateUrl = `${STRAPI_BASE_URL}/api/carteras/${documentId}`;
+      const updateData = {};
+      if (linkInfo.linkPago) updateData.link_pago = linkInfo.linkPago;
+      if (linkInfo.linkPagoMora) updateData.link_pago_mora = linkInfo.linkPagoMora;
+
+      await axios.put(updateUrl, { data: updateData }, {
+        headers: {
+          'Authorization': `Bearer ${STRAPI_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      actualizadas++;
+    }
+
+    console.log(`[actualizarLinksCartera] ${actualizadas} carteras actualizadas con links de pago`);
+    return { success: true, carterasActualizadas: actualizadas };
+
+  } catch (error) {
+    console.error(`[actualizarLinksCartera] Error:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Obtiene la suma de valor_neto de facturaciones por mes y año
  * @param {number} year - Año a consultar
  * @param {number} month - Mes a consultar (1-12)
@@ -2108,6 +2167,7 @@ module.exports = {
   guardarVentaCorriente,
   createOrUpdateCRMContact,
   actualizarCodigoAuco,
+  actualizarLinksCartera,
   getFacturacionByMonth,
   getFacturacionComparison,
   getCarteraResumen

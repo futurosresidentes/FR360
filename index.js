@@ -177,6 +177,128 @@ app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
 
     console.log('[API v1] Carteras creadas. NroAcuerdo:', strapiResult.nroAcuerdo);
 
+    // PASO 1.5: Crear links de pago en ePayco para cada cuota
+    console.log('[API v1] === PASO 1.5: Crear links de pago ===');
+    const linksNormalesV1 = [];
+    const linksMoraV1 = [];
+    const linksDataForStrapiV1 = [];
+    const hoyStrV1 = new Date().toISOString().split('T')[0];
+
+    for (let i = 0; i < planPagos.length; i++) {
+      const cuota = planPagos[i];
+      const fechaCuota = new Date(cuota.fecha);
+      const nroCuota = i + 1;
+      const valorCuota = Number(cuota.valor);
+
+      const fechaNormal = new Date(fechaCuota);
+      fechaNormal.setDate(fechaNormal.getDate() + 5);
+      const fechaNormalStr = `${fechaNormal.getFullYear()}/${String(fechaNormal.getMonth() + 1).padStart(2, '0')}/${String(fechaNormal.getDate()).padStart(2, '0')} 23:59:59`;
+
+      const fechaMora = new Date(fechaCuota);
+      fechaMora.setDate(fechaMora.getDate() + 95);
+      const valorCuotaMora = Math.round(valorCuota * 1.05);
+      const fechaMoraStr = `${fechaMora.getFullYear()}/${String(fechaMora.getMonth() + 1).padStart(2, '0')}/${String(fechaMora.getDate()).padStart(2, '0')} 23:59:59`;
+
+      const basePayload = {
+        identityDocument: cedula,
+        givenName: nombres,
+        familyName: apellidos,
+        email: correo,
+        phone: celular || '',
+        title: 'Futuros Residentes',
+        amount: valorCuota,
+        numberOfPayments: 1,
+        quantity: 1,
+        onePayment: true,
+        currency: 'COP',
+        id: 0,
+        typeSell: '2',
+        tax: 0,
+        commercial: comercialNombre || 'Sistema',
+        startType: 'inmediato',
+        startDate: hoyStrV1
+      };
+
+      // Link normal
+      console.log(`[API v1] Creando link normal cuota ${nroCuota}/${planPagos.length}...`);
+      const linkNormalResult = await fr360Service.createPaymentLink({
+        ...basePayload,
+        product: `${productoNombre} - Cuota ${nroCuota}`,
+        description: `${productoNombre} - Cuota ${nroCuota}`,
+        expirationDate: fechaNormalStr
+      });
+      if (!linkNormalResult.success) {
+        console.error(`[API v1] ❌ Error creando link normal cuota ${nroCuota}:`, linkNormalResult);
+        return res.status(500).json({ success: false, message: `Error al crear link de pago para cuota ${nroCuota}: ${linkNormalResult.message || 'Error desconocido'}` });
+      }
+      const routeLinkNormalV1 = linkNormalResult.data?.data?.data?.routeLink || '';
+      linksNormalesV1.push(routeLinkNormalV1);
+
+      await fr360Service.savePaymentLinkToDatabase({
+        salesRep: comercialNombre || 'Sistema',
+        identityType: 'CC',
+        identityDocument: cedula,
+        givenName: nombres,
+        familyName: apellidos,
+        email: correo,
+        phone: celular || '',
+        product: `${productoNombre} - Cuota ${nroCuota}`,
+        amount: valorCuota,
+        expiryDate: (linkNormalResult.data?.data?.data?.expirationDate || fechaNormalStr).replace(' ', 'T') + '.000Z',
+        linkURL: routeLinkNormalV1,
+        invoiceId: String(linkNormalResult.data?.data?.data?.invoceNumber || ''),
+        externalId: String(linkNormalResult.data?.data?.data?.id || ''),
+        agreementId: strapiResult.nroAcuerdo,
+        service: 'epayco',
+        accessDate: new Date().toISOString()
+      });
+
+      // Link mora
+      console.log(`[API v1] Creando link mora cuota ${nroCuota}/${planPagos.length}...`);
+      const linkMoraResult = await fr360Service.createPaymentLink({
+        ...basePayload,
+        product: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+        description: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+        amount: valorCuotaMora,
+        expirationDate: fechaMoraStr
+      });
+      if (!linkMoraResult.success) {
+        console.error(`[API v1] ❌ Error creando link mora cuota ${nroCuota}:`, linkMoraResult);
+        return res.status(500).json({ success: false, message: `Error al crear link de mora para cuota ${nroCuota}: ${linkMoraResult.message || 'Error desconocido'}` });
+      }
+      const routeLinkMoraV1 = linkMoraResult.data?.data?.data?.routeLink || '';
+      linksMoraV1.push(routeLinkMoraV1);
+
+      await fr360Service.savePaymentLinkToDatabase({
+        salesRep: comercialNombre || 'Sistema',
+        identityType: 'CC',
+        identityDocument: cedula,
+        givenName: nombres,
+        familyName: apellidos,
+        email: correo,
+        phone: celular || '',
+        product: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+        amount: valorCuotaMora,
+        expiryDate: (linkMoraResult.data?.data?.data?.expirationDate || fechaMoraStr).replace(' ', 'T') + '.000Z',
+        linkURL: routeLinkMoraV1,
+        invoiceId: String(linkMoraResult.data?.data?.data?.invoceNumber || ''),
+        externalId: String(linkMoraResult.data?.data?.data?.id || ''),
+        agreementId: strapiResult.nroAcuerdo,
+        service: 'epayco',
+        accessDate: new Date().toISOString()
+      });
+
+      linksDataForStrapiV1.push({
+        cuotaNro: nroCuota,
+        linkPago: routeLinkNormalV1,
+        linkPagoMora: routeLinkMoraV1
+      });
+    }
+
+    // PASO 1.6: Actualizar carteras en Strapi con links
+    console.log('[API v1] === PASO 1.6: Actualizar links en carteras Strapi ===');
+    await strapiService.actualizarLinksCartera(strapiResult.nroAcuerdo, linksDataForStrapiV1);
+
     // PASO 2: Generar PDF y subir a AUCO para firma electrónica
     console.log('[API v1] PASO 2: Generar PDF y subir a AUCO');
     let aucoResult = null;
@@ -184,7 +306,7 @@ app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
     try {
       const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
 
-      // Formatear cuotas para AUCO
+      // Formatear cuotas para AUCO (con links normales)
       const cuotasAuco = planPagos.map((cuota, i) => {
         const fechaObj = new Date(cuota.fecha);
         const dd = String(fechaObj.getDate()).padStart(2, '0');
@@ -194,7 +316,7 @@ app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
           nro_cuota: i + 1,
           valor: cuota.valor,
           fecha_limite: `${dd}/${mm}/${yyyy}`,
-          link_pago: cuota.linkPago || ''
+          link_pago: linksNormalesV1[i] || ''
         };
       });
 
@@ -216,7 +338,7 @@ app.post('/api/v1/auco/generar-acuerdo', validateApiKey, async (req, res) => {
         comercial: comercialNombre || '',
         primeraCuota: planPagos[0].valor,
         primeraFecha: primeraFechaStr,
-        primerLink: planPagos[0].linkPago || ''
+        primerLink: linksNormalesV1[0] || ''
       };
 
       aucoResult = await aucoService.generarYSubirAcuerdo(aucoData);
@@ -2177,13 +2299,151 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           break;
         }
 
+        // 1.5. Crear links de pago en ePayco para cada cuota
+        console.log('[crearAcuerdo] === PASO 1.5: Crear links de pago ===');
+        const linksNormales = [];
+        const linksMora = [];
+        const linksDataForStrapi = [];
+        const hoyStr = new Date().toISOString().split('T')[0];
+
+        for (let i = 0; i < planPagos.length; i++) {
+          const cuota = planPagos[i];
+          const fechaCuota = new Date(cuota.fecha);
+          const nroCuota = i + 1;
+          const valorCuota = Number(cuota.valor);
+
+          // Fecha normal: fecha_limite + 5 días
+          const fechaNormal = new Date(fechaCuota);
+          fechaNormal.setDate(fechaNormal.getDate() + 5);
+          const fechaNormalStr = `${fechaNormal.getFullYear()}/${String(fechaNormal.getMonth() + 1).padStart(2, '0')}/${String(fechaNormal.getDate()).padStart(2, '0')} 23:59:59`;
+
+          // Fecha mora: fecha_limite + 95 días, valor + 5%
+          const fechaMora = new Date(fechaCuota);
+          fechaMora.setDate(fechaMora.getDate() + 95);
+          const valorCuotaMora = Math.round(valorCuota * 1.05);
+          const fechaMoraStr = `${fechaMora.getFullYear()}/${String(fechaMora.getMonth() + 1).padStart(2, '0')}/${String(fechaMora.getDate()).padStart(2, '0')} 23:59:59`;
+
+          const basePayload = {
+            identityDocument: cedula,
+            givenName: nombres,
+            familyName: apellidos,
+            email: correo,
+            phone: celular || '',
+            title: 'Futuros Residentes',
+            amount: valorCuota,
+            numberOfPayments: 1,
+            quantity: 1,
+            onePayment: true,
+            currency: 'COP',
+            id: 0,
+            typeSell: '2',
+            tax: 0,
+            commercial: comercialNombre || 'Sistema',
+            startType: 'inmediato',
+            startDate: hoyStr
+          };
+
+          // Link normal
+          console.log(`[crearAcuerdo] Creando link normal cuota ${nroCuota}/${planPagos.length}...`);
+          const payloadNormal = {
+            ...basePayload,
+            product: `${productoNombre} - Cuota ${nroCuota}`,
+            description: `${productoNombre} - Cuota ${nroCuota}`,
+            expirationDate: fechaNormalStr
+          };
+          const linkNormalResult = await fr360Service.createPaymentLink(payloadNormal);
+          if (!linkNormalResult.success) {
+            console.error(`[crearAcuerdo] ❌ Error creando link normal cuota ${nroCuota}:`, linkNormalResult);
+            result = { success: false, message: `Error al crear link de pago para cuota ${nroCuota}: ${linkNormalResult.message || 'Error desconocido'}` };
+            break;
+          }
+          const routeLinkNormal = linkNormalResult.data?.data?.data?.routeLink || '';
+          linksNormales.push(routeLinkNormal);
+          console.log(`[crearAcuerdo] ✅ Link normal cuota ${nroCuota}: ${routeLinkNormal}`);
+
+          // Guardar link normal en BD FR360
+          const linkNormalSaveData = {
+            salesRep: comercialNombre || 'Sistema',
+            identityType: 'CC',
+            identityDocument: cedula,
+            givenName: nombres,
+            familyName: apellidos,
+            email: correo,
+            phone: celular || '',
+            product: `${productoNombre} - Cuota ${nroCuota}`,
+            amount: valorCuota,
+            expiryDate: (linkNormalResult.data?.data?.data?.expirationDate || fechaNormalStr).replace(' ', 'T') + '.000Z',
+            linkURL: routeLinkNormal,
+            invoiceId: String(linkNormalResult.data?.data?.data?.invoceNumber || ''),
+            externalId: String(linkNormalResult.data?.data?.data?.id || ''),
+            agreementId: strapiResult.nroAcuerdo,
+            service: 'epayco',
+            accessDate: new Date().toISOString()
+          };
+          await fr360Service.savePaymentLinkToDatabase(linkNormalSaveData);
+
+          // Link mora
+          console.log(`[crearAcuerdo] Creando link mora cuota ${nroCuota}/${planPagos.length}...`);
+          const payloadMora = {
+            ...basePayload,
+            product: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+            description: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+            amount: valorCuotaMora,
+            expirationDate: fechaMoraStr
+          };
+          const linkMoraResult = await fr360Service.createPaymentLink(payloadMora);
+          if (!linkMoraResult.success) {
+            console.error(`[crearAcuerdo] ❌ Error creando link mora cuota ${nroCuota}:`, linkMoraResult);
+            result = { success: false, message: `Error al crear link de mora para cuota ${nroCuota}: ${linkMoraResult.message || 'Error desconocido'}` };
+            break;
+          }
+          const routeLinkMora = linkMoraResult.data?.data?.data?.routeLink || '';
+          linksMora.push(routeLinkMora);
+          console.log(`[crearAcuerdo] ✅ Link mora cuota ${nroCuota}: ${routeLinkMora}`);
+
+          // Guardar link mora en BD FR360
+          const linkMoraSaveData = {
+            salesRep: comercialNombre || 'Sistema',
+            identityType: 'CC',
+            identityDocument: cedula,
+            givenName: nombres,
+            familyName: apellidos,
+            email: correo,
+            phone: celular || '',
+            product: `${productoNombre} - Cuota ${nroCuota} (Mora)`,
+            amount: valorCuotaMora,
+            expiryDate: (linkMoraResult.data?.data?.data?.expirationDate || fechaMoraStr).replace(' ', 'T') + '.000Z',
+            linkURL: routeLinkMora,
+            invoiceId: String(linkMoraResult.data?.data?.data?.invoceNumber || ''),
+            externalId: String(linkMoraResult.data?.data?.data?.id || ''),
+            agreementId: strapiResult.nroAcuerdo,
+            service: 'epayco',
+            accessDate: new Date().toISOString()
+          };
+          await fr360Service.savePaymentLinkToDatabase(linkMoraSaveData);
+
+          linksDataForStrapi.push({
+            cuotaNro: nroCuota,
+            linkPago: routeLinkNormal,
+            linkPagoMora: routeLinkMora
+          });
+        }
+
+        // Si falló algún link, result ya tiene el error
+        if (result) break;
+
+        // 1.6. Actualizar carteras en Strapi con links de pago
+        console.log('[crearAcuerdo] === PASO 1.6: Actualizar links en carteras Strapi ===');
+        const linksUpdateResult = await strapiService.actualizarLinksCartera(strapiResult.nroAcuerdo, linksDataForStrapi);
+        console.log('[crearAcuerdo] Links actualizados en Strapi:', linksUpdateResult);
+
         // 2. Generar PDF y subir a AUCO para firma electrónica
         console.log('[crearAcuerdo] === PASO 2: Generar PDF y subir a AUCO ===');
         let aucoResult = null;
         try {
           const inicioPlataforma = inicioTipo === 'primerPago' ? 'Con primer pago' : (inicioFecha || '');
 
-          // Formatear cuotas para AUCO
+          // Formatear cuotas para AUCO (con links normales)
           const cuotasAuco = planPagos.map((cuota, i) => {
             const fechaObj = new Date(cuota.fecha);
             const dd = String(fechaObj.getDate()).padStart(2, '0');
@@ -2193,7 +2453,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
               nro_cuota: i + 1,
               valor: cuota.valor,
               fecha_limite: `${dd}/${mm}/${yyyy}`,
-              link_pago: ''
+              link_pago: linksNormales[i] || ''
             };
           });
 
@@ -2215,7 +2475,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             comercial: comercialNombre,
             primeraCuota: planPagos[0].valor,
             primeraFecha: primeraFechaStr,
-            primerLink: ''
+            primerLink: linksNormales[0] || ''
           };
 
           console.log('[crearAcuerdo] Datos AUCO:', JSON.stringify(aucoData, null, 2));

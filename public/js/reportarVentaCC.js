@@ -16,6 +16,187 @@
   let cuotasPendientesCache = [];
   let comprobanteFile = null;
   let datosEstudianteActual = null; // Para guardar cédula y otros datos
+  let membershipPlansCache = null;
+  let membershipRowCounter = 0;
+
+  // --- Helpers de fecha locales (reimplementados de app.js) ---
+  function _parseLocalDate(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  function _formatLocalDate(d) {
+    const y = d.getFullYear(),
+          m = String(d.getMonth() + 1).padStart(2, '0'),
+          day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function _sumarDias(d, n) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+  function _getMembershipStartDate(dateInput) {
+    const selectedDate = _parseLocalDate(dateInput);
+    const today = new Date();
+    const selOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const todOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (selOnly.getTime() === todOnly.getTime()) {
+      const now = new Date();
+      const utc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 5, now.getMinutes(), now.getSeconds()));
+      return utc.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    } else {
+      const utc = new Date(Date.UTC(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 5, 0, 0));
+      return utc.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    }
+  }
+  function _getMembershipExpiryDate(dateInput) {
+    const d = _parseLocalDate(dateInput);
+    const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + 1, 4, 59, 59));
+    return utc.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  }
+  function _humanCapitalize(str) {
+    if (!str) return '';
+    return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  // --- Funciones de membresías ---
+  async function cargarMembershipPlansCache() {
+    if (membershipPlansCache) return membershipPlansCache;
+    try {
+      membershipPlansCache = await window.api.getActiveMembershipPlans();
+      return membershipPlansCache || [];
+    } catch (error) {
+      console.error('Error cargando planes de membresía:', error);
+      return [];
+    }
+  }
+
+  async function agregarFilaMembresia() {
+    const plans = await cargarMembershipPlansCache();
+    if (!plans || plans.length === 0) {
+      alert('No hay planes de membresía disponibles.');
+      return;
+    }
+
+    const rowId = ++membershipRowCounter;
+    const container = document.getElementById('membresiaRowsContainer');
+    const emptyMsg = document.getElementById('membresiaEmpty');
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    let planOptions = '<option value="">-- Seleccione plan --</option>';
+    plans.forEach(plan => {
+      planOptions += `<option value="${plan.id}">${plan.name}</option>`;
+    });
+
+    const todayStr = _formatLocalDate(new Date());
+
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'membresia-row';
+    rowDiv.dataset.rowId = rowId;
+    rowDiv.style.cssText = 'background:white; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #c8e6c9;';
+    rowDiv.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <select class="memb-plan-select" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:0.9em; font-family:inherit;">
+          ${planOptions}
+        </select>
+        <button type="button" class="memb-remove-btn" style="background:#dc3545; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em; margin-left:8px; font-family:inherit;">✕</button>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:end;">
+        <div>
+          <label style="font-size:0.8em; color:#666; display:block; margin-bottom:2px; font-family:inherit;">Fecha inicio</label>
+          <input type="date" class="memb-start-date" value="${todayStr}" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.9em; font-family:inherit; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:0.8em; color:#666; display:block; margin-bottom:2px; font-family:inherit;">Duración (días)</label>
+          <input type="number" class="memb-duration" min="1" placeholder="días" style="width:80px; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.9em; font-family:inherit; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:0.8em; color:#666; display:block; margin-bottom:2px; font-family:inherit;">Fecha fin</label>
+          <input type="date" class="memb-end-date" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.9em; font-family:inherit; box-sizing:border-box;">
+        </div>
+      </div>
+    `;
+
+    container.appendChild(rowDiv);
+
+    // Bidirectional date/duration
+    const startInput = rowDiv.querySelector('.memb-start-date');
+    const durationInput = rowDiv.querySelector('.memb-duration');
+    const endInput = rowDiv.querySelector('.memb-end-date');
+    const removeBtn = rowDiv.querySelector('.memb-remove-btn');
+
+    function calcFechaFin() {
+      if (!startInput.value || !durationInput.value) return;
+      const duration = parseInt(durationInput.value);
+      if (duration < 1 || isNaN(duration)) return;
+      endInput.value = _formatLocalDate(_sumarDias(_parseLocalDate(startInput.value), duration));
+    }
+    function calcDuracion() {
+      if (!startInput.value || !endInput.value) return;
+      const start = _parseLocalDate(startInput.value);
+      const end = _parseLocalDate(endInput.value);
+      if (end <= start) { durationInput.value = ''; return; }
+      durationInput.value = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    }
+
+    startInput.addEventListener('change', () => {
+      if (durationInput.value) calcFechaFin();
+      else if (endInput.value) calcDuracion();
+    });
+    durationInput.addEventListener('input', calcFechaFin);
+    endInput.addEventListener('change', calcDuracion);
+
+    removeBtn.addEventListener('click', () => {
+      rowDiv.remove();
+      if (container.querySelectorAll('.membresia-row').length === 0 && emptyMsg) {
+        emptyMsg.style.display = 'block';
+      }
+      validarFormulario();
+    });
+
+    const planSelect = rowDiv.querySelector('.memb-plan-select');
+    planSelect.addEventListener('change', () => {
+      const planName = planSelect.options[planSelect.selectedIndex]?.text || '';
+      if (planName.includes('Simulación especializada UdeA') || planName.includes('Simulación UniValle 2026')) {
+        endInput.value = '2026-05-31';
+        calcDuracion();
+      }
+      validarFormulario();
+    });
+    validarFormulario();
+  }
+
+  function mostrarSeccionMembresia() {
+    const c = document.getElementById('camposMembresia');
+    if (c) c.style.display = 'block';
+  }
+  function ocultarSeccionMembresia() {
+    const c = document.getElementById('camposMembresia');
+    if (c) c.style.display = 'none';
+    const rows = document.getElementById('membresiaRowsContainer');
+    if (rows) rows.innerHTML = '';
+    const msg = document.getElementById('membresiaEmpty');
+    if (msg) msg.style.display = 'block';
+    membershipRowCounter = 0;
+  }
+  function recogerDatosMembresia() {
+    const rows = document.querySelectorAll('#membresiaRowsContainer .membresia-row');
+    const result = [];
+    rows.forEach(row => {
+      const sel = row.querySelector('.memb-plan-select');
+      const start = row.querySelector('.memb-start-date');
+      const end = row.querySelector('.memb-end-date');
+      if (sel.value && start.value && end.value) {
+        result.push({
+          planId: parseInt(sel.value),
+          planName: sel.options[sel.selectedIndex].textContent,
+          startDate: start.value,
+          endDate: end.value
+        });
+      }
+    });
+    return result;
+  }
 
   /**
    * Crea el modal de reportar venta
@@ -103,6 +284,16 @@
                     <input type="text" id="ventaCCCiudad" placeholder="Ej: Bogotá" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:0.95em; font-family:inherit; box-sizing:border-box;">
                   </div>
                 </div>
+              </div>
+
+              <!-- Planes de membresía (solo para contado o cuota 1) -->
+              <div id="camposMembresia" style="display:none; margin-bottom:12px; background:#e8f5e9; padding:12px; border-radius:8px; border:1px solid #a5d6a7;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <p style="margin:0; font-size:0.85em; color:#2e7d32; font-family:inherit;">🎓 Planes de Membresía (opcional)</p>
+                  <button type="button" id="agregarPlanMembresiaBtn" style="background:#43a047; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:0.85em; font-family:inherit;">+ Agregar plan</button>
+                </div>
+                <div id="membresiaRowsContainer"></div>
+                <p id="membresiaEmpty" style="margin:0; font-size:0.85em; color:#888; text-align:center; font-family:inherit;">Sin planes agregados. Haz clic en "+ Agregar plan" para incluir una membresía.</p>
               </div>
 
               <!-- Comprobante -->
@@ -256,6 +447,9 @@
 
     // Reportar venta
     reportarBtn.addEventListener('click', reportarVenta);
+
+    // Agregar plan de membresía
+    document.getElementById('agregarPlanMembresiaBtn').addEventListener('click', agregarFilaMembresia);
   }
 
   /**
@@ -503,11 +697,14 @@
       // Mostrar si es contado o cuota 1
       if (data.tipo === 'contado' || data.nroCuota === 1) {
         mostrarCamposDireccion();
+        mostrarSeccionMembresia();
       } else {
         ocultarCamposDireccion();
+        ocultarSeccionMembresia();
       }
     } catch (e) {
       ocultarCamposDireccion();
+      ocultarSeccionMembresia();
     }
   }
 
@@ -534,8 +731,9 @@
     }
 
     cuotasPendientesCache = [];
-    // Mostrar campos de dirección y comercial abierto para contado
+    // Mostrar campos de dirección, membresía y comercial abierto para contado
     mostrarCamposDireccion();
+    mostrarSeccionMembresia();
     mostrarComercialAbierto();
   }
 
@@ -555,6 +753,7 @@
       }
       cuotasPendientesCache = [];
       ocultarCamposDireccion();
+      ocultarSeccionMembresia();
       ocultarComercial();
       return;
     }
@@ -572,6 +771,7 @@
     if (pendientes.length === 0) {
       select.innerHTML = '<option value="">No hay cuotas pendientes</option>';
       ocultarCamposDireccion();
+      ocultarSeccionMembresia();
       ocultarComercial();
       return;
     }
@@ -703,6 +903,14 @@
    * Envía notificación a Google Chat
    */
   async function notificarGoogleChat(datos) {
+    let membresiaTexto = '';
+    if (datos.membresiaResultados && datos.membresiaResultados.length > 0) {
+      membresiaTexto = `\n🎓 *Membresías solicitadas:*\n`;
+      datos.membresiaResultados.forEach(r => {
+        membresiaTexto += r.ok ? `  ✅ ${r.plan}\n` : `  ❌ ${r.plan} (${r.error})\n`;
+      });
+    }
+
     const mensaje = {
       text: `🆕 *Nueva Venta en Cuenta Corriente*\n\n` +
             `👤 *Estudiante:* ${datos.nombres} ${datos.apellidos}\n` +
@@ -716,6 +924,7 @@
             (datos.ciudad ? `🏙️ *Ciudad:* ${datos.ciudad}\n` : '') +
             (datos.direccion ? `📍 *Dirección:* ${datos.direccion}\n` : '') +
             `🔗 *Comprobante:* ${datos.comprobanteUrl || 'Pendiente'}\n` +
+            membresiaTexto +
             `📅 *Fecha:* ${new Date().toLocaleString('es-CO')}`
     };
 
@@ -817,7 +1026,55 @@
         // No bloquear el proceso si falla Strapi
       }
 
-      // 3. Notificar a Google Chat
+      // 3. Registrar membresías si las hay
+      const membresias = recogerDatosMembresia();
+      const membresiaResultados = [];
+      if (membresias.length > 0) {
+        reportarBtn.innerHTML = '<span class="spinner"></span> Registrando membresías...';
+        for (const memb of membresias) {
+          try {
+            const payload = {
+              email: correo,
+              givenName: _humanCapitalize(nombres.split(' ')[0] || nombres),
+              familyName: _humanCapitalize(apellidos),
+              phone: celular,
+              identityType: 'CC',
+              identityDocument: cedula,
+              membershipPlanId: memb.planId,
+              membershipStartDate: _getMembershipStartDate(memb.startDate),
+              membershipEndDate: _getMembershipExpiryDate(memb.endDate)
+            };
+
+            let res = await window.api.registerMembFRAPP(payload);
+
+            // Si el usuario ya existe, reintentar solo creando membresía
+            if (res && res.error && /createMembershipIfUserExists/i.test(res.error)) {
+              console.log(`Usuario existente detectado para ${cedula}, agregando solo membresía...`);
+              const retryPayload = {
+                email: correo,
+                membershipPlanId: memb.planId,
+                membershipStartDate: _getMembershipStartDate(memb.startDate),
+                membershipEndDate: _getMembershipExpiryDate(memb.endDate),
+                createMembershipIfUserExists: true,
+                allowDuplicateMemberships: false
+              };
+              res = await window.api.registerMembFRAPP(retryPayload);
+            }
+
+            if (res && res.success === true) {
+              membresiaResultados.push({ plan: memb.planName, ok: true });
+            } else {
+              console.error('registerMembFRAPP error', cedula, res);
+              membresiaResultados.push({ plan: memb.planName, ok: false, error: res?.error || 'Error desconocido' });
+            }
+          } catch (e) {
+            console.error('registerMembFRAPP exception', cedula, e);
+            membresiaResultados.push({ plan: memb.planName, ok: false, error: e.message });
+          }
+        }
+      }
+
+      // 4. Notificar a Google Chat
       const comercialNombre = comercialSelect?.selectedOptions[0]?.textContent || '';
       await notificarGoogleChat({
         nombres,
@@ -831,11 +1088,19 @@
         comprobanteUrl,
         comercial: comercialNombre,
         direccion,
-        ciudad
+        ciudad,
+        membresiaResultados
       });
 
       // Éxito
-      alert('✅ Venta reportada exitosamente!\n\nSe ha guardado en el sistema y notificado al equipo.');
+      const membOk = membresiaResultados.filter(r => r.ok).length;
+      const membErr = membresiaResultados.filter(r => !r.ok).length;
+      let alertMsg = '✅ Venta reportada exitosamente!\n\nSe ha guardado en el sistema y notificado al equipo.';
+      if (membresiaResultados.length > 0) {
+        alertMsg += `\n\n🎓 Membresías: ${membOk} creada(s)`;
+        if (membErr > 0) alertMsg += `, ${membErr} con error`;
+      }
+      alert(alertMsg);
       cerrarModal();
 
     } catch (error) {
@@ -884,10 +1149,11 @@
     document.getElementById('ventaCCProducto').disabled = true;
     document.getElementById('ventaCCValor').value = '';
 
-    // Limpiar campos de dirección
+    // Limpiar campos de dirección y membresía
     document.getElementById('ventaCCDireccion').value = '';
     document.getElementById('ventaCCCiudad').value = '';
     ocultarCamposDireccion();
+    ocultarSeccionMembresia();
     ocultarComercial();
 
     // Limpiar comprobante
