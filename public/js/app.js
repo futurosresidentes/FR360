@@ -1006,7 +1006,7 @@
       const meta = productMeta.get(name);
 
       // Usuarios especiales que pueden omitir las restricciones Min/Max
-      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com'];
+      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
       const isSpecialUser = specialUsers.includes(USER_EMAIL);
 
       // si no hay meta, limpiamos límites
@@ -1280,7 +1280,7 @@
       const max = Number(valorInput.max || 0);
 
       // Usuarios especiales que pueden omitir las restricciones Min/Max
-      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com'];
+      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
       const isSpecialUser = specialUsers.includes(USER_EMAIL);
 
       if (!isSpecialUser) {
@@ -3697,7 +3697,7 @@
       const max = Number(valorInput.max) || 0;
 
       // Usuarios especiales que pueden omitir las restricciones Min/Max
-      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com'];
+      const specialUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
       const isSpecialUser = specialUsers.includes(USER_EMAIL);
 
       if (!isSpecialUser) {
