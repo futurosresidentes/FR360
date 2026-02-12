@@ -316,14 +316,14 @@
 
   // === MORA ===
   async function ejecutarMora() {
-    showStatus('Verificando ley dejen de fregar...');
+    showStatus('Verificando horario y festivos...');
     setButtonsEnabled(false);
     cobrancioResultsContainer.innerHTML = '';
 
     try {
-      const ley = await apiCall('verificarLeyDejenDeFregar');
-      if (ley.activa) {
-        alert('No se puede ejecutar: ' + ley.razon);
+      const validacion = await validarHorarioCobrancio();
+      if (!validacion.permitido) {
+        alert(validacion.razon);
         return;
       }
 
@@ -349,11 +349,17 @@
 
   // === FECHA ===
   async function ejecutarFecha() {
-    showStatus('Verificando festivos...');
+    showStatus('Verificando horario y festivos...');
     setButtonsEnabled(false);
     cobrancioResultsContainer.innerHTML = '';
 
     try {
+      const validacion = await validarHorarioCobrancio();
+      if (!validacion.permitido) {
+        alert(validacion.razon);
+        return;
+      }
+
       showStatus('Obteniendo candidatos FECHA...');
       const data = await apiCall('obtenerCandidatosFecha');
       console.log('Candidatos FECHA:', data);
@@ -403,14 +409,14 @@
 
   // === PREVIO ===
   async function ejecutarPrevio() {
-    showStatus('Verificando ley dejen de fregar...');
+    showStatus('Verificando horario y festivos...');
     setButtonsEnabled(false);
     cobrancioResultsContainer.innerHTML = '';
 
     try {
-      const ley = await apiCall('verificarLeyDejenDeFregar');
-      if (ley.activa) {
-        alert('No se puede ejecutar: ' + ley.razon);
+      const validacion = await validarHorarioCobrancio();
+      if (!validacion.permitido) {
+        alert(validacion.razon);
         return;
       }
 
@@ -434,8 +440,53 @@
     }
   }
 
+  // === Validar horario de cobranza ===
+  async function validarHorarioCobrancio() {
+    const ahoraColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const hora = ahoraColombia.getHours();
+    const diaSemana = ahoraColombia.getDay();
+
+    if (diaSemana === 0) {
+      return { permitido: false, razon: 'Hoy es domingo. No se puede ejecutar Cobrancio.' };
+    }
+
+    if (hora < 8) {
+      return { permitido: false, razon: 'Son las ' + hora + ':00. No se puede ejecutar Cobrancio antes de las 8:00 AM.' };
+    }
+
+    if (diaSemana === 6 && hora >= 15) {
+      return { permitido: false, razon: 'Es sábado después de las 3:00 PM. No se puede ejecutar Cobrancio.' };
+    }
+
+    if (hora >= 19) {
+      return { permitido: false, razon: 'Son las ' + hora + ':00. No se puede ejecutar Cobrancio después de las 7:00 PM.' };
+    }
+
+    try {
+      const ley = await apiCall('verificarLeyDejenDeFregar');
+      if (ley.activa) {
+        return { permitido: false, razon: ley.razon };
+      }
+    } catch (err) {
+      return { permitido: false, razon: 'Error verificando festivos: ' + err.message };
+    }
+
+    return { permitido: true };
+  }
+
   // === FULL ===
   async function ejecutarFull() {
+    showStatus('Verificando horario y festivos...');
+    setButtonsEnabled(false);
+    const validacion = await validarHorarioCobrancio();
+    hideStatus();
+    setButtonsEnabled(true);
+
+    if (!validacion.permitido) {
+      alert(validacion.razon);
+      return;
+    }
+
     const confirmar = confirm(
       'COBRANCIO WEB - FULL\n\n' +
       'Se ejecutaran las siguientes cobranzas en orden:\n\n' +
