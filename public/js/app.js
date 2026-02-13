@@ -438,14 +438,29 @@
         clientTypeIndicator.style.display = 'none';
       }
 
-      // Verificar mora solo para clientes Élite o Esencial
-      const esClienteConHistorial = hasElite || hasEsencial;
+      // Verificar mora para cualquier cliente con acuerdos
       const acuerdosData = window.currentAcuerdosData;
-      if (esClienteConHistorial && Array.isArray(acuerdosData) && acuerdosData.length > 0) {
-        const tieneMora = acuerdosData.some(item =>
-          String(item.estado_pago || '').toLowerCase() === 'en_mora'
+      if (Array.isArray(acuerdosData) && acuerdosData.length > 0) {
+        // Cuotas en mora de acuerdos firmados
+        const moraFirmado = acuerdosData.some(item =>
+          String(item.estado_pago || '').toLowerCase() === 'en_mora' &&
+          String(item.estado_firma || '').toLowerCase() === 'firmado'
         );
-        moraIndicator.style.display = tieneMora ? 'inline' : 'none';
+        // Cuotas en mora de acuerdos sin firmar
+        const moraSinFirmar = acuerdosData.some(item =>
+          String(item.estado_pago || '').toLowerCase() === 'en_mora' &&
+          String(item.estado_firma || '').toLowerCase() !== 'firmado'
+        );
+
+        if (moraFirmado) {
+          moraIndicator.textContent = '⚠️ En mora';
+          moraIndicator.style.display = 'inline';
+        } else if (moraSinFirmar) {
+          moraIndicator.textContent = '⚠️ En mora - Sin acuerdo firmado';
+          moraIndicator.style.display = 'inline';
+        } else {
+          moraIndicator.style.display = 'none';
+        }
       } else {
         moraIndicator.style.display = 'none';
       }
