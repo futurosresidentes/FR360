@@ -3768,6 +3768,12 @@
     }
 
     function validatePhone(phone) {
+      // Usuarios que pueden ingresar cualquier número de celular
+      const celularBypassUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
+      if (celularBypassUsers.includes(USER_EMAIL)) {
+        return phone.trim().length > 0;
+      }
+
       const cleanPhone = phone.replace(/\s/g, '');
       // 10 characters starting with 3
       if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) {
