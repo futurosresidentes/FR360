@@ -121,6 +121,8 @@
     const celular = document.getElementById('celular');
     const producto = document.getElementById('producto');
     const productosList = document.getElementById('productosList');
+    const nroAcuerdoRow = document.getElementById('row-nro-acuerdo');
+    const nroAcuerdoComercialito = document.getElementById('nroAcuerdoComercialito');
     const cuotasRow = document.getElementById('row-cuotas');
     const cuotas = document.getElementById('cuotas');
     const inicioRow = document.getElementById('row-inicio');
@@ -729,7 +731,8 @@
       }
       cuotas.innerHTML =
         '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
-      [cuotasRow, inicioRow, fechaMaxRow, rowLinkBtn, planPagosContainer].forEach((e) =>
+      nroAcuerdoComercialito.value = '';
+      [cuotasRow, nroAcuerdoRow, inicioRow, fechaMaxRow, rowLinkBtn, planPagosContainer].forEach((e) =>
         e.classList.add('hidden')
       );
       linkResult.innerHTML = '';
@@ -1093,18 +1096,44 @@
         valorInput.min = '';
         valorInput.max = '';
        cuotasRow.classList.add('hidden');
+        nroAcuerdoRow.classList.add('hidden');
         rowLinkBtn.classList.add('hidden');
         planPagosContainer.classList.add('hidden');
         return;
       }
+
+      // Detectar si el producto contiene "cuota" en el nombre (case-insensitive)
+      const esCuotaExtraordinaria = name.toLowerCase().includes('cuota');
+
       // Si max_financiacion es null ⇒ NO mostrar el campo "Nro de cuotas"
       const mf = (Object.prototype.hasOwnProperty.call(meta, 'max_financiacion') ? meta.max_financiacion : null);
       if (mf == null) {
         cuotasRow.classList.add('hidden');
-        cuotas.innerHTML = '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
+        cuotas.innerHTML = '<option value="1" selected>1</option>';
+        cuotas.value = '1';
         planPagosContainer.classList.add('hidden');
+
+        // Si contiene "cuota" → mostrar campo nro de acuerdo y botón
+        if (esCuotaExtraordinaria) {
+          nroAcuerdoRow.classList.remove('hidden');
+          rowLinkBtn.classList.remove('hidden');
+          inicioRow.classList.remove('hidden');
+          fechaMaxRow.classList.remove('hidden');
+          updateCreateButtonText(1);
+
+          // Configurar rango de fecha máxima
+          const today = new Date();
+          const minStr = formatLocalDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+          const maxStr = formatLocalDate(new Date(today.getFullYear(), today.getMonth()+1, 0));
+          fechaMax.min = minStr;
+          fechaMax.max = maxStr;
+          updateInicioRange();
+        } else {
+          nroAcuerdoRow.classList.add('hidden');
+        }
       } else {
-        // Mostrar selector 1..mf (si mf=0, forzamos 1 = contado)
+        // Producto con financiación: ocultar nro de acuerdo, mostrar selector de cuotas
+        nroAcuerdoRow.classList.add('hidden');
         const maxCuotas = Math.max(1, Number(mf));
         cuotasRow.classList.remove('hidden');
         cuotas.innerHTML = '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
@@ -3866,6 +3895,18 @@
         };
       }
 
+      // Validar número de acuerdo si el producto contiene "cuota"
+      const productoNombre = producto.value.trim();
+      if (productoNombre.toLowerCase().includes('cuota')) {
+        const nroAcuerdo = nroAcuerdoComercialito.value.trim();
+        if (!nroAcuerdo) {
+          return {
+            valid: false,
+            message: 'El campo "Nro de acuerdo" es obligatorio para productos con cuota extraordinaria'
+          };
+        }
+      }
+
       return { valid: true };
     }
 
@@ -3895,7 +3936,8 @@
           fechaMax: fechaMax.value,
           comercial: comercial.value.trim(),
           inicioTipo: inicioTipo.value,
-          inicioFecha: inicio.value
+          inicioFecha: inicio.value,
+          nroAcuerdo: nroAcuerdoComercialito.value.trim() || null
         };
 
         console.log('📋 Datos del formulario recopilados:', formData);

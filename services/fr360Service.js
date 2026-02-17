@@ -334,7 +334,7 @@ async function processSinglePayment(formData) {
       linkURL: routeLink,
       invoiceId: invoiceNumber.toString(),
       externalId: externalId.toString(),
-      agreementId: null,
+      agreementId: formData.nroAcuerdo || null,
       service: 'epayco',
       accessDate: accessDate
     };
