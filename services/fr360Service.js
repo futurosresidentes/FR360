@@ -316,8 +316,20 @@ async function processSinglePayment(formData) {
 
     // Formatear fecha de acceso en formato ISO 8601
     // Si el tipo de inicio es "Con primer pago" (primer-pago), accessDate debe ser null
-    const now = new Date();
-    const accessDate = formData.inicioTipo === 'primer-pago' ? null : now.toISOString();
+    // Si es fecha personalizada, usar la fecha del formulario; si es inmediato, usar fecha actual
+    let accessDate = null;
+    if (formData.inicioTipo === 'primer-pago') {
+      accessDate = null;
+    } else if (formData.inicioTipo === 'fecha-personalizada' && formData.inicioFecha) {
+      // El input type="date" devuelve formato YYYY-MM-DD
+      // Convertir a ISO 8601 con hora 00:00:00 en Colombia (05:00:00 UTC)
+      const [year, month, day] = formData.inicioFecha.split('-');
+      const fechaInicio = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 5, 0, 0, 0));
+      accessDate = fechaInicio.toISOString();
+    } else {
+      // Tipo inmediato o cualquier otro: usar fecha actual
+      accessDate = new Date().toISOString();
+    }
 
     // Preparar datos para guardar en BD (estructura correcta según backend)
     const linkDataToSave = {

@@ -732,6 +732,11 @@
       cuotas.innerHTML =
         '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
       nroAcuerdoComercialito.value = '';
+
+      // Desbloquear campos de inicio plataforma
+      inicioTipo.disabled = false;
+      inicio.disabled = false;
+
       [cuotasRow, nroAcuerdoRow, inicioRow, fechaMaxRow, rowLinkBtn, planPagosContainer].forEach((e) =>
         e.classList.add('hidden')
       );
@@ -1104,6 +1109,7 @@
 
       // Detectar si el producto contiene "cuota" en el nombre (case-insensitive)
       const esCuotaExtraordinaria = name.toLowerCase().includes('cuota');
+      const esCuota1 = name.toLowerCase().includes('cuota 1');
 
       // Si max_financiacion es null ⇒ NO mostrar el campo "Nro de cuotas"
       const mf = (Object.prototype.hasOwnProperty.call(meta, 'max_financiacion') ? meta.max_financiacion : null);
@@ -1113,13 +1119,14 @@
         cuotas.value = '1';
         planPagosContainer.classList.add('hidden');
 
-        // Si contiene "cuota" → mostrar campo nro de acuerdo y botón
+        // Si contiene "cuota" → mostrar campo nro de acuerdo, inicio y botón
         if (esCuotaExtraordinaria) {
           nroAcuerdoRow.classList.remove('hidden');
           rowLinkBtn.classList.remove('hidden');
-          inicioRow.classList.remove('hidden');
+          inicioRow.classList.remove('hidden'); // Siempre mostrar inicio para cuotas
           fechaMaxRow.classList.remove('hidden');
           updateCreateButtonText(1);
+          updateInicioRange();
 
           // Configurar rango de fecha máxima
           const today = new Date();
@@ -1127,7 +1134,6 @@
           const maxStr = formatLocalDate(new Date(today.getFullYear(), today.getMonth()+1, 0));
           fechaMax.min = minStr;
           fechaMax.max = maxStr;
-          updateInicioRange();
         } else {
           nroAcuerdoRow.classList.add('hidden');
         }
@@ -1149,7 +1155,50 @@
 
     producto.oninput = handleProductChange;
     producto.onchange = handleProductChange;
-        
+
+    // Buscar inicio plataforma del acuerdo cuando se ingresa número de acuerdo
+    let inicioPlataformaAcuerdo = null;
+    nroAcuerdoComercialito.addEventListener('blur', async () => {
+      const nroAcuerdo = nroAcuerdoComercialito.value.trim();
+      if (!nroAcuerdo) {
+        inicioPlataformaAcuerdo = null;
+        return;
+      }
+
+      // Detectar si el producto es Cuota 1
+      const productoNombre = producto.value.trim();
+      const esCuota1 = productoNombre.toLowerCase().includes('cuota 1');
+
+      try {
+        // Buscar en Strapi carteras por nro_acuerdo
+        const response = await api.consultarAcuerdo(nroAcuerdo);
+
+        if (response.success && response.data && response.data.fechaInicio) {
+          // Obtener fechaInicio del acuerdo
+          inicioPlataformaAcuerdo = response.data.fechaInicio;
+          console.log('✅ Inicio plataforma del acuerdo:', inicioPlataformaAcuerdo);
+
+          // Si NO es Cuota 1, poblar y bloquear los campos de inicio
+          if (!esCuota1) {
+            inicioTipo.value = 'fecha-personalizada';
+            inicio.value = inicioPlataformaAcuerdo;
+            inicio.style.display = 'block';
+
+            // Bloquear los campos para que no se puedan editar
+            inicioTipo.disabled = true;
+            inicio.disabled = true;
+          }
+        } else {
+          inicioPlataformaAcuerdo = null;
+          alert('⚠️ No se encontró el acuerdo o no tiene inicio de plataforma definido');
+        }
+      } catch (error) {
+        console.error('Error buscando acuerdo:', error);
+        inicioPlataformaAcuerdo = null;
+        alert('❌ Error al buscar el acuerdo: ' + error.message);
+      }
+    });
+
 
     // Referencias a los nuevos campos del modal de lote
     const batchStart = document.getElementById('batchStart');
@@ -3866,6 +3915,11 @@
 
     // Función para validar específicamente los campos de venta de contado
     function validateSinglePaymentFields() {
+      const productoNombre = producto.value.trim();
+      const esCuota1 = productoNombre.toLowerCase().includes('cuota 1');
+      const esCuotaExtraordinaria = productoNombre.toLowerCase().includes('cuota') && !esCuota1;
+
+      // Campos siempre obligatorios
       const requiredFields = [
         { id: 'searchId', name: 'Cédula' },
         { id: 'nombres', name: 'Nombres' },
@@ -3875,10 +3929,14 @@
         { id: 'producto', name: 'Producto' },
         { id: 'cuotas', name: 'Nro de cuotas' },
         { id: 'valor', name: 'Valor' },
-        { id: 'inicio', name: 'Inicio plataforma' },
         { id: 'fechaMax', name: 'Fecha máxima' },
         { id: 'comercial', name: 'Comercial' }
       ];
+
+      // Inicio plataforma solo es obligatorio para Cuota 1 o productos normales (no cuotas extraordinarias)
+      if (!esCuotaExtraordinaria) {
+        requiredFields.push({ id: 'inicio', name: 'Inicio plataforma' });
+      }
 
       const missingFields = [];
       for (const field of requiredFields) {
@@ -3896,7 +3954,6 @@
       }
 
       // Validar número de acuerdo si el producto contiene "cuota"
-      const productoNombre = producto.value.trim();
       if (productoNombre.toLowerCase().includes('cuota')) {
         const nroAcuerdo = nroAcuerdoComercialito.value.trim();
         if (!nroAcuerdo) {
