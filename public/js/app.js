@@ -2659,7 +2659,6 @@
                 <th>Fecha<br>pago</th>
                 <th>Valor<br>pagado</th>
                 <th>Link<br>Mora</th>
-                <th>Acciones</th>
                 <th>Otrosí</th>
                 <th>Paz y<br>salvo</th>
               </tr>
@@ -2687,6 +2686,8 @@
             data-estado-pago="${item.estado_pago||''}"
             data-fecha-pago="${item.fecha_de_pago||''}"
             data-valor-pagado="${item.valor_pagado!=null?Number(item.valor_pagado):''}"
+            data-link-pago="${item.link_pago||''}"
+            data-link-pago-mora="${item.link_pago_mora||''}"
           >`;
 
           if (i === 0) {
@@ -2737,8 +2738,6 @@
           html += item.link_pago_mora
             ? `<td class="qcell"><a href="${item.link_pago_mora}" target="_blank">Ver</a></td>`
             : `<td class="qcell"></td>`;
-
-          html += `<td class="qcell edit-icon" style="text-align:center; cursor:pointer">✏️</td>`;
 
           // celda combinada Otrosí (se llenará luego según permisos y estado)
           if (i === 0) {
@@ -3044,13 +3043,17 @@
           // botón Otrosí - solo para usuarios autorizados y si hay cuotas NO pagadas
           const otrosiCell = first.querySelector('.otrosi-cell');
           const otrosiAllowed = ['david.cardona@sentiretaller.com', 'daniel.cardona@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
+          const registrarOtrosiAllowed = ['daniel.cardona@sentiretaller.com'];
           const hasUnpaid = estados.some(s => s !== 'pagado');
           if (otrosiCell) {
+            let otrosiBtns = '';
             if (otrosiAllowed.includes(USER_EMAIL) && hasUnpaid) {
-              otrosiCell.innerHTML = `<button class="otrosi-btn" title="Crear Otrosí - Renegociar cuotas" style="background:none; border:none; font-size:1.3em; cursor:pointer;">📜</button>`;
-            } else {
-              otrosiCell.innerHTML = '';
+              otrosiBtns += `<button class="otrosi-btn" title="Elaborar Otrosí - Renegociar cuotas" style="background:none; border:none; font-size:1.3em; cursor:pointer;">📜</button>`;
             }
+            if (registrarOtrosiAllowed.includes(USER_EMAIL)) {
+              otrosiBtns += `<button class="registrar-otrosi-btn" title="Registrar Otrosí" style="background:none; border:none; font-size:1.3em; cursor:pointer;">📝</button>`;
+            }
+            otrosiCell.innerHTML = otrosiBtns;
           }
         });
 
@@ -3165,6 +3168,210 @@
 
             showOtrosiModal(nroAcuerdo, productoNombre, unpaidCuotas);
           });
+        });
+
+        // handler del botón Registrar Otrosí 📝
+        tableDiv.querySelectorAll('.registrar-otrosi-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tr = btn.closest('tr');
+            const nroAcuerdo = tr.dataset.nroAcuerdo || '';
+            const productoNombre = tr.dataset.productoNombre || '';
+
+            // Recopilar cuotas NO pagadas de este acuerdo (en_mora o al_dia)
+            const allRows = tableDiv.querySelectorAll(`tr[data-nro-acuerdo="${nroAcuerdo}"]`);
+            const unpaidCuotas = [];
+
+            allRows.forEach(row => {
+              const estado = (row.dataset.estadoPago || '').toLowerCase();
+              if (estado !== 'pagado') {
+                unpaidCuotas.push({
+                  documentId: row.dataset.documentId || '',
+                  cuotaNro: row.dataset.cuotaNro || '',
+                  valorCuota: row.dataset.valorCuota || '',
+                  fechaLimite: row.dataset.fechaLimite || '',
+                  estado: estado,
+                  linkPago: row.dataset.linkPago || '',
+                  linkPagoMora: row.dataset.linkPagoMora || '',
+                  idPago: row.dataset.idPago || '',
+                  idPagoMora: row.dataset.idPagoMora || ''
+                });
+              }
+            });
+
+            if (unpaidCuotas.length === 0) {
+              alert('Todas las cuotas de este acuerdo ya están pagadas.');
+              return;
+            }
+
+            showRegistrarOtrosiModal(nroAcuerdo, productoNombre, unpaidCuotas);
+          });
+        });
+      }
+
+      // Modal para Registrar Otrosí 📝
+      function showRegistrarOtrosiModal(nroAcuerdo, productoNombre, allCuotas) {
+        // Remover modal existente si hay
+        const existingModal = document.getElementById('registrarOtrosiModal');
+        if (existingModal) existingModal.remove();
+
+        // Datos del cliente
+        const clienteNombres = document.getElementById('nombres')?.value || '';
+        const clienteApellidos = document.getElementById('apellidos')?.value || '';
+        const clienteCedula = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
+
+        // Construir filas de cuotas
+        let cuotasRowsHtml = '';
+        allCuotas.forEach((c, idx) => {
+          const valorNum = Number(c.valorCuota || 0);
+          const fechaLimiteFormatted = c.fechaLimite || '';
+          cuotasRowsHtml += `
+            <tr data-idx="${idx}">
+              <td style="text-align:center; padding:6px;">${c.cuotaNro}</td>
+              <td style="padding:6px;">
+                <input type="number" class="reg-otrosi-valor" data-idx="${idx}"
+                  value="${valorNum}" style="width:120px; padding:4px; border:1px solid #ccc; border-radius:4px;" />
+              </td>
+              <td style="padding:6px;">
+                <input type="date" class="reg-otrosi-fecha" data-idx="${idx}"
+                  value="${fechaLimiteFormatted}" style="padding:4px; border:1px solid #ccc; border-radius:4px;" />
+              </td>
+            </tr>
+          `;
+        });
+
+        const modalHtml = `
+          <div id="registrarOtrosiModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
+            <div style="background:#fff; border-radius:8px; padding:24px; max-width:700px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+              <h3 style="margin:0 0 4px 0; color:#075183;">Registrar Otrosí</h3>
+              <p style="margin:0 0 16px 0; color:#666; font-size:0.9em;">
+                Acuerdo: <strong>${nroAcuerdo}</strong> | ${clienteNombres} ${clienteApellidos} | ${productoNombre}
+              </p>
+
+              <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+                <thead>
+                  <tr style="background:#f0f0f0;">
+                    <th style="padding:8px; text-align:center;">Cuota nro</th>
+                    <th style="padding:8px;">Valor Cuota</th>
+                    <th style="padding:8px;">Fecha límite</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${cuotasRowsHtml}
+                </tbody>
+              </table>
+
+              <div style="margin-bottom:16px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="regOtrosiAddCuotas" />
+                  <span style="font-size:0.95em;">¿Desea añadir más cuotas?</span>
+                </label>
+              </div>
+
+              <div style="margin-bottom:16px;">
+                <label style="display:block; margin-bottom:6px; font-weight:bold; font-size:0.95em;">Adjuntar documento:</label>
+                <input type="file" id="regOtrosiFile" accept=".pdf,.doc,.docx,.jpg,.png" style="font-size:0.9em;" />
+              </div>
+
+              <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:16px;">
+                <button id="regOtrosiCancel" style="padding:8px 20px; border:1px solid #ccc; border-radius:4px; background:#f5f5f5; cursor:pointer;">Cancelar</button>
+                <button id="regOtrosiConfirm" style="padding:8px 20px; border:none; border-radius:4px; background:#13bf81; color:#fff; cursor:pointer; font-weight:bold;">Confirmar</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Cancelar
+        document.getElementById('regOtrosiCancel').addEventListener('click', () => {
+          document.getElementById('registrarOtrosiModal')?.remove();
+        });
+
+        // Cerrar al hacer click en backdrop
+        document.getElementById('registrarOtrosiModal').addEventListener('click', (e) => {
+          if (e.target.id === 'registrarOtrosiModal') {
+            document.getElementById('registrarOtrosiModal')?.remove();
+          }
+        });
+
+        // Confirmar
+        document.getElementById('regOtrosiConfirm').addEventListener('click', async () => {
+          const confirmBtn = document.getElementById('regOtrosiConfirm');
+          const fileInput = document.getElementById('regOtrosiFile');
+
+          // Validar que se adjuntó un archivo
+          if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Debe adjuntar un documento para registrar el otrosí.');
+            return;
+          }
+
+          // Recopilar datos de cuotas editadas
+          const cuotasData = allCuotas.map((c, idx) => {
+            const valorInput = document.querySelector(`.reg-otrosi-valor[data-idx="${idx}"]`);
+            const fechaInput = document.querySelector(`.reg-otrosi-fecha[data-idx="${idx}"]`);
+            return {
+              cuotaNro: c.cuotaNro,
+              valorCuota: Number(valorInput.value),
+              fechaLimite: fechaInput.value,
+              linkPago: c.linkPago,
+              linkPagoMora: c.linkPagoMora,
+              idPago: c.idPago,
+              idPagoMora: c.idPagoMora,
+              documentId: c.documentId
+            };
+          });
+
+          // Leer archivo como base64
+          const file = fileInput.files[0];
+          const fileBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1]; // Quitar prefijo data:...
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          // Deshabilitar botón
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = '⏳ Procesando...';
+
+          try {
+            const result = await api.registrarOtrosi({
+              nroAcuerdo,
+              nombres: clienteNombres,
+              apellidos: clienteApellidos,
+              numeroDocumento: clienteCedula,
+              productoNombre,
+              cuotas: cuotasData,
+              fileBase64,
+              fileName: file.name,
+              fileMimeType: file.type
+            });
+
+            if (result.success) {
+              alert('Otrosí registrado exitosamente.');
+              document.getElementById('registrarOtrosiModal')?.remove();
+              // Refrescar acuerdos y links
+              const uid = document.getElementById('searchId')?.value?.replace(/\D/g, '') || '';
+              if (uid) {
+                api.fetchAcuerdos(uid).then(renderAcuerdos).catch(err => console.error('Error refrescando acuerdos:', err));
+                api.getLinksByIdentityDocument(uid).then(data => {
+                  window.currentLinksData = data;
+                  if (typeof renderLinks === 'function') renderLinks(data);
+                }).catch(err => console.error('Error refrescando links:', err));
+              }
+            } else {
+              alert('Error al registrar otrosí: ' + (result.message || 'Error desconocido'));
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = 'Confirmar';
+            }
+          } catch (error) {
+            alert('Error al registrar otrosí: ' + error.message);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirmar';
+          }
         });
       }
 

@@ -9,7 +9,9 @@ const router = express.Router();
 // Ruta de login - inicia el flujo de OAuth con Google
 router.get('/login',
   passport.authenticate('google', {
-    scope: ['profile', 'email'],
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/drive.file'],
+    accessType: 'offline',
+    prompt: 'consent',
     hd: 'sentiretaller.com' // Hosted Domain - solo muestra cuentas de este dominio
   })
 );

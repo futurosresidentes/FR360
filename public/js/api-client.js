@@ -199,6 +199,10 @@ class FR360ApiClient {
     return this._call('elaborarOtrosi', data);
   }
 
+  async registrarOtrosi(data) {
+    return this._call('registrarOtrosi', data);
+  }
+
   async getComerciales() {
     return this._call('getComerciales');
   }

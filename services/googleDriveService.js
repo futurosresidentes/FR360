@@ -34,7 +34,7 @@ const MESES_ES = [
 /**
  * Obtiene cliente autenticado de Google
  */
-async function getAuthClient() {
+async function getAuthClient(subject) {
   const config = getConfig();
 
   // Debug: verificar que las credenciales estén configuradas
@@ -43,12 +43,25 @@ async function getAuthClient() {
   console.log('📄 [GoogleDrive] Private Key length:', config.privateKey?.length);
   console.log('📄 [GoogleDrive] Template ID:', config.templateId);
   console.log('📄 [GoogleDrive] Folder ID:', config.folderId);
+  if (subject) console.log('📄 [GoogleDrive] Impersonating:', subject);
 
   if (!config.email || !config.privateKey) {
     throw new Error('Credenciales de Google Service Account no configuradas');
   }
 
-  // Usar GoogleAuth con credenciales explícitas
+  if (subject) {
+    // Usar JWT con impersonación (domain-wide delegation)
+    const auth = new google.auth.JWT({
+      email: config.email,
+      key: config.privateKey,
+      scopes: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/documents'],
+      subject: subject
+    });
+    await auth.authorize();
+    return { auth, config };
+  }
+
+  // Usar GoogleAuth con credenciales explícitas (sin impersonación)
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: config.email,
@@ -307,7 +320,7 @@ async function generarYEnviarPazYSalvo(data) {
  * @returns {Promise<Object>} - { success, id, webViewLink, webContentLink, error }
  */
 async function subirArchivo(data) {
-  const { folderId, fileName, mimeType, base64Content } = data;
+  const { folderId, fileName, mimeType, base64Content, impersonateEmail } = data;
 
   console.log('📤 [GoogleDrive] Subiendo archivo:', fileName);
   console.log('📤 [GoogleDrive] Carpeta destino:', folderId);
@@ -323,8 +336,8 @@ async function subirArchivo(data) {
   }
 
   try {
-    const { auth } = await getAuthClient();
-    console.log('📤 [GoogleDrive] Cliente autenticado correctamente');
+    const { auth } = await getAuthClient(impersonateEmail || null);
+    console.log('📤 [GoogleDrive] Cliente autenticado correctamente', impersonateEmail ? `(impersonando: ${impersonateEmail})` : '');
 
     const drive = google.drive({ version: 'v3', auth });
 
@@ -345,7 +358,8 @@ async function subirArchivo(data) {
           mimeType: mimeType,
           body: require('stream').Readable.from(buffer)
         },
-        fields: 'id, webViewLink, webContentLink'
+        fields: 'id, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
     } catch (folderError) {
       console.warn('⚠️ [GoogleDrive] Error subiendo a carpeta específica, intentando sin carpeta:', folderError.message);
@@ -359,7 +373,8 @@ async function subirArchivo(data) {
           mimeType: mimeType,
           body: require('stream').Readable.from(bufferRetry)
         },
-        fields: 'id, webViewLink, webContentLink'
+        fields: 'id, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
     }
 
@@ -369,6 +384,7 @@ async function subirArchivo(data) {
     console.log('📤 [GoogleDrive] Configurando permisos públicos...');
     await drive.permissions.create({
       fileId: response.data.id,
+      supportsAllDrives: true,
       requestBody: {
         role: 'reader',
         type: 'anyone'
@@ -400,9 +416,92 @@ async function subirArchivo(data) {
   }
 }
 
+/**
+ * Subir archivo a Google Drive usando el token OAuth del usuario logueado
+ * Usa REST API directamente con axios para evitar problemas de proyecto de googleapis
+ * @param {Object} data - { folderId, fileName, mimeType, base64Content, userAccessToken }
+ * @returns {Promise<Object>} - { success, id, webViewLink, error }
+ */
+async function subirArchivoConUserToken(data) {
+  const { folderId, fileName, mimeType, base64Content, userAccessToken } = data;
+
+  console.log('📤 [GoogleDrive] Subiendo archivo con token de usuario (REST):', fileName);
+
+  if (!userAccessToken) {
+    return { success: false, error: 'No hay token de usuario disponible. Cierre sesión y vuelva a iniciar.' };
+  }
+
+  try {
+    const axios = require('axios');
+    const buffer = Buffer.from(base64Content, 'base64');
+
+    // Construir multipart body manualmente para Google Drive API v3
+    const boundary = 'fr360_upload_boundary';
+    const metadata = JSON.stringify({
+      name: fileName,
+      parents: [folderId]
+    });
+
+    // Crear el body multipart/related
+    const multipartBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n`),
+      Buffer.from(base64Content),
+      Buffer.from(`\r\n--${boundary}--`)
+    ]);
+
+    console.log('📤 [GoogleDrive] Enviando archivo a Drive API... (tamaño:', buffer.length, 'bytes)');
+
+    const uploadResponse = await axios.post(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink,webContentLink',
+      multipartBody,
+      {
+        headers: {
+          'Authorization': `Bearer ${userAccessToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+          'Content-Length': multipartBody.length
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
+      }
+    );
+
+    const fileId = uploadResponse.data.id;
+    console.log('📤 [GoogleDrive] Archivo creado con ID:', fileId);
+
+    // Hacer público con REST API directamente
+    await axios.post(
+      `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`,
+      { role: 'reader', type: 'anyone' },
+      {
+        headers: {
+          'Authorization': `Bearer ${userAccessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const webViewLink = uploadResponse.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+    console.log('✅ [GoogleDrive] Archivo subido exitosamente:', webViewLink);
+
+    return {
+      success: true,
+      id: fileId,
+      webViewLink
+    };
+  } catch (error) {
+    const errMsg = error.response?.data?.error?.message || error.message;
+    console.error('❌ [GoogleDrive] Error subiendo con token de usuario:', errMsg);
+    if (error.response?.data) {
+      console.error('❌ [GoogleDrive] Response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    return { success: false, error: errMsg };
+  }
+}
+
 module.exports = {
   generarPazYSalvo,
   enviarPazYSalvoPorCallbell,
   generarYEnviarPazYSalvo,
-  subirArchivo
+  subirArchivo,
+  subirArchivoConUserToken
 };

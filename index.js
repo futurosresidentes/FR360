@@ -2264,6 +2264,13 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.elaborarOtrosi(args[0]);
         break;
 
+      case 'registrarOtrosi': {
+        const otrosiData = args[0];
+        otrosiData.userAccessToken = req.user?.accessToken || null;
+        result = await fr360Service.registrarOtrosi(otrosiData);
+        break;
+      }
+
       case 'getComerciales':
         result = await strapiService.getComerciales();
         break;

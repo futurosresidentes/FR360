@@ -2142,12 +2142,42 @@ async function getCarteraResumen() {
   }
 }
 
+/**
+ * Actualizar una cartera individual con datos del otrosí registrado
+ * @param {string} documentId - Strapi document ID de la cartera
+ * @param {Object} data - { valor_cuota, fecha_limite, acuerdo, id_pago, id_pago_mora }
+ * @returns {Promise<Object>} Resultado
+ */
+async function actualizarCarteraOtrosi(documentId, data) {
+  console.log(`[RegistrarOtrosí] Actualizando cartera ${documentId}:`, data);
+
+  try {
+    const url = `${STRAPI_BASE_URL}/api/carteras/${documentId}`;
+    const payload = { data };
+
+    const response = await axios.put(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${STRAPI_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const ok = response.status === 200;
+    console.log(`[RegistrarOtrosí] Cartera ${documentId}: ${ok ? '✅' : '❌'} HTTP ${response.status}`);
+    return { success: ok };
+  } catch (error) {
+    console.error(`[RegistrarOtrosí] Error actualizando cartera ${documentId}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   getProducts,
   fetchVentas,
   fetchAcuerdos,
   actualizarCuotasOtrosi,
   elaborarOtrosi,
+  actualizarCarteraOtrosi,
   fetchCrmStrapiOnly,
   fetchCrmStrapiBatch,
   fetchCrmByEmail,

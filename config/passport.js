@@ -51,6 +51,8 @@ module.exports = function(app) {
           lastName: profile.name?.familyName || '',
           photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
           provider: 'google',
+          accessToken: accessToken,
+          refreshToken: refreshToken || null,
           loginAt: new Date().toISOString()
         };
 

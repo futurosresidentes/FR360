@@ -546,6 +546,236 @@ async function resolvePagoYActualizarCartera(payload) {
   }
 }
 
+/**
+ * Get a payment link by its URL
+ * @param {string} linkURL - The payment link URL
+ * @returns {Promise<Object|null>} Link object or null
+ */
+async function getLinkByURL(linkURL) {
+  const url = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=1&page=1&linkURL=${encodeURIComponent(linkURL)}`;
+
+  return retryWithBackoff(async (attempt) => {
+    console.log(`🔍 getLinkByURL intento ${attempt}/5: ${linkURL}`);
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${FR360_TOKEN}` }
+    });
+
+    if (response.status === 200 && response.data?.status === 'success' && response.data.data?.length) {
+      return response.data.data[0];
+    }
+    return null;
+  }, 5, 1000).catch(error => {
+    console.error(`❌ getLinkByURL falló: ${error.message}`);
+    return null;
+  });
+}
+
+/**
+ * Update an ePayco payment link
+ * @param {Object} params - { id, amount, expirationDate }
+ * @returns {Promise<Object>} { success, invoiceNumber }
+ */
+async function updateEpaycoLink(params) {
+  const baseUrl = `${FR360_BASE_URL}/api/v1/epayco/collection/link/update`;
+  const queryParams = {
+    id: params.id,
+    amount: params.amount,
+    currency: 'COP',
+    quantity: 1,
+    title: 'Futuros Residentes',
+    description: params.description || 'Futuros Residentes',
+    typeSell: 2,
+    expirationDate: params.expirationDate
+  };
+
+  const qs = Object.keys(queryParams)
+    .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(queryParams[key]))
+    .join('&');
+  const fullUrl = baseUrl + '?' + qs;
+
+  return retryWithBackoff(async (attempt) => {
+    console.log(`🔄 updateEpaycoLink intento ${attempt}/5 - ID: ${params.id}`);
+    const response = await axios.put(fullUrl, null, {
+      headers: { 'Authorization': `Bearer ${FR360_EPAYCO_TOKEN || FR360_TOKEN}` }
+    });
+
+    const json = response.data;
+    if (json.success && json.data && json.data.success) {
+      const r = json.data.data;
+      const invoiceNumber = (r.invoceNumber || r.invoce || '').toString().replace(/\\/g, '/');
+      console.log(`✅ Link ${params.id} actualizado. Invoice#: ${invoiceNumber}`);
+      return { success: true, invoiceNumber };
+    } else {
+      throw new Error(`API devolvió error al actualizar link ${params.id}`);
+    }
+  }, 5, 1000).catch(error => {
+    console.error(`❌ updateEpaycoLink falló para ID ${params.id}: ${error.message}`);
+    return { success: false };
+  });
+}
+
+/**
+ * Update a payment link in the FR360 database
+ * @param {Object} linkObj - Full link object to PUT
+ * @returns {Promise<Object>} Result
+ */
+async function updatePaymentLinkInDB(linkObj) {
+  const url = `${FR360_BASE_URL}/api/v1/payment-links`;
+
+  return retryWithBackoff(async (attempt) => {
+    console.log(`🔄 updatePaymentLinkInDB intento ${attempt}/5`);
+    const response = await axios.put(url, linkObj, {
+      headers: {
+        'Authorization': `Bearer ${FR360_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200) {
+      console.log(`✅ FR360 payment link actualizado`);
+      return { success: true };
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  }, 5, 1000).catch(error => {
+    console.error(`❌ updatePaymentLinkInDB falló: ${error.message}`);
+    return { success: false, error: error.message };
+  });
+}
+
+/**
+ * Registrar Otrosí - Orchestrator
+ * Uploads document to Drive, updates ePayco links, FR360 DB, and Strapi
+ * @param {Object} data - { nroAcuerdo, nombres, apellidos, numeroDocumento, cuotas, fileBase64, fileName, fileMimeType }
+ * @returns {Promise<Object>} Result
+ */
+async function registrarOtrosi(data) {
+  const { nroAcuerdo, nombres, apellidos, numeroDocumento, productoNombre, cuotas, fileBase64, fileName, fileMimeType, userAccessToken } = data;
+  const googleDriveService = require('./googleDriveService');
+  const strapiService = require('./strapiService');
+
+  console.log(`📝 === REGISTRAR OTROSÍ: Acuerdo ${nroAcuerdo} ===`);
+  const resultados = { drive: null, cuotas: [] };
+
+  // === PASO 1: Subir documento a Google Drive (con token del usuario) ===
+  console.log('📝 PASO 1: Subir documento a Google Drive');
+  const driveFileName = `${nroAcuerdo} Otrosí ${nombres} ${apellidos} ${numeroDocumento}`;
+  const driveResult = await googleDriveService.subirArchivoConUserToken({
+    folderId: '1NCS5QlHqIL3sj2DLp0GdYQWhCFrwh7hy',
+    fileName: driveFileName,
+    mimeType: fileMimeType || 'application/pdf',
+    base64Content: fileBase64,
+    userAccessToken
+  });
+
+  if (!driveResult.success) {
+    console.error('❌ Error al subir documento a Drive:', driveResult.error);
+    return { success: false, message: 'Error al subir documento a Google Drive: ' + driveResult.error };
+  }
+
+  const acuerdoUrl = driveResult.webViewLink;
+  console.log(`✅ Documento subido a Drive: ${acuerdoUrl}`);
+  resultados.drive = acuerdoUrl;
+
+  // === PASO 2: Actualizar links de ePayco, FR360 DB y Strapi por cada cuota ===
+  for (const cuota of cuotas) {
+    console.log(`📝 PASO 2: Procesando cuota ${cuota.cuotaNro}`);
+    const cuotaResult = { cuotaNro: cuota.cuotaNro, normal: false, mora: false, fr360Normal: false, fr360Mora: false, strapi: false };
+
+    // Formatear fechas
+    const fechaLimiteStr = cuota.fechaLimite; // YYYY-MM-DD
+
+    // Expiración normal: fechaLimite + 5 días
+    const fechaNormal = new Date(fechaLimiteStr + 'T12:00:00');
+    fechaNormal.setDate(fechaNormal.getDate() + 5);
+    const normalYear = fechaNormal.getFullYear();
+    const normalMonth = String(fechaNormal.getMonth() + 1).padStart(2, '0');
+    const normalDay = String(fechaNormal.getDate()).padStart(2, '0');
+    const expirationDate = `${normalYear}/${normalMonth}/${normalDay} 23:59:59`;
+
+    // Expiración mora: fechaLimite + 95 días
+    const fechaMora = new Date(fechaLimiteStr + 'T12:00:00');
+    fechaMora.setDate(fechaMora.getDate() + 95);
+    const moraYear = fechaMora.getFullYear();
+    const moraMonth = String(fechaMora.getMonth() + 1).padStart(2, '0');
+    const moraDay = String(fechaMora.getDate()).padStart(2, '0');
+    const expirationDateMora = `${moraYear}/${moraMonth}/${moraDay} 23:59:59`;
+
+    // Descripción para ePayco
+    const descripcion = (productoNombre || 'Futuros Residentes') + ' - Cuota ' + cuota.cuotaNro;
+
+    const valorNormal = Number(cuota.valorCuota);
+    const valorMora = Math.floor(valorNormal * 1.05);
+
+    let invoiceNormal = null;
+    let invoiceMora = null;
+
+    // --- 2a. Actualizar link normal en ePayco ---
+    if (cuota.linkPago) {
+      const linkObj = await getLinkByURL(cuota.linkPago);
+      if (linkObj) {
+        const externalId = Number(linkObj.externalId);
+        const resultNormal = await updateEpaycoLink({ id: externalId, amount: valorNormal, expirationDate, description: descripcion });
+        if (resultNormal.success) {
+          cuotaResult.normal = true;
+          invoiceNormal = resultNormal.invoiceNumber;
+
+          // Actualizar FR360 DB normal
+          linkObj.invoiceId = resultNormal.invoiceNumber;
+          linkObj.expiryDate = fechaNormal.toISOString();
+          linkObj.amount = valorNormal;
+          // accessDate se mantiene original (ya está en linkObj)
+          const fr360Normal = await updatePaymentLinkInDB(linkObj);
+          cuotaResult.fr360Normal = fr360Normal.success;
+        }
+      } else {
+        console.warn(`⚠️ No se encontró link normal para cuota ${cuota.cuotaNro}`);
+      }
+    }
+
+    // --- 2b. Actualizar link mora en ePayco ---
+    if (cuota.linkPagoMora) {
+      const linkObjMora = await getLinkByURL(cuota.linkPagoMora);
+      if (linkObjMora) {
+        const externalIdMora = Number(linkObjMora.externalId);
+        const resultMora = await updateEpaycoLink({ id: externalIdMora, amount: valorMora, expirationDate: expirationDateMora, description: descripcion });
+        if (resultMora.success) {
+          cuotaResult.mora = true;
+          invoiceMora = resultMora.invoiceNumber;
+
+          // Actualizar FR360 DB mora
+          linkObjMora.invoiceId = resultMora.invoiceNumber;
+          linkObjMora.expiryDate = fechaMora.toISOString();
+          linkObjMora.amount = valorMora;
+          const fr360Mora = await updatePaymentLinkInDB(linkObjMora);
+          cuotaResult.fr360Mora = fr360Mora.success;
+        }
+      } else {
+        console.warn(`⚠️ No se encontró link mora para cuota ${cuota.cuotaNro}`);
+      }
+    }
+
+    // --- 2c. Actualizar Strapi cartera ---
+    if (cuota.documentId) {
+      const strapiResult = await strapiService.actualizarCarteraOtrosi(cuota.documentId, {
+        valor_cuota: valorNormal,
+        fecha_limite: fechaLimiteStr,
+        acuerdo: acuerdoUrl,
+        id_pago: invoiceNormal ? String(invoiceNormal) : null,
+        id_pago_mora: invoiceMora ? String(invoiceMora) : null
+      });
+      cuotaResult.strapi = strapiResult.success;
+    }
+
+    resultados.cuotas.push(cuotaResult);
+  }
+
+  console.log('📝 === REGISTRAR OTROSÍ COMPLETADO ===');
+  console.log('📝 Resultados:', JSON.stringify(resultados, null, 2));
+
+  return { success: true, message: 'Otrosí registrado exitosamente', resultados };
+}
+
 module.exports = {
   getCitizen,
   createPaymentLink,
@@ -553,5 +783,6 @@ module.exports = {
   getLinksByIdentityDocument,
   deletePaymentLink,
   processSinglePayment,
-  resolvePagoYActualizarCartera
+  resolvePagoYActualizarCartera,
+  registrarOtrosi
 };
