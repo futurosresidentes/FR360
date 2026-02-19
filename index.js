@@ -952,8 +952,9 @@ app.post('/api/webpig/ventas-cc/:documentId/procesar', ensureAuthenticated, ensu
     if (resultados.worldOffice && !resultados.worldOffice.error && resultados.worldOffice.customerId) {
       try {
         // Calcular bookOffset: buscar cuotas previas procesadas del mismo nro_acuerdo
+        // Para ventas de contado, cada venta es independiente (bookOffset = 0)
         let bookOffset = 0;
-        if (venta.nro_acuerdo) {
+        if (venta.nro_acuerdo && venta.nro_acuerdo.toLowerCase() !== 'contado') {
           const prevUrl = `${process.env.STRAPI_BASE_URL}/api/ventas-corrientes?filters[nro_acuerdo][$eq]=${encodeURIComponent(venta.nro_acuerdo)}&filters[estado][$eq]=procesado&fields[0]=valor`;
           const prevRes = await fetch(prevUrl, {
             headers: { Authorization: `Bearer ${process.env.STRAPI_TOKEN}` }
