@@ -904,9 +904,18 @@ function renderWebhooks(webhooks) {
     const crmStatus = getStageStatus(webhook, 'CRM', isAccepted);
     const frappStatus = getStageStatus(webhook, 'FRAPP', isAccepted);
     const woClienteStatus = getStageStatus(webhook, 'WO Cliente', isAccepted);
-    const woFacturaStatus = getStageStatus(webhook, 'WO Factura', isAccepted);
-    const woContabilidadStatus = getStageStatus(webhook, 'WO Contabilidad', isAccepted);
-    const dianStatus = getStageStatus(webhook, 'DIAN', isAccepted);
+    let woFacturaStatus, woContabilidadStatus, dianStatus;
+    // Si WO Cliente no aplica (ej: Gateway Stripe), los stages dependientes tampoco
+    if (woClienteStatus.status === 'not-required') {
+      const naStatus = { status: 'not-required', icon: 'N/A', logs: [] };
+      woFacturaStatus = naStatus;
+      woContabilidadStatus = naStatus;
+      dianStatus = naStatus;
+    } else {
+      woFacturaStatus = getStageStatus(webhook, 'WO Factura', isAccepted);
+      woContabilidadStatus = getStageStatus(webhook, 'WO Contabilidad', isAccepted);
+      dianStatus = getStageStatus(webhook, 'DIAN', isAccepted);
+    }
     const callbellStatus = getStageStatus(webhook, 'Callbell', isAccepted);
     const carteraStatus = getStageStatus(webhook, 'Cartera', isAccepted);
     const ventasStatus = getStageStatus(webhook, 'Ventas', isAccepted);
