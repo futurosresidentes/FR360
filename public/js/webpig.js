@@ -905,8 +905,14 @@ function renderWebhooks(webhooks) {
     const frappStatus = getStageStatus(webhook, 'FRAPP', isAccepted);
     const woClienteStatus = getStageStatus(webhook, 'WO Cliente', isAccepted);
     let woFacturaStatus, woContabilidadStatus, dianStatus;
-    // Si WO Cliente no aplica (ej: Gateway Stripe), los stages dependientes tampoco
-    if (woClienteStatus.status === 'not-required') {
+    // Detectar Gateway Stripe en cualquier log de worldoffice_customer
+    const allWoLogs = [...(webhook.logs?.all || []), ...(webhook.logs?.by_status?.success || []), ...(webhook.logs?.by_status?.error || [])];
+    const isGatewayStripe = allWoLogs.some(log =>
+      log.stage === 'worldoffice_customer' &&
+      ((log.details || '') + (log.message || '') + (log.error_message || '')).toLowerCase().includes('gateway stripe')
+    );
+    // Si WO Cliente no aplica (Gateway Stripe) o es not-required, los stages dependientes tampoco
+    if (isGatewayStripe || woClienteStatus.status === 'not-required') {
       const naStatus = { status: 'not-required', icon: 'N/A', logs: [] };
       woFacturaStatus = naStatus;
       woContabilidadStatus = naStatus;
