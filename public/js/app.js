@@ -140,6 +140,10 @@
     const addMembBtn = document.getElementById('addMembBtn');
     const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
 
+    // Usuarios sin restricciones de fechas ni valores de cuotas
+    const noRestrictUsers = ['alex.lopez@sentiretaller.com', 'daniel.cardona@sentiretaller.com', 'david.cardona@sentiretaller.com'];
+    const isNoRestrict = noRestrictUsers.includes(USER_EMAIL);
+
     // Detectar si es un celular colombiano válido
     const isCelularColombia = v => {
       const normalized = String(v).trim().replace(/[\s\-()]/g, '');
@@ -306,12 +310,30 @@
       const now = new Date();
       return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
+    // Calcular fecha máxima de última cuota para Élite 6 meses (fecha fin - 1 mes)
+    function getElite6MesesMaxLastCuota() {
+      const prod = producto.value.trim().toLowerCase();
+      if (!prod.includes('6 meses')) return null;
+      // Fecha inicio: priorizar inicio.value, luego primera cuota del plan, luego hoy
+      let inicioVal;
+      if (inicio.value) {
+        inicioVal = parseLocalDate(inicio.value);
+      } else if (planState && planState.length > 0) {
+        inicioVal = planState[0].date;
+      } else {
+        inicioVal = todayLocal();
+      }
+      // Fecha fin = inicio + 6 meses
+      const fechaFin = addMonthsSameDay(inicioVal, 6);
+      // Última cuota máx = fecha fin - 1 mes
+      return addMonthsSameDay(fechaFin, -1);
+    }
+
     // Rango y validación para Inicio plataforma
     function updateInicioRange(){
       const t = todayLocal();
-      const max = addMonthsSameDay(t, 2);
       inicio.min = formatLocalDate(t);
-      inicio.max = formatLocalDate(max);
+      inicio.max = '';
     }
 
     // Lógica para manejar el dropdown de tipo de inicio
@@ -1332,18 +1354,19 @@
 
     // Validaciones para Inicio plataforma y Fecha máxima al pegar/escribir
     const validateInicio = () => {
+      if (isNoRestrict) return;
       if (!inicio.value) return;
       const v = parseLocalDate(inicio.value);
       const min = inicio.min ? parseLocalDate(inicio.min) : null;
-      const max = inicio.max ? parseLocalDate(inicio.max) : null;
-      if ((min && v < min) || (max && v > max)){
-        alert('La fecha de Inicio plataforma debe estar entre hoy y hoy + 2 meses.');
+      if (min && v < min){
+        alert('La fecha de Inicio plataforma no puede ser anterior a hoy.');
         inicio.value = '';
       }
     };
     inicio.addEventListener('input', validateInicio);
     inicio.addEventListener('change', validateInicio);
     const validateFechaMax = () => {
+      if (isNoRestrict) return;
       if (!fechaMax.value) return;
       const v = parseLocalDate(fechaMax.value);
       const max = fechaMax.max ? parseLocalDate(fechaMax.max) : null;
@@ -1358,17 +1381,37 @@
     // si cambia el inicio, rehacer plan (si hay cuotas y total)
     // Eliminado: El campo "Inicio plataforma" no debe afectar las fechas del Plan de pagos
 
+    // Formatear campo valor con separador de miles visual
+    function formatValorInput() {
+      const raw = valorInput.value.replace(/[^0-9]/g, '');
+      if (!raw) { valorInput.value = ''; return; }
+      const num = parseInt(raw, 10);
+      valorInput.value = num.toLocaleString('es-CO');
+    }
+    // Obtener valor numérico limpio del campo
+    function getValorNumerico() {
+      return Number(valorInput.value.replace(/[^0-9]/g, '')) || 0;
+    }
+
     // si cambia el valor y hay financiación, rehacer plan
     valorInput.addEventListener('input', () => {
+      formatValorInput();
       const q = Number(cuotas.value) || 0;
-      const total = Number(valorInput.value.replace(/\D/g, '')) || 0;
+      const total = getValorNumerico();
       if (q > 1 && total) buildPlanPagos(q, total);
+    });
+
+    // Bloquear decimales (punto y coma como decimal)
+    valorInput.addEventListener('keydown', (e) => {
+      if (e.key === '.' || e.key === ',') {
+        // Permitir coma solo si no hay dígitos aún (usuario pegando formato con comas de miles)
+        // Pero bloquear punto decimal
+      }
     });
         
     function handleValorValidation() {
-      const raw = valorInput.value.replace(/\D/g, '');
-      if (!raw) return;
-      const v   = Number(raw);
+      const v = getValorNumerico();
+      if (!v) return;
       const min = Number(valorInput.min || 0);
       const max = Number(valorInput.max || 0);
 
@@ -1436,16 +1479,25 @@
         });
       }
       
+      // Élite 6 meses: clampear última cuota a fecha fin - 1 mes
+      const elite6Max = getElite6MesesMaxLastCuota();
+      if (elite6Max && planState.length > 1) {
+        const last = planState[planState.length - 1];
+        if (last.date > elite6Max) {
+          last.date = elite6Max;
+        }
+      }
+
       // Guardar fechas originales para comparación
       originalDates = planState.map(p => new Date(p.date.getTime()));
-      
+
       // En financiamiento no máximo, verificar si cuota 1 es hoy
       if (!planIsMaxFin) {
         const todayStr = formatLocalDate(today);
         const cuota1Str = formatLocalDate(planState[0].date);
         cuota1IsToday = (todayStr === cuota1Str);
       }
-      
+
       repaintPlan();
     }
 
@@ -1459,7 +1511,7 @@
           <td class="col-fecha">${r.date.toLocaleDateString('es-CO')}</td>
           <td class="col-valor">${formatCOP(r.amount)}</td>
           <td class="col-edit" style="text-align:center">
-            ${r.editable ? '<button class="edit-btn" data-act="edit" title="Editar">✏️</button>' : '🔒'}
+            ${r.editable ? '<button class="edit-btn" data-act="edit" title="Editar" style="background:none;border:none;cursor:pointer;font-size:1em;padding:2px 6px;">✏️</button>' : '🔒'}
           </td>`;
         planPagosTable.appendChild(tr);
       });
@@ -1495,6 +1547,7 @@
     
     // Función para determinar si una cuota puede editar su fecha
     function canEditDateForInstallment(idx) {
+      if (isNoRestrict) return true;
       if (planIsMaxFin) {
         // Máximo financiamiento: solo cuota 2
         return idx === 1;
@@ -1541,7 +1594,7 @@
           : row.date.toLocaleDateString('es-CO');
           
         tr.querySelector('.col-valor').innerHTML = canEditValue
-          ? `<input type="number" class="inp-valor" min="1" step="1" value="${row.amount}">`
+          ? `<input type="text" class="inp-valor" value="${row.amount.toLocaleString('es-CO')}" data-raw="${row.amount}">`
           : formatCOP(row.amount);
           
         tr.querySelector('.col-edit').innerHTML = (canEditDate || canEditValue)
@@ -1552,38 +1605,49 @@
         const inpF = tr.querySelector('.inp-fecha');
         const inpV = tr.querySelector('.inp-valor');
         const tNow = todayLocal();
-        
-        if (planIsMaxFin) {
-          if (idx === 0 && inpV) {
-            // Cuota 1: solo puede aumentar valor
-            const remain = planState.length - 1;
-            const maxAllowed = Math.max(1, planTotal - remain);
-            inpV.min = String(row.amount);
-            inpV.max = String(maxAllowed);
-          }
-          if (idx === 1 && inpF) {
-            // Cuota 2: fecha entre cuota 1 y último día del siguiente mes
-            const minDate = planState[0].date;
-            const maxDate = lastDayOfNextMonth(minDate);
-            inpF.min = formatLocalDate(minDate);
-            inpF.max = formatLocalDate(maxDate);
-          }
-        } else {
-          // Financiamiento no máximo
-          if (idx === 0 && inpF) {
-            // Cuota 1: fecha entre hoy y hoy + 1 mes
-            const maxDate = addMonthsSameDay(tNow, 1);
-            inpF.min = formatLocalDate(tNow);
-            inpF.max = formatLocalDate(maxDate);
-          } else if (idx > 0 && inpF) {
-            // Cuotas 2+: máximo hasta el último día del mes siguiente a la cuota anterior
-            const maxDate = lastDayOfNextMonth(planState[idx-1].date);
-            inpF.max = formatLocalDate(maxDate);
-            // Min: no puede ser anterior a la cuota anterior
-            if (idx > 0) {
-              inpF.min = formatLocalDate(planState[idx-1].date);
+
+        if (!isNoRestrict) {
+          if (planIsMaxFin) {
+            if (idx === 0 && inpV) {
+              // Cuota 1: mínimo 300.000
+              const remain = planState.length - 1;
+              const maxAllowed = Math.max(1, planTotal - remain);
+              inpV.min = '300000';
+              inpV.max = String(maxAllowed);
+            }
+            if (idx === 1 && inpF) {
+              // Cuota 2: fecha entre cuota 1 y último día del siguiente mes
+              const minDate = planState[0].date;
+              const maxDate = lastDayOfNextMonth(minDate);
+              inpF.min = formatLocalDate(minDate);
+              inpF.max = formatLocalDate(maxDate);
+            }
+          } else {
+            // Financiamiento no máximo
+            if (idx === 0 && inpF) {
+              // Cuota 1: fecha entre hoy y hoy + 1 mes
+              const maxDate = addMonthsSameDay(tNow, 1);
+              inpF.min = formatLocalDate(tNow);
+              inpF.max = formatLocalDate(maxDate);
+            } else if (idx > 0 && inpF) {
+              // Cuotas 2+: máximo hasta el último día del mes siguiente a la cuota anterior
+              const maxDate = lastDayOfNextMonth(planState[idx-1].date);
+              inpF.max = formatLocalDate(maxDate);
+              // Min: no puede ser anterior a la cuota anterior
+              if (idx > 0) {
+                inpF.min = formatLocalDate(planState[idx-1].date);
+              }
             }
           }
+        }
+        // Formatear input de valor de cuota con separador de miles
+        if (inpV) {
+          inpV.addEventListener('input', () => {
+            const raw = inpV.value.replace(/[^0-9]/g, '');
+            if (!raw) { inpV.value = ''; return; }
+            const num = parseInt(raw, 10);
+            inpV.value = num.toLocaleString('es-CO');
+          });
         }
       } else if (btn.classList.contains('cancel-btn')) {
         repaintPlan();
@@ -1594,53 +1658,60 @@
         if (inpF) {
           const d = parseLocalDate(inpF.value);
           if (isNaN(d)) { alert('Fecha inválida'); return; }
-          
-          if (planIsMaxFin) {
-            // Validaciones para máximo financiamiento
-            if (idx === 1) {
-              // Cuota 2: debe estar entre cuota 1 y último día del siguiente mes
-              const minDate = planState[0].date;
-              const maxDate = lastDayOfNextMonth(minDate);
-              if (d < minDate) { 
-                alert('La fecha de la cuota 2 no puede ser anterior a la fecha de la cuota 1.'); 
-                return; 
+
+          if (!isNoRestrict) {
+            if (planIsMaxFin) {
+              // Validaciones para máximo financiamiento
+              if (idx === 1) {
+                // Cuota 2: debe estar entre cuota 1 y último día del siguiente mes
+                const minDate = planState[0].date;
+                const maxDate = lastDayOfNextMonth(minDate);
+                if (d < minDate) {
+                  alert('La fecha de la cuota 2 no puede ser anterior a la fecha de la cuota 1.');
+                  return;
+                }
+                if (d > maxDate) {
+                  alert('La fecha de la cuota 2 no puede superar el último día del mes siguiente a la cuota 1.');
+                  return;
+                }
               }
-              if (d > maxDate) { 
-                alert('La fecha de la cuota 2 no puede superar el último día del mes siguiente a la cuota 1.'); 
-                return; 
-              }
-              // Actualizar el día preferido basado en la cuota 2
-              planPreferredDay = d.getDate();
-            }
-          } else {
-            // Validaciones para financiamiento no máximo
-            if (idx === 0) {
-              const t = todayLocal();
-              const max0 = addMonthsSameDay(t, 1);
-              if (d < t || d > max0) { 
-                alert('La fecha de la cuota 1 debe estar entre hoy y hoy + 1 mes.'); 
-                return; 
-              }
-              firstDateModified = (d.getTime() !== planState[0].date.getTime());
-              planPreferredDay = d.getDate();
-              
-              // Actualizar si cuota 1 es hoy
-              const todayStr = formatLocalDate(t);
-              const cuota1Str = formatLocalDate(d);
-              cuota1IsToday = (todayStr === cuota1Str);
             } else {
-              // Cuotas 2+: validar que no superen el límite del mes siguiente
-              const maxDate = lastDayOfNextMonth(planState[idx-1].date);
-              if (d > maxDate) { 
-                alert(`La fecha de la cuota ${idx + 1} no puede superar el último día del mes siguiente a la cuota anterior.`); 
-                return; 
+              // Validaciones para financiamiento no máximo
+              if (idx === 0) {
+                const t = todayLocal();
+                const max0 = addMonthsSameDay(t, 1);
+                if (d < t || d > max0) {
+                  alert('La fecha de la cuota 1 debe estar entre hoy y hoy + 1 mes.');
+                  return;
+                }
+              } else {
+                // Cuotas 2+: validar que no superen el límite del mes siguiente
+                const maxDate = lastDayOfNextMonth(planState[idx-1].date);
+                if (d > maxDate) {
+                  alert(`La fecha de la cuota ${idx + 1} no puede superar el último día del mes siguiente a la cuota anterior.`);
+                  return;
+                }
               }
-              planPreferredDay = d.getDate();
+            }
+
+            // Élite 6 meses: validar que la última cuota no exceda fecha fin - 1 mes
+            const elite6MaxSave = getElite6MesesMaxLastCuota();
+            if (elite6MaxSave && idx === planState.length - 1 && d > elite6MaxSave) {
+              alert(`Para Élite 6 meses, la última cuota no puede exceder el ${elite6MaxSave.toLocaleDateString('es-CO')} (fecha fin del curso menos 1 mes).`);
+              return;
             }
           }
-          
+
+          // Actualizar día preferido y estado
+          planPreferredDay = d.getDate();
+          if (!planIsMaxFin && idx === 0) {
+            firstDateModified = (d.getTime() !== planState[0].date.getTime());
+            const t = todayLocal();
+            cuota1IsToday = (formatLocalDate(t) === formatLocalDate(d));
+          }
+
           planState[idx].date = d;
-          
+
           // Recalcular fechas siguientes
           if (planIsMaxFin && idx === 1) {
             recalcDatesFrom(idx);
@@ -1648,19 +1719,27 @@
             recalcDatesFrom(idx);
             if (idx === 0) clampCuota2IfNeeded();
           }
-          
+
+          // Élite 6 meses: clampear última cuota después de recalcular
+          const elite6MaxClamp = getElite6MesesMaxLastCuota();
+          if (elite6MaxClamp && planState.length > 1) {
+            const lastCuota = planState[planState.length - 1];
+            if (lastCuota.date > elite6MaxClamp) {
+              lastCuota.date = elite6MaxClamp;
+            }
+          }
+
           // Marcar que necesitamos repintar después para financiamiento no máximo
           needsRepaint = !planIsMaxFin;
         }
         if (inpV) {
-          const v = Math.floor(Number(inpV.value||0));
+          const v = Math.floor(Number((inpV.value||'').replace(/[^0-9]/g, ''))||0);
           if (v <= 0) { alert('El valor debe ser mayor que 0.'); return; }
           
           // Validación especial para cuota 1 en máximo financiamiento
-          if (idx === 0 && planIsMaxFin) {
-            const originalAmount = planState[0].amount;
-            if (v < originalAmount) {
-              alert('Solo puedes aumentar el valor de la primera cuota, no disminuirla. El valor original era: ' + formatCOP(originalAmount));
+          if (idx === 0 && planIsMaxFin && !isNoRestrict) {
+            if (v < 300000) {
+              alert('El valor de la primera cuota no puede ser inferior a ' + formatCOP(300000));
               return;
             }
             const remain = planState.length - 1;
@@ -4201,7 +4280,7 @@
           celular: celular.value.trim(),
           producto: producto.value.trim(),
           cuotas: cuotas.value,
-          valor: valorInput.value.trim(),
+          valor: String(getValorNumerico()),
           inicio: inicio.value,
           fechaMax: fechaMax.value,
           comercial: comercial.value.trim(),
@@ -5716,7 +5795,7 @@
           cedula: searchId.value.replace(/\D/g,'').trim(),
           correo: correo.value.trim(),
           celular: celular.value.trim(),
-          valor: valorInput.value.trim(),
+          valor: String(getValorNumerico()),
           comercial: comercial.value.trim(),
           producto: producto.value.trim(),
           inicioTipo: inicioTipo.value,
@@ -6690,7 +6769,7 @@
 
       // 6) Construir tabla con las columnas solicitadas
       let html = `
-        <table style="width:100%;font-size:0.9em">
+        <table style="width:100%;font-size:0.7em">
           <thead>
             <tr>
               <th>ID</th>
