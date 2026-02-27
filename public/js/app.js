@@ -5775,11 +5775,7 @@
     async function processInstallmentPayment() {
       console.log('🚀 Iniciando creación de acuerdo');
 
-      // Solo daniel.cardona puede crear acuerdos de pago
-      if (USER_EMAIL !== 'daniel.cardona@sentiretaller.com') {
-        alert('⛔ Solo daniel.cardona@sentiretaller.com puede crear acuerdos de pago.');
-        return;
-      }
+      // Crear acuerdos habilitado para todos los usuarios autenticados
 
       try {
         // Validar que existe plan de pagos
