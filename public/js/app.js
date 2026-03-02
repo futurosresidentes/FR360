@@ -1985,9 +1985,9 @@
           } finally { done('Membresías vieja'); }
         });
 
-      // === 5) Membresías (FRAPP / plataforma nueva) ===
+      // === 5) Planes / Entitlements (FRAPP / plataforma nueva) ===
       inc('Membresías FRAPP');
-      api.fetchMembresiasFRAPP(uid)
+      api.fetchEntitlementsFRAPP(uid)
         .then(res => {
           try {
             renderMembFRAPP(res);
@@ -1995,9 +1995,9 @@
         })
         .catch(err => {
           try {
-            console.error('fetchMembresiasFRAPP error', err);
+            console.error('fetchEntitlementsFRAPP error', err);
             document.getElementById('membNewContainer').innerHTML =
-              '<p>❌ Error al cargar membresías nuevas</p>';
+              '<p>❌ Error al cargar planes</p>';
             trackLoadingError('Membresías FRAPP', err);
           } finally { done('Membresías FRAPP'); }
         });
@@ -4710,19 +4710,28 @@
     // renderMembFRAPP
     function renderMembFRAPP(data) {
       const c = document.getElementById('membNewContainer');
-      // En caso de que por algún motivo llegue como string
       let obj = data;
       if (typeof obj === 'string') {
         try { obj = JSON.parse(obj); } catch(e) { obj = {}; }
       }
-      const user  = obj && obj.user ? obj.user : null;
-      const items = Array.isArray(obj && obj.memberships) ? obj.memberships : [];
 
-      // Almacenar los datos de membresías en la variable global para reutilizar
-      currentMembershipsData = obj;
+      // Nueva estructura: { success, data: { entitlements, users, pagination, aggregations } }
+      const innerData = obj?.data || obj || {};
+      const items = Array.isArray(innerData.entitlements) ? innerData.entitlements : [];
+      const usersMap = innerData.users || {};
 
-      // —— Nombre y Roles debajo del H4 ——
-      // Contenedor (debajo del título "Plataforma nueva")
+      // Obtener el primer usuario del mapa
+      const userIds = Object.keys(usersMap);
+      const u = userIds.length > 0 ? usersMap[userIds[0]] : null;
+
+      // Mantener compatibilidad con currentMembershipsData para Otrosí y otros
+      currentMembershipsData = { user: u, memberships: items.map(e => ({
+        ...e,
+        membershipPlan: { name: e.planVersion?.label || e.plan?.name || '' },
+        roles: e.plan?.handle || ''
+      })) };
+
+      // —— Nombre y estado del usuario ——
       const wrapper = document.querySelector('.memb-new');
       const header  = wrapper.querySelector('.memb-new-header');
       let info = wrapper.querySelector('#membNewInfo');
@@ -4732,56 +4741,39 @@
         info.style.margin = '4px 0 10px';
         header.insertAdjacentElement('afterend', info);
       }
-      // NUEVO: el usuario viene dentro de cada membership; usa el primero como fuente
-      const userFromMembership = (items[0] && items[0].user) ? items[0].user : null;
-      const u = obj?.user || userFromMembership || null;
 
-      console.log('🔍 renderMembFRAPP - Usuario detectado:', u);
-      console.log('🔍 renderMembFRAPP - obj.user:', obj?.user);
-      console.log('🔍 renderMembFRAPP - userFromMembership:', userFromMembership);
-      console.log('🔍 renderMembFRAPP - items[0]:', items[0]);
-
-      // Guardar usuario actual para edición
       currentUserFRAPP = u;
 
-      // Mostrar botón de editar si hay usuario
       const editUserBtn = document.getElementById('editUserBtn');
-      console.log('🔍 editUserBtn element:', editUserBtn);
-      console.log('🔍 Usuario u:', u);
       if (editUserBtn) {
         editUserBtn.style.display = u ? 'inline-block' : 'none';
-        console.log('🔍 Botón de editar display:', editUserBtn.style.display);
       }
 
       const fullName = u ? [u.givenName || '', u.familyName || ''].filter(Boolean).join(' ').trim() : '';
-      // Roles: tomar de cada membership (string), normalizar y deduplicar
-      const rolesFromItems = Array.from(new Set(
-        items.map(m => roleToLabel(m.roles)).filter(Boolean)
-      ));
-      // Fallback: si el usuario trae roles como array de objetos [{name}]
-      const rolesFromUser = Array.isArray(u?.roles) && u.roles.length
-        ? u.roles.map(r => roleToLabel(r.name || r)).filter(Boolean)
-        : [];
-      const rolesMerged = rolesFromItems.length ? rolesFromItems : rolesFromUser;
-      const rolesTxt = rolesMerged.join(', ');
-      // Pintar (nombre + email si existe + roles + estado)
-      const emailTxt   = u?.email  ? `<div>${u.email}</div>` : '';
+      const emailTxt = u?.email ? `<div>${u.email}</div>` : '';
       const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
-      const pendingBtn = u?.status === 'pending' ? ` <button onclick="obtenerLinkActivacion('${userCedula}')" style="background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;" title="Copia el link de activación al portapapeles">🔗 (Copiar link activación)</button>` : '';
+      const pendingBtn = u?.status === 'pending' ? ` <button onclick=”obtenerLinkActivacion('${userCedula}')” style=”background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;” title=”Copia el link de activación al portapapeles”>🔗 (Copiar link activación)</button>` : '';
       const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
+
+      // Planes únicos del usuario (mostrar nombre del plan, no la versión)
+      const planNames = Array.from(new Set(
+        items.map(e => e.plan?.name || '').filter(Boolean)
+      ));
+      const planesTxt = planNames.length ? `<div>Planes: ${planNames.join(', ')}</div>` : '';
+
       info.innerHTML = [
-        fullName ? `<div>${fullName}${u?.identityDocument ? ` <span class="student-name">(${u.identityType || ''} ${u.identityDocument})</span>` : ''}</div>` : '',
+        fullName ? `<div>${fullName}${u?.identityDocument ? ` <span class=”student-name”>(${u.identityType || ''} ${u.identityDocument})</span>` : ''}</div>` : '',
         emailTxt,
-        rolesTxt ? `<div>Roles: ${rolesTxt}</div>` : '',
+        planesTxt,
         statusLine
       ].filter(Boolean).join('');
 
-      // —— Guardar membresía activa para referencia ——
-      activeMembershipFRAPP = items.find(m => m.status === 'active') || null;
+      // —— Guardar entitlement activo para referencia ——
+      activeMembershipFRAPP = items.find(e => e.status === 'active') || null;
 
-      // —— Tabla de membresías ——
+      // —— Tabla de entitlements ——
       if (!items.length) {
-        c.innerHTML = '<p>No hay membresías nuevas</p>';
+        c.innerHTML = '<p>No hay planes asignados</p>';
         attachRowActions('membNewContainer', { enableFreeze: true, enableEdit: true });
         return;
       }
@@ -4789,42 +4781,67 @@
       const formatColDate = iso =>
         iso ? new Date(iso).toLocaleDateString('es-CO', { day:'numeric', month:'numeric', year:'numeric' }) : '';
 
+      // Ordenar: active primero, luego scheduled, luego expired, el resto al final
+      const statusOrder = { active: 0, scheduled: 1, expired: 2 };
+      const sorted = [...items].sort((a, b) =>
+        (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
+      );
+
       let html = '<table><thead><tr>'
                 + '<th>Id</th>'
-                + '<th>Membresía</th>'
+                + '<th>Plan</th>'
+                + '<th>Versión</th>'
+                + '<th>Origen</th>'
                 + '<th>Fecha inicio</th>'
                 + '<th>Fecha fin</th>'
+                + '<th>Duración</th>'
                 + '<th>Estado</th>'
                 + '</tr></thead><tbody>';
 
-      items.forEach(m => {
-        const start = formatColDate(m.startDate);
-        const end   = formatColDate(m.expiryDate);
-        // Mostrar la membresía desde roles normalizado; si no hay roles, usa product.name/description/handle
-        let membLabel = '';
-        if (m.membershipPlan?.name) {
-          // “Plan Élite 9 meses” → “Élite 9 meses”
-          membLabel = m.membershipPlan.name.replace(/^\s*Plan\s+/i, '').trim();
-        } else if (m.roles) {
-          // Usuario viejo: usar roles; “elite” → “Élite”
-          membLabel = roleToLabel(m.roles);
-          membLabel = membLabel.replace(/\bElite\b/gi, 'Élite');
-        } else if (m.product?.name) {
-          membLabel = m.product.name;
-        } else {
-          membLabel = m.description || m.productHandle || '—';
+      sorted.forEach(e => {
+        const planName = e.plan?.name || '—';
+        const versionLabel = e.planVersion?.label || '—';
+        const origin = e.origin || '—';
+        const start = formatColDate(e.startDate);
+        const end   = formatColDate(e.expiryDate);
+        const status = e.status || '—';
+
+        // Calcular duración en días y meses
+        let duracion = '—';
+        if (e.startDate && e.expiryDate) {
+          const d1 = new Date(e.startDate);
+          const d2 = new Date(e.expiryDate);
+          const dias = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          const meses = Math.floor(dias / 30);
+          duracion = `${dias}d (${meses}m)`;
         }
-        html += `<tr class="${m.status === 'active' ? 'active' : ''}">`
-              +  `<td>${m.id}</td>`
-              +  `<td>${membLabel}</td>`
-              +  `<td>${start}</td>`
-              +  `<td>${end}</td>`
-              +  `<td>${m.status}</td>`
-              +  `</tr>`;
+
+        html += '<tr><td>' + e.id + '</td>'
+              +  '<td>' + planName + '</td>'
+              +  '<td>' + versionLabel + '</td>'
+              +  '<td>' + origin + '</td>'
+              +  '<td>' + start + '</td>'
+              +  '<td>' + end + '</td>'
+              +  '<td>' + duracion + '</td>'
+              +  '<td>' + status + '</td></tr>';
       });
 
       html += '</tbody></table>';
       c.innerHTML = html;
+
+      // Agregar clase active y pintar por JS puro (sin template literals)
+      var rows = c.querySelectorAll('tbody tr');
+      for (var i = 0; i < sorted.length && i < rows.length; i++) {
+        if (sorted[i].status === 'active') {
+          rows[i].classList.add('active');
+          var cells = rows[i].querySelectorAll('td');
+          for (var j = 0; j < cells.length; j++) {
+            cells[j].style.backgroundColor = '#60C5FA';
+            cells[j].style.color = '#fff';
+          }
+        }
+      }
+
       attachRowActions('membNewContainer', { enableFreeze: true, enableEdit: true });
     }
 
@@ -4891,7 +4908,7 @@
           edit.style.cursor = 'pointer';
           edit.className = 'edit-membership-btn';
           edit.title = enableEdit
-          ? 'Editar esta membresía'
+          ? 'Editar este plan'
           : 'Edición no disponible';
         edit.addEventListener('click', () => {
           if (!enableEdit) {
@@ -4913,7 +4930,7 @@
             // **Aquí** obtenemos las celdas:
             const cells = tr.querySelectorAll('td');
             const membershipId = Number(cells[0].textContent.trim());
-            const expiryText  = cells[3].textContent.trim();      // dd/MM/yyyy
+            const expiryText  = cells[5].textContent.trim();      // dd/MM/yyyy (Fecha fin)
             const expiryIso   = toISODate(expiryText);             // yyyy-MM-dd
             const changedById = USER_IDS[USER_EMAIL];
             if (!changedById) return alert('🚫 No tienes permiso para congelar.');
@@ -4939,137 +4956,94 @@
 
     /**
      * Pone la fila en modo edición inline:
-     * convierte 3 celdas en inputs y muestra botones ✅❌
+     * convierte 3 celdas en inputs y muestra botones 💾❌
      */
     function enterEditMode(tr, options) {
-      const cells = tr.querySelectorAll('td');
-      const idxInicio = 2, idxFin = 3, idxEstado = 4, idxAcc = 5;
+      var cells = tr.querySelectorAll('td');
+      // Columnas: 0=Id, 1=Plan, 2=Versión, 3=Origen, 4=Inicio, 5=Fin, 6=Duración, 7=Estado, 8=Acciones
+      var idxInicio = 4, idxFin = 5, idxEstado = 7, idxAcc = 8;
 
-      const txtInicio = cells[idxInicio].textContent.trim();
-      const txtFin    = cells[idxFin].textContent.trim();
-      const selEstado = cells[idxEstado].textContent.trim();
+      var origInicio = cells[idxInicio].textContent.trim();
+      var origFin    = cells[idxFin].textContent.trim();
+      var origEstado = cells[idxEstado].textContent.trim();
 
-      cells[idxInicio].innerHTML = `<input type="date" class="edit-date" value="${toISODate(txtInicio)}">`;
-      cells[idxFin].innerHTML    = `<input type="date" class="edit-date" value="${toISODate(txtFin)}">`;
-      cells[idxEstado].innerHTML = `
-        <select class="edit-status">
-          <option value="active"${selEstado==='active'?' selected':''}>active</option>
-          <option value="scheduled"${selEstado==='scheduled'?' selected':''}>scheduled</option>
-          <option value="expired"${selEstado==='expired'?' selected':''}>expired</option>
-        </select>`;
+      cells[idxInicio].innerHTML = '<input type="date" class="edit-date" value="' + toISODate(origInicio) + '">';
+      cells[idxFin].innerHTML    = '<input type="date" class="edit-date" value="' + toISODate(origFin) + '">';
 
-      const accTd = cells[idxAcc];
+      var statusOpts = ['active', 'pending', 'cancelled', 'expired'];
+      var selectHtml = '<select class="edit-status">';
+      for (var si = 0; si < statusOpts.length; si++) {
+        var opt = statusOpts[si];
+        selectHtml += '<option value="' + opt + '"' + (origEstado === opt ? ' selected' : '') + '>' + opt + '</option>';
+      }
+      selectHtml += '</select>';
+      cells[idxEstado].innerHTML = selectHtml;
+
+      var accTd = cells[idxAcc];
       accTd.innerHTML = '';
-      const save = document.createElement('button');
+
+      var save = document.createElement('button');
       save.textContent = '💾';
       save.className = 'save-membership-btn';
       save.title = 'Guardar cambios';
-      save.addEventListener('click', () => {
-      // 1) Obtener el membershipId de la primera celda
-      const membershipId = Number(tr.querySelector('td').textContent.trim());
-      // 2) Comprobar permiso
-      const changedById = USER_IDS[USER_EMAIL];
-      if (!changedById) return alert('🚫 No tienes permiso para hacer este cambio.');
+      save.addEventListener('click', function() {
+        var entitlementId = Number(tr.querySelector('td').textContent.trim());
+        var changedById = USER_IDS[USER_EMAIL];
+        if (!changedById) return alert('No tienes permiso para hacer este cambio.');
 
-      // 3) Leer valores del formulario inline
-      const dateInputs = Array.from(tr.querySelectorAll('input.edit-date'));
-      if (dateInputs.length < 2) {
-        return alert('No encontré ambos campos de fecha para editar.');
-      }
-      const newStart  = dateInputs[0].value;
-      const newExpiry = dateInputs[1].value;
+        var dateInputs = Array.from(tr.querySelectorAll('input.edit-date'));
+        if (dateInputs.length < 2) return alert('No encontré ambos campos de fecha.');
+        var newStart  = dateInputs[0].value;
+        var newExpiry = dateInputs[1].value;
 
-      const statusSelect = tr.querySelector('select.edit-status');
-      if (!statusSelect) {
-        return alert('No encontré el campo de estado para editar.');
-      }
-      const newStatus = statusSelect.value;
+        var statusSelect = tr.querySelector('select.edit-status');
+        if (!statusSelect) return alert('No encontré el campo de estado.');
+        var newStatus = statusSelect.value;
 
-      // 3.5) Validar si el estado es "scheduled", la fecha inicio debe ser mayor a hoy
-      if (newStatus === 'scheduled') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalizar a medianoche
-        const startDate = new Date(newStart);
+        // Pedir motivo
+        var reason;
+        do {
+          reason = prompt('Razón del cambio (mínimo 3 caracteres):');
+          if (reason === null) return;
+        } while (!reason || reason.length < 3);
 
-        if (startDate <= today) {
-          return alert('⚠️ Para el estado "scheduled", la fecha de inicio debe ser posterior a hoy.');
+        // Construir body plano (solo campos que cambiaron)
+        var body = { changedById: changedById, reason: reason };
+        if (newStatus !== origEstado) body.status = newStatus;
+        if (newStart !== toISODate(origInicio)) body.startDate = newStart;
+        if (newExpiry !== toISODate(origFin)) body.expiryDate = newExpiry;
+
+        // Verificar que al menos un campo cambió
+        if (!body.status && !body.startDate && !body.expiryDate) {
+          return alert('No se detectaron cambios.');
         }
-      }
 
-      // 4) Pedir motivo
-      let reason;
-      do {
-        reason = prompt('Por favor indica la razón del cambio (mínimo 3 caracteres):');
-        if (reason === null) return;  // canceló
-      } while (!reason || reason.length < 3);
+        console.log('updateEntitlementFRAPP payload:', { entitlementId: entitlementId, body: body });
 
-      // 5) Construir objeto changes con fechas UTC y loguear payload
-        const startISO  = localToUTCISOString(newStart);
-        const expiryISO = localToUTCISOString(newExpiry, true);
-        const daysDiff  = Math.round((new Date(newExpiry) - new Date(newStart)) / (1000*60*60*24));
-
-        console.log('DEBUG updateMembershipFRAPP payload:', {
-          membershipId,
-          changedById,
-          reason,
-          changes: {
-            status: newStatus,
-            start_date: startISO,
-            expiry_date: expiryISO,
-            expiry_days: daysDiff,
-            cancellationReason: newStatus === 'expired' ? reason : undefined
-          }
-        });
-      
-
-
-      const changes = {
-        status:            newStatus,
-        start_date:        startISO,
-        expiry_date:       expiryISO,
-        expiry_days:       daysDiff,
-        cancellationReason: newStatus === 'expired' ? reason : undefined
-      };
-
-      // logueamos el payload
-      console.log('DEBUG updateMembershipFRAPP payload:', {
-        membershipId,
-        changedById,
-        reason,
-        changes
+        api.updateEntitlementFRAPP(entitlementId, body)
+          .then(function(res) {
+            if (res.error) {
+              var msg = res.message || (Array.isArray(res.details)
+                ? res.details.map(function(d) { return (d.field || 'campo') + ': ' + d.message; }).join('\n')
+                : JSON.stringify(res));
+              alert('Error al actualizar:\n' + msg);
+            } else {
+              alert(res.message || 'Plan actualizado exitosamente');
+            }
+            var uid = searchId.value.replace(/\D/g, '');
+            api.fetchEntitlementsFRAPP(uid).then(renderMembFRAPP);
+          })
+          .catch(function(err) {
+            alert('Error al actualizar: ' + err.message);
+          });
       });
 
-      // 6) Llamar al servidor
-      api.updateMembershipFRAPP(membershipId, changedById, reason, changes)
-        .then(res => {
-          console.log('DEBUG updateMembershipFRAPP response:', res);
-          if (res.error) {
-            console.log('DEBUG updateMembershipFRAPP details:', res.details);
-            // construimos un mensaje legible con los detalles que manda el servidor
-            const detailMsgs = Array.isArray(res.details)
-              ? res.details.map(d => `${d.field || 'campo'}: ${d.message}`).join('\n')
-              : (res.message || res.error);
-            alert('❌ No se pudo actualizar la membresía:\n' + detailMsgs);
-          } else {
-            alert(res.message || 'Membresía actualizada exitosamente');
-          }
-          // refrescar tabla
-          const uid = searchId.value.replace(/\D/g,'');
-          api.fetchMembresiasFRAPP(uid).then(renderMembFRAPP);
-        })
-        .catch(err => {
-          alert('❌ Error al actualizar: ' + err.message);
-        });
-    });
-
-
-
-      const cancel = document.createElement('button');
+      var cancel = document.createElement('button');
       cancel.textContent = '❌';
       cancel.className = 'cancel-membership-btn';
       cancel.title = 'Cancelar edición';
       cancel.style.marginLeft = '8px';
-      cancel.addEventListener('click', () => {
+      cancel.addEventListener('click', function() {
         tr.innerHTML = tr._origHTML;
         delete tr._actionsAttached;
         attachRowActions(tr.closest('div').id, options);
@@ -5349,12 +5323,14 @@
       let todayCO = {year:0,month:0,day:0};
       try { todayCO = await api.legacy('getColombiaTodayParts'); } catch(e){ console.warn('getColombiaTodayParts', e); }
 
-      // Obtener datos del plan seleccionado
-      const selectedPlanId = parseInt(batchProduct.value);
-      const selectedPlan = batchMembershipPlans.find(p => p.id === selectedPlanId);
+      // Obtener datos del plan seleccionado (id = versionId, planId = plan ID)
+      const selectedVersionId = parseInt(batchProduct.value);
+      const selectedPlan = batchMembershipPlans.find(p => p.id === selectedVersionId);
       const planName = selectedPlan ? selectedPlan.name : 'Plan desconocido';
-      const startDateStr = getMembershipStartDate(batchStart.value);
-      const expiryDateStr = getMembershipExpiryDate(batchExpiry.value);
+      const batchPlanId = selectedPlan ? selectedPlan.planId : selectedVersionId;
+      // Fechas date-only (YYYY-MM-DD) — formato recomendado por la API
+      const startDateStr = batchStart.value;
+      const expiryDateStr = batchExpiry.value;
 
       try{
         for (let i=0; i<idsToAdd.length; i++){
@@ -5372,7 +5348,7 @@
             ).join(' ');
           };
 
-          // Payload completo con todos los campos (INTENTO 1: crear usuario + membresía)
+          // Payload con campos de la API v2 (planId + planVersionId + fechas date-only)
           const payload = {
             email: st.email,
             givenName: capitalize(st.givenName || ''),
@@ -5380,33 +5356,16 @@
             phone: st.phone || '',
             identityType: 'CC',
             identityDocument: uid,
-            membershipPlanId: selectedPlanId,
-            membershipStartDate: startDateStr,
-            membershipEndDate: expiryDateStr
+            planId: batchPlanId,
+            planVersionId: selectedVersionId,
+            startDate: startDateStr,
+            expiryDate: expiryDateStr
           };
 
           try{
             let res = await withRetry(()=>api.registerMembFRAPP(payload), 3, 1000);
 
-            // Si el error indica que el usuario ya existe, hacer segundo intento
-            if (res && res.error && /createMembershipIfUserExists/i.test(res.error)) {
-              console.log(`Usuario existente detectado para ${uid}, agregando solo membresía...`);
-              setAddRow(i, '⚠️ Usuario existente, agregando membresía...');
-
-              // INTENTO 2: Solo agregar membresía a usuario existente
-              const retryPayload = {
-                email: st.email,
-                membershipPlanId: selectedPlanId,
-                membershipStartDate: startDateStr,
-                membershipEndDate: expiryDateStr,
-                createMembershipIfUserExists: true,
-                allowDuplicateMemberships: false
-              };
-
-              res = await withRetry(()=>api.registerMembFRAPP(retryPayload), 3, 1000);
-            }
-
-            // Evaluar resultado final
+            // Evaluar resultado
             if (res && res.success === true){
               st.addStatus = '✅ Ok';
               setAddRow(i, st.addStatus);
@@ -5591,7 +5550,7 @@
         resetModal(); // Resetear completamente el modal
 
         // ——— 3) Refrescamos la tabla "Plataforma nueva" ———
-        api.fetchMembresiasFRAPP(searchId.value.replace(/\D/g,''))
+        api.fetchEntitlementsFRAPP(searchId.value.replace(/\D/g,''))
           .then(renderMembFRAPP)
           .catch(err => console.error('Error recargando membresías:', err));
 
@@ -6094,7 +6053,7 @@
         // Si no hay datos en cache o no coinciden, consultar el servidor
         if (!memberships) {
           console.log('Consultando membresías desde el servidor...');
-          memberships = await api.fetchMembresiasFRAPP(cedula);
+          memberships = await api.fetchEntitlementsFRAPP(cedula);
 
           if (!memberships) {
             throw new Error('No se pudo obtener respuesta del servidor de membresías');
@@ -6196,21 +6155,44 @@
           console.log('No se encontraron membresías élite con status "active" o "scheduled". Procediendo sin validación de traslape.');
         }
 
-        // 4. Determinar membershipPlanId y duración según el producto
-        let membershipPlanId;
+        // 4. Determinar planId, planVersionId y duración según el producto
+        let matchedPlanId;
+        let matchedVersionId;
         let durationDays;
 
-        if (producto.includes('9 meses')) {
-          membershipPlanId = 3;
-          durationDays = 288;
-        } else if (producto.includes('6 meses')) {
-          membershipPlanId = 4;
-          durationDays = 188;
-        } else {
-          throw new Error('Tipo de producto no reconocido. Solo se permiten productos de 6 o 9 meses.');
+        // Buscar dinámicamente el plan y versión que coincida con el producto
+        try {
+          const allPlans = await api.getActiveMembershipPlans();
+          if (producto.includes('9 meses')) {
+            const match = allPlans.find(p => p.versionLabel && p.versionLabel.toLowerCase().includes('9 meses'));
+            matchedPlanId = match ? match.planId : 1;
+            matchedVersionId = match ? match.id : 3;
+            durationDays = 288;
+          } else if (producto.includes('6 meses')) {
+            // Buscar versión exacta "Élite - 6 meses" (no variantes como "6 meses Marzo 2026")
+            const match = allPlans.find(p => p.versionLabel && /^[ée]lite\s*-\s*6 meses$/i.test(p.versionLabel));
+            matchedPlanId = match ? match.planId : 1;
+            matchedVersionId = match ? match.id : 2;
+            durationDays = 188;
+          } else {
+            throw new Error('Tipo de producto no reconocido. Solo se permiten productos de 6 o 9 meses.');
+          }
+          console.log('Plan encontrado — planId:', matchedPlanId, 'planVersionId:', matchedVersionId);
+        } catch (planError) {
+          console.warn('⚠️ Error buscando plan dinámicamente, usando fallback:', planError.message);
+          matchedPlanId = 1; // Plan Élite
+          if (producto.includes('9 meses')) {
+            matchedVersionId = 3;
+            durationDays = 288;
+          } else if (producto.includes('6 meses')) {
+            matchedVersionId = 2;
+            durationDays = 188;
+          } else {
+            throw new Error('Tipo de producto no reconocido. Solo se permiten productos de 6 o 9 meses.');
+          }
         }
 
-        // 5. Calcular fechas usando las funciones de formato de membresía
+        // 5. Calcular fecha de inicio (date-only YYYY-MM-DD, formato recomendado por la API)
         // Verificar si la fecha de inicio es anterior a hoy (hasta máximo 3 días)
         let fechaInicioAjustada = fechaInicio;
         const hoy = new Date();
@@ -6232,23 +6214,12 @@
           console.log(`❌ Fecha inicio está ${diffDias} días en el pasado (más de 3). No se ajusta, se dejará que FRAPP genere el error.`);
         }
 
-        const membershipStartDate = getMembershipStartDate(fechaInicioAjustada);
-
-        // Calcular fecha de fin sumando los días de duración (desde la fecha ajustada)
-        const startDateObj = parseLocalDate(fechaInicioAjustada);
-        startDateObj.setDate(startDateObj.getDate() + durationDays);
-        const endDateString = formatLocalDate(startDateObj);
-        const membershipEndDate = getMembershipExpiryDate(endDateString);
-
         console.log('Producto:', producto);
-        console.log('MembershipPlanId:', membershipPlanId);
+        console.log('PlanId:', matchedPlanId, 'PlanVersionId:', matchedVersionId);
         console.log('Duración en días:', durationDays);
-        console.log('Fecha inicio (original):', fechaInicio);
-        console.log('Fecha inicio (ajustada):', fechaInicioAjustada);
-        console.log('Fecha inicio (formateada):', membershipStartDate);
-        console.log('Fecha fin (formateada):', membershipEndDate);
+        console.log('Fecha inicio (date-only):', fechaInicioAjustada);
 
-        // 6. Crear payload para registrar membresía
+        // 6. Crear payload para registrar (fechas date-only + durationDays)
         const payload = {
           email: correo,
           givenName: nombres,
@@ -6256,9 +6227,10 @@
           phone: celular,
           identityType: 'CC',
           identityDocument: cedula,
-          membershipPlanId: membershipPlanId,
-          membershipStartDate: membershipStartDate,
-          membershipEndDate: membershipEndDate
+          planId: matchedPlanId,
+          planVersionId: matchedVersionId,
+          startDate: fechaInicioAjustada,
+          durationDays: durationDays
         };
 
         // 7. Registrar la nueva membresía
@@ -6306,7 +6278,7 @@
           // Refrescar membresías si estamos en la pestaña correcta
           const uid = searchId.value.replace(/\D/g,'').trim();
           if (uid) {
-            api.fetchMembresiasFRAPP(uid)
+            api.fetchEntitlementsFRAPP(uid)
               .then(renderMembFRAPP)
               .catch(err => console.error('Error recargando membresías:', err));
           }
@@ -6328,148 +6300,25 @@
             .then(result => console.log('Registro guardado en Sheets:', result))
             .catch(err => console.error('Error guardando en Sheets:', err));
         } else {
-          console.log('ENTRANDO AL ELSE - result:', result);
-          console.log('result.success:', result?.success);
-          console.log('result.error:', result?.error);
+          // Error en el registro
+          let errorMessage = 'Error al registrar la membresía: ';
 
-          // Verificar si es error de usuario existente para intentar registro con usuario existente
-          const errorText = result?.error ? result.error.toLowerCase() : '';
-          console.log('Error text para análisis:', errorText);
-          console.log('Includes mismo email:', errorText.includes('mismo email'));
-          console.log('Includes el usuario ya existe:', errorText.includes('el usuario ya existe'));
-
-          if (result?.error && result.error.includes('createMembershipIfUserExists')) {
-            console.log('Usuario ya existe con el mismo email, intentando crear membresía...');
-
-            // Crear nuevo payload para usuario existente
-            const payloadExistingUser = {
-              email: correo,
-              membershipPlanId: membershipPlanId,
-              membershipStartDate: membershipStartDate,
-              membershipEndDate: membershipEndDate,
-              createMembershipIfUserExists: true
-            };
-
-            console.log('Payload para usuario existente:', payloadExistingUser);
-
-            // Intentar crear membresía para usuario existente
-            const resultExisting = await new Promise((resolve, reject) => {
-              api.registerMembFRAPP(payloadExistingUser)
-                .then((result) => {
-                  console.log('Resultado para usuario existente (raw):', result);
-                  resolve(result);
-                })
-                .catch((error) => {
-                  console.error('Error en registerMembFRAPP para usuario existente:', error);
-                  reject(error);
-                });
-            });
-
-            if (resultExisting && resultExisting.success) {
-              // Crear elemento de mensaje de éxito después del botón
-              const successMessage = document.createElement('div');
-              successMessage.id = 'membershipCreatedMessage';
-              successMessage.style.cssText = `
-                margin-top: 15px;
-                padding: 15px;
-                background-color: #d4edda;
-                border: 1px solid #c3e6cb;
-                border-radius: 5px;
-                color: #155724;
-                cursor: pointer;
-                transition: background-color 0.2s;
-              `;
-              successMessage.innerHTML = '✅ Membresía creada correctamente, no se genera URL de activación pues el(la) estudiante ya estaba creado(a) en FRapp, haz click aquí para consultar las membresías';
-
-              // Agregar hover effect
-              successMessage.addEventListener('mouseenter', () => {
-                successMessage.style.backgroundColor = '#c7e7d0';
-              });
-              successMessage.addEventListener('mouseleave', () => {
-                successMessage.style.backgroundColor = '#d4edda';
-              });
-
-              // Agregar evento click para navegar a membresías
-              successMessage.addEventListener('click', () => {
-                // Navegar a la sección de membresías (simular click en pestaña)
-                document.querySelectorAll('#sidebar nav li').forEach((x) => x.classList.remove('active'));
-                document.querySelector('#sidebar nav li[data-tab="membresias"]').classList.add('active');
-                document.querySelectorAll('.pane').forEach((p) => p.classList.remove('active'));
-                document.getElementById('membresias').classList.add('active');
-
-                // Hacer refresh paralelo de las membresías
-                const uid = searchId.value.replace(/\D/g,'').trim();
-                if (uid) {
-                  api.fetchMembresiasFRAPP(uid)
-                    .then(renderMembFRAPP)
-                    .catch(err => console.error('Error recargando membresías:', err));
-                }
-              });
-
-              // Insertar mensaje después del botón
-              const otorgarAccesoBtn = document.getElementById('otorgarAccesoBtn');
-              otorgarAccesoBtn.parentNode.insertBefore(successMessage, otorgarAccesoBtn.nextSibling);
-
-              // No limpiar ningún campo después de otorgar acceso exitosamente
-
-              // Hacer refresh paralelo inmediato de las membresías sin esperar click
-              const uid = searchId.value.replace(/\D/g,'').trim();
-              if (uid) {
-                api.fetchMembresiasFRAPP(uid)
-                  .then(renderMembFRAPP)
-                  .catch(err => console.error('Error recargando membresías:', err));
-              }
-
-              // Guardar registro en Google Sheets en paralelo
-              const confianzaData = {
-                nombres: nombres,
-                apellidos: apellidos,
-                cedula: cedula,
-                celular: celular,
-                correo: correo,
-                producto: producto,
-                comercial: comercial,
-                nroAcuerdo: nroAcuerdo,
-                fechaInicio: fechaInicio
-              };
-
-              api.saveConfianzaRecord(confianzaData)
-                .then(result => console.log('Registro guardado en Sheets (usuario existente):', result))
-                .catch(err => console.error('Error guardando en Sheets (usuario existente):', err));
-
-              return; // Salir exitosamente
-            } else {
-              // Error en el segundo intento también
-              let errorMessage = 'Error al crear membresía para usuario existente: ';
-              if (resultExisting?.error) {
-                errorMessage += resultExisting.error;
-              } else {
-                errorMessage += 'Respuesta inesperada del servidor';
-              }
-              console.log('Error en segundo intento:', errorMessage);
-              throw new Error(errorMessage);
-            }
+          if (result?.error) {
+            errorMessage += result.error;
+          } else if (result?.message) {
+            errorMessage += result.message;
+          } else if (result?.status) {
+            errorMessage += `HTTP ${result.status}`;
           } else {
-            // Error diferente al de "mismo email"
-            let errorMessage = 'Error al registrar la membresía: ';
-
-            if (result?.error) {
-              errorMessage += result.error;
-            } else if (result?.message) {
-              errorMessage += result.message;
-            } else if (result?.status) {
-              errorMessage += `HTTP ${result.status}`;
-            } else {
-              errorMessage += 'Respuesta inesperada del servidor';
-            }
-
-            if (result?.status && result?.status !== 200) {
-              errorMessage += ` (Status: ${result.status})`;
-            }
-
-            console.log('Error detallado:', errorMessage);
-            throw new Error(errorMessage);
+            errorMessage += 'Respuesta inesperada del servidor';
           }
+
+          if (result?.status && result?.status !== 200) {
+            errorMessage += ` (Status: ${result.status})`;
+          }
+
+          console.log('Error detallado:', errorMessage);
+          throw new Error(errorMessage);
         }
 
       } catch (error) {
@@ -6552,10 +6401,12 @@
       modalResponse.style.display = 'block';
       const uid = searchId.value.replace(/\D/g,'').trim();
 
-      // Obtener el plan seleccionado
-      const selectedPlanId = parseInt(selHandle.value);
+      // Obtener el plan seleccionado (id = versionId, planId = plan ID)
+      const selectedVersionId = parseInt(selHandle.value);
+      const selectedPlanObj = membershipPlans.find(p => p.id === selectedVersionId);
+      const modalPlanId = selectedPlanObj ? selectedPlanObj.planId : selectedVersionId;
 
-      // Payload del primer intento (crear usuario + membresía)
+      // Payload con campos de la API v2 (planId + planVersionId + fechas date-only)
       const payload = {
         email: inpEmail.value,
         givenName: humanCapitalize(inpGiven.value),
@@ -6563,10 +6414,10 @@
         phone: inpPhone.value,
         identityType: 'CC',
         identityDocument: uid,
-        membershipPlanId: selectedPlanId,
-        membershipStartDate: getMembershipStartDate(inpStart.value),
-        membershipEndDate: getMembershipExpiryDate(inpExpiry.value)
-        // role: 'elite'  // Campo no usado actualmente, descomentar si cambia la lógica
+        planId: modalPlanId,
+        planVersionId: selectedVersionId,
+        startDate: inpStart.value,
+        expiryDate: inpExpiry.value
       };
 
       console.log('DEBUG registerMembFRAPP - Primer intento payload:', payload);
@@ -6596,39 +6447,14 @@
         });
       }
 
-      // Ejecutar primer intento
+      // Ejecutar registro
       intentarRegistro(payload)
-        .then(res => {
-          // Verificar si el error indica que el usuario ya existe
-          if (res.error && /createMembershipIfUserExists/i.test(res.error)) {
-            console.log('Usuario existente detectado, creando solo membresía...');
-            modalResponse.innerHTML = '⚠️ Usuario existente: creando sólo la membresía…';
-
-            // Payload del segundo intento (solo membresía)
-            const retryPayload = {
-              email: payload.email,
-              membershipPlanId: payload.membershipPlanId,
-              membershipStartDate: payload.membershipStartDate,
-              membershipEndDate: payload.membershipEndDate,
-              createMembershipIfUserExists: true,
-              allowDuplicateMemberships: false
-            };
-
-            console.log('DEBUG registerMembFRAPP - Segundo intento payload:', retryPayload);
-
-            // Intentar crear solo la membresía con reintentos
-            return intentarRegistro(retryPayload);
-          }
-
-          // Si no hay error de usuario existente, retornar la respuesta
-          return res;
-        })
         .then(finalRes => {
           // Mostrar respuesta final
           showApiResponse(finalRes);
 
           // Refrescar tabla de membresías
-          api.fetchMembresiasFRAPP(uid)
+          api.fetchEntitlementsFRAPP(uid)
             .then(renderMembFRAPP)
             .catch(err => console.error('Error recargando membresías:', err));
         })
@@ -6669,35 +6495,31 @@
       const reason = freezeReason.value.trim();
       if (reason.length < 3) return alert('Debes ingresar un motivo (mínimo 3 caracteres).');
 
-      const freezeIso   = localToUTCISOString(freezeDate.value);
-      const unfreezeIso = localToUTCISOString(unfreezeDate.value, true);
       const days        = Number(daysRemaining.value);
-      const membershipId = currentFreeze.id;
+      const entitlementId = currentFreeze.id;
       const changedById = USER_IDS[USER_EMAIL];
 
-      const changes = {
-        status:                  'frozen',
-        freeze_date:             freezeIso,
-        unfreeze_date:           unfreezeIso,
-        days_remaining_at_freeze: days
+      var body = {
+        changedById: changedById,
+        reason: reason,
+        status: 'frozen',
+        freezeDate: freezeDate.value,
+        daysRemainingAtFreeze: days
       };
-     
-      console.log('DEBUG freeze payload:', {
-        membershipId,
-        changedById,
-        reason,
-        changes
-      });
 
-      api.updateMembershipFRAPP(currentFreeze.id, changedById, reason, changes)
+      console.log('freeze payload:', { entitlementId: entitlementId, body: body });
+
+      api.updateEntitlementFRAPP(entitlementId, body)
         .then(res => {
-          console.log('DEBUG freeze response:', res);
+          if (res.error) {
+            alert('Error al congelar: ' + (res.message || JSON.stringify(res)));
+            return;
+          }
           freezeModal.classList.add('hidden');
           freezeSuccessModal.classList.remove('hidden');
         })
         .catch(err => {
-          console.error('DEBUG freeze error:', err);
-          alert('❌ Error al congelar: ' + err.message);
+          alert('Error al congelar: ' + err.message);
         });
     });
 
@@ -6705,7 +6527,7 @@
     closeFreezeSuccess.addEventListener('click', () => {
       freezeSuccessModal.classList.add('hidden');
       const uid = searchId.value.replace(/\D/g,'');
-      api.fetchMembresiasFRAPP(uid)
+      api.fetchEntitlementsFRAPP(uid)
         .then(renderMembFRAPP)
         .catch(err => console.error(err));
     });
@@ -6993,7 +6815,7 @@
               const uid = searchId.value.replace(/\D/g,'').trim();
               if (uid) {
                 try {
-                  const freshData = await api.fetchMembresiasFRAPP(uid);
+                  const freshData = await api.fetchEntitlementsFRAPP(uid);
                   renderMembFRAPP(freshData);
                   console.log('✅ Datos de FRAPP recargados');
                 } catch (err) {

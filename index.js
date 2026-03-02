@@ -2215,12 +2215,24 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await frappService.fetchMembresiasFRAPP(args[0]);
         break;
 
+      case 'fetchEntitlementsFRAPP':
+        result = await frappService.fetchEntitlementsFRAPP(args[0]);
+        break;
+
+      case 'fetchPlansFRAPP':
+        result = await frappService.fetchPlansFRAPP(args[0]);
+        break;
+
       case 'registerMembFRAPP':
         result = await frappService.registerMembFRAPP(args[0]);
         break;
 
       case 'updateMembershipFRAPP':
         result = await frappService.updateMembershipFRAPP(args[0], args[1], args[2], args[3]);
+        break;
+
+      case 'updateEntitlementFRAPP':
+        result = await frappService.updateEntitlementFRAPP(args[0], args[1]);
         break;
 
       case 'freezeMembershipFRAPP':

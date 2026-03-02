@@ -9,7 +9,7 @@
     href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/styles.css?v=<%= Date.now() %>" />
 </head>
 <body>
   <!-- Botón hamburguesa para móvil -->
@@ -237,8 +237,8 @@
       <!-- OTRAS PESTAÑAS -->
       <div class="pane right" id="membresias">
       <div class="memb-layout">
-        <!-- IZQUIERDA: Plataforma vieja -->
-        <div class="memb-old">
+        <!-- Plataforma vieja (oculta visualmente, consulta sigue activa) -->
+        <div class="memb-old" style="display:none;">
           <h3 style="margin-top: 20px; color: #075183;">Plataforma vieja</h3>
           <div id="membOldContainer"></div>
         </div>
@@ -872,11 +872,11 @@
     window.userName = '<%= typeof userName !== "undefined" ? userName : "" %>';
   </script>
   <!-- API Client (loads first) -->
-  <script src="/js/api-client.js"></script>
+  <script src="/js/api-client.js?v=<%= Date.now() %>"></script>
   <!-- Navigation fix -->
   <script src="/js/navigation-fix.js"></script>
   <!-- Main application JavaScript -->
-  <script src="/js/app.js"></script>
+  <script src="/js/app.js?v=<%= Date.now() %>"></script>
   <!-- Web Pig module -->
   <script src="/js/webpig.js"></script>
   <!-- ePayco module -->

@@ -147,12 +147,24 @@ class FR360ApiClient {
     return this._call('fetchMembresiasFRAPP', uid);
   }
 
+  async fetchEntitlementsFRAPP(uid) {
+    return this._call('fetchEntitlementsFRAPP', uid);
+  }
+
+  async fetchPlansFRAPP(search) {
+    return this._call('fetchPlansFRAPP', search || '');
+  }
+
   async registerMembFRAPP(payload) {
     return this._call('registerMembFRAPP', payload);
   }
 
   async updateMembershipFRAPP(membershipId, changedById, reason, changes) {
     return this._call('updateMembershipFRAPP', membershipId, changedById, reason, changes);
+  }
+
+  async updateEntitlementFRAPP(entitlementId, body) {
+    return this._call('updateEntitlementFRAPP', entitlementId, body);
   }
 
   async freezeMembershipFRAPP(membershipId, changedById, reason, changes) {

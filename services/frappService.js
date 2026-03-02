@@ -7,6 +7,7 @@ const FRAPP_API_KEY_READ = FRAPP_API_KEY;
 const FRAPP_API_KEY_REGISTER = process.env.FRAPP_API_KEY_REGISTER || FRAPP_API_KEY;
 const FRAPP_API_KEY_UPDATE = process.env.FRAPP_API_KEY_UPDATE || FRAPP_API_KEY;
 const FRAPP_API_KEY_FILTERS = process.env.FRAPP_API_KEY_FILTERS || FRAPP_API_KEY;
+const FRAPP_API_KEY_PLANS = process.env.FRAPP_API_KEY_PLANS || FRAPP_API_KEY;
 const FRAPP_API_KEY_UPDATE_USER = process.env.FRAPP_API_KEY_UPDATE_USER || FRAPP_API_KEY;
 
 // Validate required environment variables
@@ -21,6 +22,7 @@ console.log('  - READ:', FRAPP_API_KEY_READ?.substring(0, 8) + '...');
 console.log('  - REGISTER:', FRAPP_API_KEY_REGISTER?.substring(0, 8) + '...');
 console.log('  - UPDATE:', FRAPP_API_KEY_UPDATE?.substring(0, 8) + '...');
 console.log('  - FILTERS:', FRAPP_API_KEY_FILTERS?.substring(0, 8) + '...');
+console.log('  - PLANS:', FRAPP_API_KEY_PLANS?.substring(0, 8) + '...');
 
 /**
  * Retry helper with exponential backoff
@@ -188,16 +190,16 @@ async function updateMembershipFRAPP(membershipId, changedById, reason, changes)
  * @returns {Promise<Array>} Array of active membership plans
  */
 async function getActiveMembershipPlans() {
-  const url = `${FRAPP_BASE_URL}/api/filters`;
+  const url = `${FRAPP_BASE_URL}/api/plans`;
 
-  console.log('=== OBTENIENDO PLANES DE MEMBRESÍA ===');
+  console.log('=== OBTENIENDO PLANES DE MEMBRESÍA (via /api/plans) ===');
   console.log('URL:', url);
-  console.log('API Key configurada:', FRAPP_API_KEY_FILTERS ? 'SÍ' : 'NO');
+  console.log('API Key configurada:', FRAPP_API_KEY_PLANS ? 'SÍ' : 'NO');
 
   try {
     const response = await axios.get(url, {
       headers: {
-        'x-api-key': FRAPP_API_KEY_FILTERS
+        'x-api-key': FRAPP_API_KEY_PLANS
       }
     });
 
@@ -207,18 +209,29 @@ async function getActiveMembershipPlans() {
       throw new Error(`HTTP ${response.status} - ${response.data}`);
     }
 
-    // Filter only active membership plans
-    const activePlans = (response.data.membershipPlans || [])
-      .filter(plan => plan.isActive === true)
-      .map(plan => ({
-        id: plan.id,
-        name: plan.name,
-        displayName: plan.displayName,
-        isRecurring: plan.isRecurring
-      }));
+    // Flatten plans + versions into a flat list for dropdowns
+    // id = version.id (planVersionId), planId = plan.id
+    const plans = response.data.data || [];
+    const flatVersions = [];
 
-    console.log('✅ Planes activos encontrados:', activePlans.length);
-    return activePlans;
+    for (const plan of plans) {
+      for (const version of (plan.versions || [])) {
+        if (version.isActive) {
+          flatVersions.push({
+            id: version.id,
+            planId: plan.id,
+            name: plan.name + ' — ' + version.label,
+            planName: plan.name,
+            planHandle: plan.handle,
+            versionLabel: version.label,
+            isDefault: version.isDefault
+          });
+        }
+      }
+    }
+
+    console.log('✅ Versiones activas encontradas:', flatVersions.length);
+    return flatVersions;
 
   } catch (error) {
     console.error('❌ Error obteniendo planes de membresía:', error.message);
@@ -229,7 +242,6 @@ async function getActiveMembershipPlans() {
       console.error('Headers enviados:', error.config?.headers);
     }
 
-    // Devolver array vacío pero también lanzar error para que el frontend lo sepa
     throw new Error(`No se pudieron cargar los planes: ${error.message}`);
   }
 }
@@ -358,10 +370,97 @@ async function updateUserFRAPP(userId, userData) {
   }
 }
 
+/**
+ * Fetch entitlements (planes) from FRAPP by identity document
+ */
+const FRAPP_API_KEY_ENTITLEMENTS = process.env.FRAPP_API_KEY_ENTITLEMENTS || FRAPP_API_KEY;
+const FRAPP_API_KEY_ENTITLEMENTS_UPDATE = process.env.FRAPP_API_KEY_ENTITLEMENTS_UPDATE || FRAPP_API_KEY;
+
+async function fetchEntitlementsFRAPP(uid) {
+  const url = `${FRAPP_BASE_URL}/api/user/entitlements?identityDocument=${encodeURIComponent(uid)}`;
+
+  try {
+    return await retryWithBackoff(async (attempt) => {
+      console.log(`🔄 fetchEntitlementsFRAPP attempt ${attempt}/5`);
+
+      const response = await axios.get(url, {
+        headers: {
+          'x-api-key': FRAPP_API_KEY_ENTITLEMENTS
+        }
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP ${response.status} - ${response.data}`);
+      }
+
+      return response.data;
+    });
+  } catch (error) {
+    console.log('❌ fetchEntitlementsFRAPP failed after all retries:', error.message);
+    return {
+      success: false,
+      data: { entitlements: [], users: {}, pagination: {}, aggregations: {} },
+      error: error.message || 'unknown'
+    };
+  }
+}
+
+/**
+ * Fetch active plans and their versions from FRAPP
+ * GET /api/plans?search=...
+ */
+async function fetchPlansFRAPP(search) {
+  let url = `${FRAPP_BASE_URL}/api/plans`;
+  if (search) url += `?search=${encodeURIComponent(search)}`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: { 'x-api-key': FRAPP_API_KEY_PLANS }
+    });
+    return response.data;
+  } catch (error) {
+    console.log('❌ fetchPlansFRAPP error:', error.message);
+    if (error.response && error.response.data) return error.response.data;
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update an entitlement via PATCH /api/update-entitlement/:entitlementId
+ * body: { changedById, reason, status?, startDate?, expiryDate?, freezeDate?, daysRemainingAtFreeze?, ... }
+ */
+async function updateEntitlementFRAPP(entitlementId, body) {
+  const url = `${FRAPP_BASE_URL}/api/update-entitlement/${entitlementId}`;
+
+  console.log('🔄 Actualizando entitlement:', entitlementId);
+  console.log('Payload:', JSON.stringify(body, null, 2));
+
+  try {
+    const response = await axios.patch(url, body, {
+      headers: {
+        'x-api-key': FRAPP_API_KEY_ENTITLEMENTS_UPDATE,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('✅ Entitlement actualizado exitosamente');
+    return response.data;
+  } catch (error) {
+    console.log('❌ Error actualizando entitlement:', error.message);
+    if (error.response && error.response.data) {
+      return { error: true, ...error.response.data };
+    }
+    throw error;
+  }
+}
+
 module.exports = {
+  fetchEntitlementsFRAPP,
+  fetchPlansFRAPP,
   fetchMembresiasFRAPP,
   registerMembFRAPP,
   updateMembershipFRAPP,
+  updateEntitlementFRAPP,
   getActiveMembershipPlans,
   getProductHandleFromFRAPP,
   freezeMembershipFRAPP,

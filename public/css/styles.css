@@ -427,7 +427,7 @@ input[readonly] {
 /* ===== Membresías: layout de 3 columnas ===== */
 .memb-layout{
   display: grid;
-  grid-template-columns: 1fr 1fr 220px; /* Vieja | Nueva | Acciones angosta */
+  grid-template-columns: 1fr 220px; /* Nueva | Acciones angosta */
   gap: 24px;
   align-items: start;
 }
@@ -451,7 +451,7 @@ input[readonly] {
 
 /* Responsive: si el ancho baja, la columna de acciones pasa abajo */
 @media (max-width: 1200px){
-  .memb-layout{ grid-template-columns: 1fr 1fr; }
+  .memb-layout{ grid-template-columns: 1fr; }
   .memb-actions{ grid-column: 1 / -1; flex-direction: row; }
   .memb-actions .batch-btn{ width: auto; }
 }
