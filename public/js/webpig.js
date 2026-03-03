@@ -857,9 +857,18 @@ function renderWebhooks(webhooks) {
   // Create single table
   const table = document.createElement('table');
   table.id = 'webhooksTable';
+  const stageSelectOptions = `
+    <option value="">Todos</option>
+    <option value="success">✅</option>
+    <option value="error">⛔</option>
+    <option value="not-required">N/A</option>
+    <option value="pending">⏳</option>
+    <option value="skipped">⚠️</option>
+    <option value="not-applicable">-</option>
+  `;
   table.innerHTML = `
     <thead>
-      <tr>
+      <tr class="header-row">
         <th>Fecha</th>
         <th>ID</th>
         <th>Cliente</th>
@@ -877,6 +886,38 @@ function renderWebhooks(webhooks) {
         <th>Ventas</th>
         <th>Retry</th>
         <th>Acciones</th>
+      </tr>
+      <tr class="filter-row">
+        <th><button class="multiselect-btn" data-ms-col="0">▼</button></th>
+        <th><button class="multiselect-btn" data-ms-col="1">▼</button></th>
+        <th><button class="multiselect-btn" data-ms-col="2">▼</button></th>
+        <th><button class="multiselect-btn" data-ms-col="3">▼</button></th>
+        <th>
+          <select data-filter-col="4">
+            <option value="">Todos</option>
+            <option value="✅">✅</option>
+            <option value="🚫">🚫</option>
+          </select>
+        </th>
+        <th><select data-filter-col="5">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="6">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="7">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="8">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="9">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="10">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="11">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="12">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="13">${stageSelectOptions}</select></th>
+        <th><select data-filter-col="14">${stageSelectOptions}</select></th>
+        <th>
+          <select data-filter-col="15">
+            <option value="">Todos</option>
+            <option value="retry-success">✅</option>
+            <option value="retry-warning">⚠️</option>
+            <option value="retry-error">⛔</option>
+          </select>
+        </th>
+        <th></th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -1054,6 +1095,339 @@ function renderWebhooks(webhooks) {
       }
     });
   });
+
+  // Add filter event listeners
+  table.querySelectorAll('.filter-row select').forEach(select => {
+    select.addEventListener('change', () => applyTableFilters(table));
+  });
+  table.querySelectorAll('.multiselect-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMultiSelect(parseInt(btn.dataset.msCol), btn, table);
+    });
+  });
+
+  // Initial header alerts calculation
+  updateHeaderAlerts(table);
+}
+
+// Alert cycle tracking
+let alertCycleIndex = {};
+
+// Multi-select filter state: { colIdx: Set of selected values }
+const multiSelectFilters = {};
+
+/**
+ * Extrae el valor representativo de una celda para el multi-select
+ */
+function getMultiSelectValue(cell, colIdx) {
+  if (colIdx === 0) {
+    // Fecha: solo la parte de fecha (dd/mm/yy)
+    return cell.textContent.trim().split(' ')[0] || '';
+  } else if (colIdx === 2) {
+    // Cliente: nombre del cliente
+    return cell.querySelector('.customer-name')?.textContent?.trim() || '';
+  } else {
+    return cell.textContent.trim();
+  }
+}
+
+/**
+ * Abre el dropdown multi-select para una columna
+ */
+function openMultiSelect(colIdx, buttonEl, table) {
+  // Cerrar cualquier dropdown existente
+  document.querySelectorAll('.multiselect-dropdown').forEach(d => d.remove());
+  table.querySelectorAll('.multiselect-btn').forEach(b => b.classList.remove('ms-open'));
+
+  // Toggle: si ya estaba abierto, solo cerrar
+  if (buttonEl._msOpen) {
+    buttonEl._msOpen = false;
+    return;
+  }
+  buttonEl._msOpen = true;
+  buttonEl.classList.add('ms-open');
+
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+
+  // Recolectar valores únicos
+  const uniqueValues = new Set();
+  rows.forEach(row => {
+    const cell = row.cells[colIdx];
+    if (!cell) return;
+    const value = getMultiSelectValue(cell, colIdx);
+    if (value) uniqueValues.add(value);
+  });
+
+  const sortedValues = Array.from(uniqueValues).sort((a, b) => {
+    // Para ID, ordenar numéricamente
+    if (colIdx === 1) return Number(b) - Number(a);
+    return a.localeCompare(b, 'es');
+  });
+  const selectedSet = multiSelectFilters[colIdx] || null; // null = todos seleccionados
+
+  // Crear dropdown
+  const dropdown = document.createElement('div');
+  dropdown.className = 'multiselect-dropdown';
+
+  // Input de búsqueda
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Buscar...';
+  searchInput.className = 'multiselect-search';
+  dropdown.appendChild(searchInput);
+
+  // Checkbox "Todos"
+  const allLabel = document.createElement('label');
+  allLabel.className = 'multiselect-option ms-all';
+  const allCheckbox = document.createElement('input');
+  allCheckbox.type = 'checkbox';
+  allCheckbox.checked = !selectedSet;
+  allLabel.appendChild(allCheckbox);
+  allLabel.appendChild(document.createTextNode(' Todos'));
+  dropdown.appendChild(allLabel);
+
+  // Contenedor de opciones scrollable
+  const optionsDiv = document.createElement('div');
+  optionsDiv.className = 'multiselect-options';
+
+  sortedValues.forEach(value => {
+    const label = document.createElement('label');
+    label.className = 'multiselect-option';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !selectedSet || selectedSet.has(value);
+    cb.dataset.value = value;
+    label.appendChild(cb);
+    const span = document.createElement('span');
+    span.textContent = ' ' + value;
+    label.appendChild(span);
+    optionsDiv.appendChild(label);
+  });
+
+  dropdown.appendChild(optionsDiv);
+
+  // Posicionar en el th
+  const th = buttonEl.closest('th');
+  th.appendChild(dropdown);
+
+  // Buscar dentro del listado
+  searchInput.addEventListener('input', () => {
+    const term = searchInput.value.toLowerCase();
+    optionsDiv.querySelectorAll('.multiselect-option').forEach(opt => {
+      opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
+    });
+  });
+
+  // Toggle "Todos"
+  allCheckbox.addEventListener('change', () => {
+    optionsDiv.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (cb.closest('.multiselect-option').style.display !== 'none') {
+        cb.checked = allCheckbox.checked;
+      }
+    });
+    commitMultiSelect(colIdx, optionsDiv, sortedValues, table, buttonEl);
+  });
+
+  // Cambio individual
+  optionsDiv.addEventListener('change', () => {
+    const allChecked = Array.from(optionsDiv.querySelectorAll('input[type="checkbox"]'))
+      .every(cb => cb.checked);
+    allCheckbox.checked = allChecked;
+    commitMultiSelect(colIdx, optionsDiv, sortedValues, table, buttonEl);
+  });
+
+  searchInput.focus();
+
+  // Cerrar al hacer click fuera
+  const closeHandler = (e) => {
+    if (!dropdown.contains(e.target) && e.target !== buttonEl) {
+      dropdown.remove();
+      buttonEl.classList.remove('ms-open');
+      buttonEl._msOpen = false;
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', closeHandler), 0);
+}
+
+/**
+ * Aplica la selección del multi-select y actualiza filtros
+ */
+function commitMultiSelect(colIdx, optionsDiv, allValues, table, buttonEl) {
+  const checked = new Set();
+  optionsDiv.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+    checked.add(cb.dataset.value);
+  });
+
+  if (checked.size === allValues.length || checked.size === 0) {
+    delete multiSelectFilters[colIdx];
+    buttonEl.classList.remove('filter-active');
+    buttonEl.textContent = '▼';
+  } else {
+    multiSelectFilters[colIdx] = checked;
+    buttonEl.classList.add('filter-active');
+    buttonEl.textContent = `▼ (${checked.size})`;
+  }
+
+  applyTableFilters(table);
+}
+
+/**
+ * Filtra las filas de la tabla según filtros multi-select y dropdowns
+ */
+function applyTableFilters(table) {
+  // Leer filtros de los <select> (cols 4-15)
+  const selectFilters = {};
+  table.querySelectorAll('.filter-row [data-filter-col]').forEach(el => {
+    const col = parseInt(el.dataset.filterCol);
+    const val = el.value.trim();
+    if (val) selectFilters[col] = val;
+  });
+
+  const tbody = table.querySelector('tbody');
+  const rows = tbody.querySelectorAll('tr');
+
+  rows.forEach(row => {
+    let visible = true;
+
+    // 1. Multi-select filters (cols 0-3)
+    for (const [colIdx, selectedSet] of Object.entries(multiSelectFilters)) {
+      const idx = parseInt(colIdx);
+      const cell = row.cells[idx];
+      if (!cell) continue;
+      const cellValue = getMultiSelectValue(cell, idx);
+      if (!selectedSet.has(cellValue)) {
+        visible = false;
+        break;
+      }
+    }
+
+    if (!visible) {
+      row.style.display = 'none';
+      return;
+    }
+
+    // 2. Select dropdown filters (cols 4-15)
+    for (const [col, filterValue] of Object.entries(selectFilters)) {
+      const colIdx = parseInt(col);
+      const cell = row.cells[colIdx];
+      if (!cell) continue;
+
+      if (colIdx === 4) {
+        // Estado: match emoji
+        if (!cell.textContent.trim().includes(filterValue)) {
+          visible = false;
+          break;
+        }
+      } else if (colIdx >= 5 && colIdx <= 14) {
+        // Stage columns: match by CSS class on .stage-icon
+        const icon = cell.querySelector('.stage-icon');
+        if (!icon || !icon.classList.contains(filterValue)) {
+          visible = false;
+          break;
+        }
+      } else if (colIdx === 15) {
+        // Retry: match by CSS class on .retry-status-badge
+        const badge = cell.querySelector('.retry-status-badge');
+        if (!badge || !badge.classList.contains(filterValue)) {
+          visible = false;
+          break;
+        }
+      }
+    }
+
+    row.style.display = visible ? '' : 'none';
+  });
+
+  // Recalculate header alerts for visible rows
+  updateHeaderAlerts(table);
+}
+
+/**
+ * Actualiza los indicadores ‼️ en los headers de stage columns
+ */
+function updateHeaderAlerts(table) {
+  const headerRow = table.querySelector('.header-row');
+  if (!headerRow) return;
+
+  const tbody = table.querySelector('tbody');
+  const visibleRows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+
+  // Stage columns are indices 5 through 14
+  for (let colIdx = 5; colIdx <= 14; colIdx++) {
+    const th = headerRow.cells[colIdx];
+    if (!th) continue;
+
+    // Check if any visible row has a problematic status in this column
+    const hasProblems = visibleRows.some(row => {
+      const cell = row.cells[colIdx];
+      if (!cell) return false;
+      const icon = cell.querySelector('.stage-icon');
+      if (!icon) return false;
+      return !icon.classList.contains('success') &&
+             !icon.classList.contains('not-required') &&
+             !icon.classList.contains('not-applicable');
+    });
+
+    let alertSpan = th.querySelector('.header-alert');
+
+    if (hasProblems) {
+      if (!alertSpan) {
+        alertSpan = document.createElement('span');
+        alertSpan.className = 'header-alert';
+        alertSpan.dataset.colIndex = colIdx;
+        alertSpan.textContent = '⚠️';
+        alertSpan.addEventListener('click', (e) => {
+          e.stopPropagation();
+          cycleToNextProblem(table, colIdx);
+        });
+        th.appendChild(alertSpan);
+      }
+    } else {
+      if (alertSpan) alertSpan.remove();
+      delete alertCycleIndex[colIdx];
+    }
+  }
+}
+
+/**
+ * Cicla al siguiente registro problemático en la columna dada
+ */
+function cycleToNextProblem(table, colIdx) {
+  const tbody = table.querySelector('tbody');
+  const problemRows = Array.from(tbody.querySelectorAll('tr')).filter(row => {
+    if (row.style.display === 'none') return false;
+    const cell = row.cells[colIdx];
+    if (!cell) return false;
+    const icon = cell.querySelector('.stage-icon');
+    if (!icon) return false;
+    return !icon.classList.contains('success') &&
+           !icon.classList.contains('not-required') &&
+           !icon.classList.contains('not-applicable');
+  });
+
+  if (problemRows.length === 0) return;
+
+  // Get current index and advance
+  if (alertCycleIndex[colIdx] === undefined) {
+    alertCycleIndex[colIdx] = 0;
+  } else {
+    alertCycleIndex[colIdx] = (alertCycleIndex[colIdx] + 1) % problemRows.length;
+  }
+
+  const targetRow = problemRows[alertCycleIndex[colIdx]];
+
+  // Remove highlight from all rows
+  tbody.querySelectorAll('.highlight-row').forEach(r => r.classList.remove('highlight-row'));
+
+  // Scroll and highlight
+  targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  targetRow.classList.add('highlight-row');
+
+  // Remove highlight after animation
+  setTimeout(() => targetRow.classList.remove('highlight-row'), 1500);
 }
 
 // Show loading state
