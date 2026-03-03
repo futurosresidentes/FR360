@@ -1442,6 +1442,12 @@ app.get('/api/carteras-masivo/auto', async (req, res) => {
 
       for (const cuota of acuerdo.cuotas) {
         try {
+          // Saltar cuotas que ya están como pagado (pueden haber sido marcadas manualmente)
+          if (cuota.estado_pago === 'pagado') {
+            console.log(`  ⏭️ Cuota ${cuota.cuota_nro}: Ya está como Pagado (saltando)`);
+            continue;
+          }
+
           const baseProducto = acuerdo.producto;
           const cuotaNro = cuota.cuota_nro;
           const esUltimaCuota = cuotaNro === nroCuotas;
@@ -1866,6 +1872,12 @@ app.post('/api/carteras-masivo', ensureAuthenticated, ensureDomain, async (req, 
 
       for (const cuota of acuerdo.cuotas) {
         try {
+          // Saltar cuotas que ya están como pagado (pueden haber sido marcadas manualmente)
+          if (cuota.estado_pago === 'pagado') {
+            console.log(`  ⏭️ Cuota ${cuota.cuota_nro}: Ya está como Pagado (saltando)`);
+            continue;
+          }
+
           const baseProducto = acuerdo.producto;
           const cuotaNro = cuota.cuota_nro;
           const esUltimaCuota = cuotaNro === nroCuotas;
