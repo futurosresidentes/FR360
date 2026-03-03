@@ -379,7 +379,7 @@ app.get('/api/webpig/webhooks', ensureAuthenticated, ensureDomain, async (req, r
   try {
     console.log(`[WebPig] Fetching webhooks from: ${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent`);
 
-    const response = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent`, {
+    const response = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent?limit=200`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.FACTURADOR_WEBHOOK_BEARER_TOKEN}`,
