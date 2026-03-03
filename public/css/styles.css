@@ -1604,6 +1604,113 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
   }
 }
 
+/* Filter row */
+#webhooksTable .filter-row th {
+  background: #c42872;
+  padding: 4px 3px;
+  position: relative;
+}
+#webhooksTable .filter-row select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+/* Multi-select filter button */
+.multiselect-btn {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.multiselect-btn.filter-active {
+  background: #fff3cd;
+  border-color: #ffc107;
+  font-weight: 600;
+}
+
+/* Multi-select dropdown */
+.multiselect-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  z-index: 300;
+  padding: 6px;
+  text-align: left;
+}
+.multiselect-search {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+}
+.multiselect-options {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+}
+.multiselect-option:hover {
+  background: #f0f0f0;
+}
+.multiselect-option.ms-all {
+  font-weight: 600;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+}
+
+/* Header alert icon */
+.header-alert {
+  cursor: pointer;
+  margin-left: 4px;
+  font-size: 0.85rem;
+  animation: pulse-alert 1.5s ease-in-out infinite;
+}
+@keyframes pulse-alert {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Highlight row when cycling through alerts */
+.highlight-row {
+  animation: flash-highlight 1.5s ease-out;
+}
+@keyframes flash-highlight {
+  0% { background-color: #fff3cd; }
+  100% { background-color: transparent; }
+}
+
 /* Retry status badges */
 .retry-status-badge {
   display: inline-block;
