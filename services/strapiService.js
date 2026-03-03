@@ -1033,23 +1033,7 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
   // 3. Determinar inicio_plataforma (null si no hay fecha, Strapi no acepta string vacío para campos date)
   const inicioPlataforma = inicioFecha || null;
 
-  // 4. Buscar productos específicos por cuota (ej: "Élite - 9 meses - Cuota 1")
-  let productosCuota = [];
-  try {
-    const prodSearchUrl = `${STRAPI_BASE_URL}/api/productos?filters[nombre][$contains]=${encodeURIComponent(productoNombre)}&pagination[pageSize]=50`;
-    const prodResponse = await axios.get(prodSearchUrl, {
-      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` }
-    });
-    productosCuota = (prodResponse.data?.data || []).map(p => ({
-      id: p.id,
-      nombre: p.attributes?.nombre || p.nombre
-    }));
-    console.log('[crearAcuerdo] Productos cuota encontrados:', productosCuota.length);
-  } catch (err) {
-    console.warn('[crearAcuerdo] No se pudieron buscar productos por cuota:', err.message);
-  }
-
-  // 5. Calcular valores totales para el acuerdo
+  // 4. Calcular valores totales para el acuerdo
   const nroCuotas = planPagos.length;
   const valorTotalAcuerdo = planPagos.reduce((sum, c) => sum + Number(c.valor), 0);
   const fechaFirma = new Date().toISOString().substring(0, 10); // Fecha de hoy YYYY-MM-DD
@@ -1060,10 +1044,8 @@ async function crearAcuerdo(nombres, apellidos, cedula, correo, celular, valor, 
     const cuota = planPagos[i];
     const nroCuota = i + 1;
 
-    // Buscar producto específico para esta cuota
-    const nombreCuota = `${productoNombre} - Cuota ${nroCuota}`;
-    const prodCuota = productosCuota.find(p => p.nombre === nombreCuota);
-    const prodId = prodCuota ? prodCuota.id : producto.id;
+    // Usar siempre el producto base (ej: "Élite - 6 meses") para todas las cuotas
+    const prodId = producto.id;
 
     // Formatear fecha_limite (de ISO a YYYY-MM-DD)
     const fechaLimite = cuota.fecha ? cuota.fecha.substring(0, 10) : '';
