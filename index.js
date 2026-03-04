@@ -2281,6 +2281,22 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await strapiService.fetchAcuerdos(args[0]);
         break;
 
+      case 'checkCancelados': {
+        const cedula = args[0];
+        const url = `${process.env.STRAPI_BASE_URL}/api/cancelados?filters[numero_documento][$eq]=${encodeURIComponent(cedula)}&pagination[pageSize]=1`;
+        try {
+          const resp = await require('axios').get(url, {
+            headers: { 'Authorization': `Bearer ${process.env.STRAPI_TOKEN}` }
+          });
+          const records = resp.data?.data || [];
+          result = { cancelado: records.length > 0 };
+        } catch (e) {
+          console.error('[checkCancelados] Error:', e.message);
+          result = { cancelado: false };
+        }
+        break;
+      }
+
       case 'actualizarCuotasOtrosi':
         result = await strapiService.actualizarCuotasOtrosi(args[0], args[1]);
         break;

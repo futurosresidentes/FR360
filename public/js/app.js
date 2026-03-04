@@ -424,6 +424,7 @@
     let lastFactRows = [];
     let activeMembershipFRAPP = null;
     let currentUserFRAPP = null; // Usuario actual de FRAPP
+    let hasCancelado = false; // Si el usuario canceló un acuerdo previamente
 
     // Función para actualizar indicadores de tipo de cliente y mora
     function updateMoraIndicator() {
@@ -463,6 +464,7 @@
       }
 
       // Verificar mora para cualquier cliente con acuerdos
+      let enMora = false;
       const acuerdosData = window.currentAcuerdosData;
       if (Array.isArray(acuerdosData) && acuerdosData.length > 0) {
         // Cuotas en mora de acuerdos firmados
@@ -479,15 +481,37 @@
         if (moraFirmado) {
           moraIndicator.textContent = '⚠️ En mora';
           moraIndicator.style.display = 'inline';
+          enMora = true;
         } else if (moraSinFirmar) {
           moraIndicator.textContent = '⚠️ En mora - Sin acuerdo firmado';
           moraIndicator.style.display = 'inline';
+          enMora = true;
         } else {
           moraIndicator.style.display = 'none';
         }
       } else {
         moraIndicator.style.display = 'none';
       }
+
+      // Verificar cancelados (indicador separado al lado de moraIndicator)
+      let canceladoIndicator = document.getElementById('canceladoIndicator');
+      if (!canceladoIndicator) {
+        canceladoIndicator = document.createElement('span');
+        canceladoIndicator.id = 'canceladoIndicator';
+        canceladoIndicator.style.cssText = 'display: none; color: #856404; font-size: 0.75em; margin-left: 10px; padding: 4px 10px; border-radius: 4px; background: #fff3cd;';
+        moraIndicator.parentNode.insertBefore(canceladoIndicator, moraIndicator.nextSibling);
+      }
+      if (hasCancelado) {
+        canceladoIndicator.textContent = '🚯 Canceló previamente';
+        canceladoIndicator.style.display = 'inline';
+      } else {
+        canceladoIndicator.style.display = 'none';
+      }
+
+      // Restringir cuotas a 1 si está en mora o canceló previamente
+      const cuotasRestringidas = enMora || hasCancelado;
+      window._cuotasRestringidas = cuotasRestringidas;
+      window._cuotasRestringidasRazon = enMora ? 'En mora' : (hasCancelado ? 'Canceló previamente' : '');
     }
 
     const BASE_PRICE_9MESES           = 4130000;
@@ -753,6 +777,13 @@
       }
       cuotas.innerHTML =
         '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
+      cuotas.title = '';
+      cuotas.style.opacity = '';
+      hasCancelado = false;
+      window._cuotasRestringidas = false;
+      window._cuotasRestringidasRazon = '';
+      const canceladoInd = document.getElementById('canceladoIndicator');
+      if (canceladoInd) canceladoInd.style.display = 'none';
       nroAcuerdoComercialito.value = '';
 
       // Desbloquear campos de inicio plataforma
@@ -1164,11 +1195,23 @@
         nroAcuerdoRow.classList.add('hidden');
         const maxCuotas = Math.max(1, Number(mf));
         cuotasRow.classList.remove('hidden');
-        cuotas.innerHTML = '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
-        for (let i = 1; i <= maxCuotas; i++) {
-          const o = document.createElement('option');
-          o.value = i; o.textContent = i;
-          cuotas.appendChild(o);
+
+        // Si está en mora o canceló previamente, solo permitir 1 cuota
+        if (window._cuotasRestringidas) {
+          cuotas.innerHTML = '<option value="1" selected>1</option>';
+          cuotas.value = '1';
+          // Mostrar tooltip con razón
+          cuotas.title = `Solo 1 cuota permitida: ${window._cuotasRestringidasRazon}`;
+          cuotas.style.opacity = '0.7';
+        } else {
+          cuotas.innerHTML = '<option value="" disabled selected>Selecciona la cantidad de cuotas</option>';
+          for (let i = 1; i <= maxCuotas; i++) {
+            const o = document.createElement('option');
+            o.value = i; o.textContent = i;
+            cuotas.appendChild(o);
+          }
+          cuotas.title = '';
+          cuotas.style.opacity = '';
         }
       }
       // Recalcular rango según precio publicitado
@@ -2061,7 +2104,20 @@
           }
         });
 
-      // === 8) Links ===
+      // === 8) Cancelados ===
+      inc('Cancelados');
+      api.checkCancelados(uid)
+        .then(res => {
+          hasCancelado = !!(res && res.cancelado);
+          updateMoraIndicator();
+        })
+        .catch(err => {
+          console.error('checkCancelados error', err);
+          hasCancelado = false;
+        })
+        .finally(() => done('Cancelados'));
+
+      // === 9) Links ===
       inc('Links');
       api.getLinksByIdentityDocument(uid)
         .then(res => {

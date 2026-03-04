@@ -203,6 +203,10 @@ class FR360ApiClient {
     return this._call('fetchAcuerdos', uid);
   }
 
+  async checkCancelados(uid) {
+    return this._call('checkCancelados', uid);
+  }
+
   async actualizarCuotasOtrosi(nroAcuerdo, changes) {
     return this._call('actualizarCuotasOtrosi', nroAcuerdo, changes);
   }
