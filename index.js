@@ -2336,7 +2336,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         const linksNormales = [];
         const linksMora = [];
         const linksDataForStrapi = [];
-        const hoyStr = new Date().toISOString().split('T')[0];
+        const fechaInicioStr = inicioFecha || new Date().toISOString().split('T')[0];
 
         for (let i = 0; i < planPagos.length; i++) {
           const cuota = planPagos[i];
@@ -2372,7 +2372,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             tax: 0,
             commercial: comercialNombre || 'Sistema',
             startType: 'inmediato',
-            startDate: hoyStr
+            startDate: fechaInicioStr
           };
 
           // Link normal
@@ -2410,7 +2410,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             externalId: String(linkNormalResult.data?.data?.data?.id || ''),
             agreementId: strapiResult.nroAcuerdo,
             service: 'epayco',
-            accessDate: new Date().toISOString()
+            accessDate: fechaInicioStr + 'T00:00:00.000Z'
           };
           await fr360Service.savePaymentLinkToDatabase(linkNormalSaveData);
 
@@ -2450,7 +2450,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             externalId: String(linkMoraResult.data?.data?.data?.id || ''),
             agreementId: strapiResult.nroAcuerdo,
             service: 'epayco',
-            accessDate: new Date().toISOString()
+            accessDate: fechaInicioStr + 'T00:00:00.000Z'
           };
           await fr360Service.savePaymentLinkToDatabase(linkMoraSaveData);
 
