@@ -1985,32 +1985,28 @@ async function getFacturacionComparison(years = [2024, 2025, 2026]) {
   const currentMonth = colombiaTime.getMonth() + 1; // 1-12
   const currentDay = colombiaTime.getDate();
 
-  console.log(`[Finanzas] Fecha Colombia: ${colombiaTime.toISOString().substring(0, 10)}, día: ${currentDay}`);
+  console.log(`[Finanzas] Fecha Colombia: ${colombiaTime.toISOString().substring(0, 10)}, mes: ${currentMonth}, día: ${currentDay}`);
 
   const results = {};
 
   for (const year of years) {
-    // Enero: siempre completo
-    results[year] = {
-      enero: await getFacturacionByMonth(year, 1),
-      enero_daily: await getFacturacionDailyBreakdown(year, 1, 31)
-    };
+    results[year] = {};
 
-    // Febrero completo (todo el mes)
-    results[year].febrero = await getFacturacionByMonth(year, 2);
+    for (let m = 1; m <= currentMonth; m++) {
+      const daysInMonth = new Date(year, m, 0).getDate();
 
-    // Febrero parcial: incluyendo el día de hoy (para comparar y saber cuánto falta)
-    if (currentMonth >= 2) {
-      results[year].febrero_parcial = await getFacturacionByMonth(year, 2, currentDay + 1);
-      // Febrero hoy: solo el día actual (desde currentDay hasta currentDay+1)
-      results[year].febrero_hoy = await getFacturacionByDay(year, 2, currentDay);
-      // Desglose diario de febrero (incluyendo hoy)
-      results[year].febrero_daily = await getFacturacionDailyBreakdown(year, 2, currentDay);
-    } else {
-      // Estamos en enero, febrero parcial/hoy no tiene datos aún
-      results[year].febrero_parcial = { year, month: 2, total: 0, count: 0 };
-      results[year].febrero_hoy = { year, month: 2, total: 0, count: 0 };
-      results[year].febrero_daily = [];
+      // Total completo del mes
+      results[year][`month_${m}`] = await getFacturacionByMonth(year, m);
+
+      if (m === currentMonth) {
+        // Mes en curso: parcial hasta hoy, hoy, y daily hasta hoy
+        results[year][`month_${m}_parcial`] = await getFacturacionByMonth(year, m, currentDay + 1);
+        results[year][`month_${m}_hoy`] = await getFacturacionByDay(year, m, currentDay);
+        results[year][`month_${m}_daily`] = await getFacturacionDailyBreakdown(year, m, currentDay);
+      } else {
+        // Mes completado: daily completo
+        results[year][`month_${m}_daily`] = await getFacturacionDailyBreakdown(year, m, daysInMonth);
+      }
     }
   }
 

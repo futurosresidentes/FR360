@@ -64,9 +64,36 @@
     `;
   }
 
+  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                       'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  // Colores para cada año (con fallback dinámico)
+  const yearColors = {
+    '2024': { bg: 'rgba(108, 117, 125, 0.2)', border: '#6c757d' },
+    '2025': { bg: 'rgba(0, 123, 255, 0.2)', border: '#007bff' },
+    '2026': { bg: 'rgba(40, 167, 69, 0.2)', border: '#28a745' },
+    '2027': { bg: 'rgba(255, 193, 7, 0.2)', border: '#ffc107' }
+  };
+
+  function getYearColor(year) {
+    return yearColors[year] || { bg: 'rgba(100,100,100,0.2)', border: '#666' };
+  }
+
+  // Convertir datos diarios a acumulados
+  function toCumulative(dailyData) {
+    if (!dailyData || !dailyData.length) return [];
+    let cumulative = 0;
+    return dailyData.map(d => {
+      cumulative += d.total;
+      return { day: d.day, total: cumulative };
+    });
+  }
+
   // Renderizar tabla de comparación
   function renderComparison(data) {
-    // Filtrar _meta y obtener solo los años
+    const meta = data._meta || {};
+    const currentMonth = meta.currentMonth || (new Date().getMonth() + 1);
+    const currentDay = meta.currentDay || new Date().getDate();
     const years = Object.keys(data).filter(k => k !== '_meta').sort().reverse();
 
     let html = `
@@ -81,21 +108,21 @@
           <tbody>
     `;
 
-    // Fila de Enero
-    const eneroValues = years.map(y => data[y]?.enero?.total || 0);
-    html += renderRow('Enero', eneroValues, '#f8f9fa');
+    // Mes actual primero (parcial + hoy + total), luego meses pasados
+    // Mes en curso: parcial y hoy
+    const curName = MONTH_NAMES[currentMonth - 1];
+    const parcialValues = years.map(y => data[y]?.[`month_${currentMonth}_parcial`]?.total || 0);
+    html += renderRow(`${curName} parcial <span style="color:#999; font-weight:400;">(Hasta hoy)</span>`, parcialValues, '#f8f9fa');
 
-    // Fila de Febrero completo
-    const febreroValues = years.map(y => data[y]?.febrero?.total || 0);
-    html += renderRow('Febrero', febreroValues);
+    const hoyValues = years.map(y => data[y]?.[`month_${currentMonth}_hoy`]?.total || 0);
+    html += renderRow(`${curName} hoy <span style="color:#999; font-weight:400;">(Solo hoy)</span>`, hoyValues);
 
-    // Fila de Febrero parcial (hasta hoy)
-    const febreroParcialValues = years.map(y => data[y]?.febrero_parcial?.total || 0);
-    html += renderRow('Febrero parcial <span style="color:#999; font-weight:400;">(Hasta hoy)</span>', febreroParcialValues, '#f8f9fa');
-
-    // Fila de Febrero hoy (solo el día actual)
-    const febreroHoyValues = years.map(y => data[y]?.febrero_hoy?.total || 0);
-    html += renderRow('Febrero hoy <span style="color:#999; font-weight:400;">(Solo hoy)</span>', febreroHoyValues);
+    // Total de cada mes desde el actual hasta enero
+    for (let m = currentMonth; m >= 1; m--) {
+      const name = MONTH_NAMES[m - 1];
+      const values = years.map(y => data[y]?.[`month_${m}`]?.total || 0);
+      html += renderRow(name, values, m % 2 === 0 ? '#f8f9fa' : '');
+    }
 
     html += `
           </tbody>
@@ -105,75 +132,58 @@
         * Colores: <span style="color:#28a745;">■</span> Superior al año anterior,
         <span style="color:#FFC107;">■</span> Igual o hasta -5%,
         <span style="color:#dc3545;">■</span> Inferior >5%.
-        Febrero parcial incluye hoy. Datos: valor_neto, marca Futuros Residentes.
+        ${curName} parcial incluye hoy. Datos: valor_neto, marca Futuros Residentes.
       </p>
-
-      <!-- Gráficas de líneas acumulativas -->
-      <div style="margin-top: 30px;">
-        <div style="margin-bottom: 30px;">
-          <h4 style="text-align: center; margin-bottom: 10px;" id="chartFebreroTitle">Febrero - Acumulado diario</h4>
-          <canvas id="chartFebrero" style="max-height: 300px;"></canvas>
-        </div>
-        <div>
-          <h4 style="text-align: center; margin-bottom: 10px;">Enero - Acumulado diario</h4>
-          <canvas id="chartEnero" style="max-height: 300px;"></canvas>
-        </div>
-      </div>
     `;
+
+    // Gráficas: una por cada mes, del actual al primero
+    html += '<div style="margin-top: 30px;">';
+    for (let m = currentMonth; m >= 1; m--) {
+      const name = MONTH_NAMES[m - 1];
+      const isCurrentMonth = m === currentMonth;
+      const titleSuffix = isCurrentMonth ? ` (hasta día ${currentDay})` : '';
+      html += `
+        <div style="margin-bottom: 30px;">
+          <h4 style="text-align: center; margin-bottom: 10px;">${name} - Acumulado diario${titleSuffix}</h4>
+          <canvas id="chart_month_${m}" style="max-height: 300px;"></canvas>
+        </div>
+      `;
+    }
+    html += '</div>';
 
     container.innerHTML = html;
 
-    // Renderizar gráficas (pasar solo los años, no _meta)
+    // Renderizar gráficas
     const yearsOnly = years.filter(y => y !== '_meta');
-    renderCharts(data, yearsOnly);
+    renderCharts(data, yearsOnly, currentMonth, currentDay);
   }
 
-  // Colores para cada año
-  const yearColors = {
-    '2024': { bg: 'rgba(108, 117, 125, 0.2)', border: '#6c757d' },
-    '2025': { bg: 'rgba(0, 123, 255, 0.2)', border: '#007bff' },
-    '2026': { bg: 'rgba(40, 167, 69, 0.2)', border: '#28a745' }
-  };
+  // Renderizar gráficas de líneas (dinámico por mes)
+  function renderCharts(data, years, currentMonth, currentDay) {
+    for (let m = currentMonth; m >= 1; m--) {
+      const canvas = document.getElementById(`chart_month_${m}`);
+      if (!canvas) continue;
 
-  // Convertir datos diarios a acumulados
-  function toCumulative(dailyData) {
-    if (!dailyData || !dailyData.length) return [];
-    let cumulative = 0;
-    return dailyData.map(d => {
-      cumulative += d.total;
-      return { day: d.day, total: cumulative };
-    });
-  }
-
-  // Renderizar gráficas de líneas
-  function renderCharts(data, years) {
-    const meta = data._meta || {};
-    const currentDay = meta.currentDay || new Date().getDate();
-    const currentMonth = meta.currentMonth || (new Date().getMonth() + 1);
-    const febreroEnCurso = currentMonth === 2;
-
-    // Gráfica de Enero (acumulado diario)
-    const ctxEnero = document.getElementById('chartEnero');
-    if (ctxEnero) {
-      // Obtener el máximo de días (31 para enero)
-      const maxDays = 31;
+      const isCurrentMonth = m === currentMonth;
+      const daysInMonth = new Date(2026, m, 0).getDate(); // usar 2026 como referencia
+      const maxDays = isCurrentMonth ? currentDay : daysInMonth;
       const labels = Array.from({ length: maxDays }, (_, i) => i + 1);
 
       const datasets = years.map(year => {
-        const dailyData = data[year]?.enero_daily || [];
+        const dailyData = data[year]?.[`month_${m}_daily`] || [];
         const cumulativeData = toCumulative(dailyData);
 
-        // Crear array de valores para cada día
         const values = labels.map(day => {
           const found = cumulativeData.find(d => d.day === day);
           return found ? found.total : null;
         });
 
+        const colors = getYearColor(year);
         return {
           label: year,
           data: values,
-          borderColor: yearColors[year]?.border || '#666',
-          backgroundColor: yearColors[year]?.bg || 'rgba(100,100,100,0.2)',
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           borderWidth: 2,
           fill: false,
           tension: 0.1,
@@ -182,70 +192,7 @@
         };
       });
 
-      new Chart(ctxEnero, {
-        type: 'line',
-        data: { labels, datasets },
-        options: {
-          responsive: true,
-          interaction: { intersect: false, mode: 'index' },
-          plugins: {
-            legend: { position: 'top' },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}`
-              }
-            }
-          },
-          scales: {
-            x: { title: { display: true, text: 'Día del mes' } },
-            y: {
-              beginAtZero: true,
-              title: { display: true, text: 'Acumulado' },
-              ticks: { callback: (value) => '$' + (value / 1000000).toFixed(0) + 'M' }
-            }
-          }
-        }
-      });
-    }
-
-    // Gráfica de Febrero (acumulado diario)
-    const ctxFebrero = document.getElementById('chartFebrero');
-    const titleFebrero = document.getElementById('chartFebreroTitle');
-
-    if (ctxFebrero) {
-      // Para febrero parcial, mostrar hasta hoy (incluyendo día actual)
-      const maxDays = febreroEnCurso ? currentDay : 28;
-      const labels = Array.from({ length: maxDays }, (_, i) => i + 1);
-
-      if (titleFebrero) {
-        titleFebrero.textContent = febreroEnCurso
-          ? `Febrero - Acumulado diario (hasta día ${currentDay})`
-          : 'Febrero - Acumulado diario';
-      }
-
-      const datasets = years.map(year => {
-        const dailyData = data[year]?.febrero_daily || [];
-        const cumulativeData = toCumulative(dailyData);
-
-        const values = labels.map(day => {
-          const found = cumulativeData.find(d => d.day === day);
-          return found ? found.total : null;
-        });
-
-        return {
-          label: year,
-          data: values,
-          borderColor: yearColors[year]?.border || '#666',
-          backgroundColor: yearColors[year]?.bg || 'rgba(100,100,100,0.2)',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.1,
-          pointRadius: 1,
-          pointHoverRadius: 5
-        };
-      });
-
-      new Chart(ctxFebrero, {
+      new Chart(canvas, {
         type: 'line',
         data: { labels, datasets },
         options: {
