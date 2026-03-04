@@ -5,10 +5,7 @@
 const axios = require('axios');
 
 // Environment variables
-const WP_BASE_URL = process.env.OLD_MEMB_BASE_URL;
-const WP_AUTH = process.env.OLD_MEMB_AUTH;
 const FRAPP_BASE_URL = process.env.FRAPP_BASE_URL;
-const FRAPP_API_KEY_READ = process.env.FRAPP_API_KEY;
 const FRAPP_API_KEY_ADMIN_READ = process.env.FRAPP_API_KEY_ADMIN_READ; // Para listar usuarios (users-memberships)
 const FRAPP_API_KEY_WRITE = process.env.FRAPP_API_KEY_WRITE;
 const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
@@ -32,62 +29,10 @@ function calcularDiasMora(fechaLimite) {
 }
 
 /**
- * PASO 1: Obtener usuarios morosos de WordPress (paginado)
- */
-async function getWordPressMorosos() {
-  console.log('=== PASO 1: Consultando usuarios en WordPress ===');
-  const allWpUsers = [];
-  let wpPage = 1;
-  const wpPerPage = 5000;
-  let wpHasMore = true;
-
-  while (wpHasMore) {
-    const url = `${WP_BASE_URL}/wp-json/almus/v1/all_users?page=${wpPage}&per_page=${wpPerPage}`;
-
-    try {
-      const response = await axios.get(url, {
-        headers: { 'AUTH': WP_AUTH },
-        timeout: 30000
-      });
-
-      const usuarios = response.data?.users || [];
-      if (usuarios.length === 0) {
-        wpHasMore = false;
-        break;
-      }
-
-      allWpUsers.push(...usuarios);
-      console.log(`WP página ${wpPage}: ${usuarios.length} usuarios (total: ${allWpUsers.length})`);
-
-      if (usuarios.length < wpPerPage) {
-        wpHasMore = false;
-      } else {
-        wpPage++;
-      }
-    } catch (e) {
-      console.error(`Error en WP página ${wpPage}:`, e.message);
-      break;
-    }
-
-    if (wpPage > 10) break; // Límite de seguridad
-  }
-
-  // Filtrar solo morosos
-  const wpMorosos = allWpUsers.filter(u => {
-    if (!u.roles) return false;
-    const rolesStr = Array.isArray(u.roles) ? u.roles.join(',') : String(u.roles);
-    return rolesStr.toLowerCase().includes('moroso');
-  });
-
-  console.log(`Total usuarios WP: ${allWpUsers.length}, Morosos: ${wpMorosos.length}`);
-  return wpMorosos;
-}
-
-/**
- * PASO 2: Obtener usuarios morosos de Frapp (paginado)
+ * Obtener usuarios morosos de Frapp (paginado)
  */
 async function getFrappMorosos() {
-  console.log('=== PASO 2: Consultando usuarios morosos en Frapp ===');
+  console.log('=== PASO 1: Consultando usuarios morosos en Frapp ===');
   const frappMorosos = [];
   let frappPage = 1;
   const frappLimit = 500;
@@ -143,10 +88,10 @@ async function getFrappMorosos() {
 }
 
 /**
- * PASO 3: Obtener cuotas de Strapi por lotes de cédulas
+ * Obtener cuotas de Strapi por lotes de cédulas
  */
 async function getStrapiCuotas(cedulas) {
-  console.log('=== PASO 3: Consultando cuotas en Strapi ===');
+  console.log('=== PASO 2: Consultando cuotas en Strapi ===');
   const loteSize = 25;
   const cuotasByCedula = {};
 
@@ -199,16 +144,13 @@ async function getStrapiCuotas(cedulas) {
 }
 
 /**
- * PASO 4: Evaluar candidatos a desbloqueo
+ * Evaluar candidatos a desbloqueo
  * Criterio: todas las cuotas con ≤5 días de mora
  */
-function evaluarCandidatos(wpByCedula, frappByCedula, cuotasByCedula) {
-  console.log('=== PASO 4: Evaluando candidatos a desbloqueo ===');
+function evaluarCandidatos(frappByCedula, cuotasByCedula) {
+  console.log('=== PASO 3: Evaluando candidatos a desbloqueo ===');
   const candidatos = [];
-  const todasLasCedulas = new Set([
-    ...Object.keys(wpByCedula),
-    ...Object.keys(frappByCedula)
-  ]);
+  const todasLasCedulas = Object.keys(frappByCedula);
 
   todasLasCedulas.forEach(cedula => {
     const cuotas = cuotasByCedula[cedula] || [];
@@ -218,13 +160,11 @@ function evaluarCandidatos(wpByCedula, frappByCedula, cuotasByCedula) {
       candidatos.push({
         cedula,
         cuotas: [],
-        wpId: wpByCedula[cedula]?.wpId,
         frappId: frappByCedula[cedula]?.frappId,
-        nombres: frappByCedula[cedula]?.nombres || wpByCedula[cedula]?.nombres || '',
-        apellidos: frappByCedula[cedula]?.apellidos || wpByCedula[cedula]?.apellidos || '',
+        nombres: frappByCedula[cedula]?.nombres || '',
+        apellidos: frappByCedula[cedula]?.apellidos || '',
         telefono: frappByCedula[cedula]?.telefono || null,
-        email: frappByCedula[cedula]?.email || wpByCedula[cedula]?.email,
-        crmId: wpByCedula[cedula]?.crmId,
+        email: frappByCedula[cedula]?.email,
         razon: 'Sin cuotas en Strapi'
       });
       return;
@@ -253,13 +193,11 @@ function evaluarCandidatos(wpByCedula, frappByCedula, cuotasByCedula) {
           fecha_limite: c.fecha_limite,
           diasMora: c.estado_pago === 'en_mora' ? calcularDiasMora(c.fecha_limite) : 0
         })),
-        wpId: wpByCedula[cedula]?.wpId,
         frappId: frappByCedula[cedula]?.frappId,
-        nombres: primeraQuota?.nombres || frappByCedula[cedula]?.nombres || wpByCedula[cedula]?.nombres || '',
-        apellidos: primeraQuota?.apellidos || frappByCedula[cedula]?.apellidos || wpByCedula[cedula]?.apellidos || '',
+        nombres: primeraQuota?.nombres || frappByCedula[cedula]?.nombres || '',
+        apellidos: primeraQuota?.apellidos || frappByCedula[cedula]?.apellidos || '',
         telefono: primeraQuota?.celular || frappByCedula[cedula]?.telefono || null,
-        email: primeraQuota?.correo || frappByCedula[cedula]?.email || wpByCedula[cedula]?.email,
-        crmId: wpByCedula[cedula]?.crmId,
+        email: primeraQuota?.correo || frappByCedula[cedula]?.email,
         razon: `Todas las cuotas ≤5 días mora (max: ${maxDiasMora})`
       });
     }
@@ -270,27 +208,10 @@ function evaluarCandidatos(wpByCedula, frappByCedula, cuotasByCedula) {
 }
 
 /**
- * Obtener candidatos a desbloqueo (pasos 1-4)
+ * Obtener candidatos a desbloqueo
  */
 async function obtenerCandidatosDesbloqueo() {
-  // Paso 1: WordPress
-  const wpMorosos = await getWordPressMorosos();
-  const wpByCedula = {};
-  wpMorosos.forEach(u => {
-    const cedula = String(u.user_login);
-    if (cedula) {
-      wpByCedula[cedula] = {
-        wpId: u.id,
-        nombres: u.first_name || '',
-        apellidos: u.last_name || '',
-        email: u.email,
-        roles: u.roles,
-        crmId: u.crmid
-      };
-    }
-  });
-
-  // Paso 2: Frapp
+  // Paso 1: Frapp morosos
   const frappMorosos = await getFrappMorosos();
   const frappByCedula = {};
   frappMorosos.forEach(u => {
@@ -306,25 +227,21 @@ async function obtenerCandidatosDesbloqueo() {
     }
   });
 
-  // Paso 3: Strapi cuotas
-  const todasLasCedulas = [...new Set([
-    ...Object.keys(wpByCedula),
-    ...Object.keys(frappByCedula)
-  ])];
+  // Paso 2: Strapi cuotas
+  const todasLasCedulas = Object.keys(frappByCedula);
 
   if (todasLasCedulas.length === 0) {
-    return { candidatos: [], stats: { wpMorosos: 0, frappMorosos: 0, totalCedulas: 0 } };
+    return { candidatos: [], stats: { frappMorosos: 0, totalCedulas: 0 } };
   }
 
   const cuotasByCedula = await getStrapiCuotas(todasLasCedulas);
 
-  // Paso 4: Evaluar candidatos
-  const candidatos = evaluarCandidatos(wpByCedula, frappByCedula, cuotasByCedula);
+  // Paso 3: Evaluar candidatos
+  const candidatos = evaluarCandidatos(frappByCedula, cuotasByCedula);
 
   return {
     candidatos,
     stats: {
-      wpMorosos: Object.keys(wpByCedula).length,
       frappMorosos: Object.keys(frappByCedula).length,
       totalCedulas: todasLasCedulas.length
     }
@@ -336,7 +253,6 @@ async function obtenerCandidatosDesbloqueo() {
  */
 async function desbloquearUsuario(usuario) {
   const resultados = {
-    wpOk: false,
     frappOk: false,
     strapiOk: false,
     chatOk: false,
@@ -346,32 +262,7 @@ async function desbloquearUsuario(usuario) {
 
   const cedula = usuario.cedula;
 
-  // 1. WordPress - Quitar rol moroso
-  if (usuario.wpId || cedula) {
-    console.log(`Desbloqueando en WordPress: ${cedula}`);
-    try {
-      const wpUrl = `${WP_BASE_URL}/wp-json/almus/v1/unassign_role`;
-      const response = await axios.post(wpUrl,
-        `user_id=${usuario.wpId || cedula}&roles=moroso`,
-        {
-          headers: {
-            'AUTH': WP_AUTH,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          timeout: 15000
-        }
-      );
-      if (response.status === 200) {
-        resultados.wpOk = true;
-        console.log(`✅ WordPress: rol moroso removido`);
-      }
-    } catch (e) {
-      resultados.errores.push(`WordPress: ${e.message}`);
-      console.error(`❌ WordPress error:`, e.message);
-    }
-  }
-
-  // 2. Frapp - Cambiar status a active
+  // 1. Frapp - Cambiar status a active
   if (usuario.frappId) {
     console.log(`Desbloqueando en Frapp: ${usuario.frappId}`);
     try {
@@ -393,7 +284,7 @@ async function desbloquearUsuario(usuario) {
     }
   }
 
-  // 3. Strapi - Registrar en cobranzas
+  // 2. Strapi - Registrar en cobranzas
   try {
     const strapiUrl = `${STRAPI_BASE_URL}/api/cobranzas`;
     const response = await axios.post(strapiUrl,
@@ -418,7 +309,7 @@ async function desbloquearUsuario(usuario) {
     console.error(`❌ Strapi error:`, e.message);
   }
 
-  // 4. Google Chat - Notificar
+  // 3. Google Chat - Notificar
   if (GOOGLE_CHAT_WEBHOOK) {
     try {
       let chatMessage = 'El siguiente estudiante ha sido ✔️ *desbloqueado* en la plataforma por FR360:\n\n';
@@ -450,7 +341,7 @@ async function desbloquearUsuario(usuario) {
     }
   }
 
-  // 5. CRM - Actualizar estado (si tiene crmId)
+  // 4. CRM - Actualizar estado (si tiene crmId)
   if (usuario.crmId && ACTIVECAMPAIGN_API_TOKEN) {
     try {
       const getUrl = `${CRM_API_URL}/api/3/contacts/${usuario.crmId}/fieldValues`;
@@ -492,54 +383,10 @@ async function desbloquearUsuario(usuario) {
 // ============================================================
 
 /**
- * Obtener TODOS los usuarios de WordPress (paginado)
- */
-async function getAllWordPressUsers() {
-  console.log('=== BLOQUEO PASO 1: Consultando TODOS los usuarios en WordPress ===');
-  const allWpUsers = [];
-  let wpPage = 1;
-  const wpPerPage = 5000;
-  let wpHasMore = true;
-
-  while (wpHasMore) {
-    const url = `${WP_BASE_URL}/wp-json/almus/v1/all_users?page=${wpPage}&per_page=${wpPerPage}`;
-
-    try {
-      const response = await axios.get(url, {
-        headers: { 'AUTH': WP_AUTH },
-        timeout: 30000
-      });
-
-      const usuarios = response.data?.users || [];
-      if (usuarios.length === 0) {
-        wpHasMore = false;
-        break;
-      }
-
-      allWpUsers.push(...usuarios);
-      console.log(`WP página ${wpPage}: ${usuarios.length} usuarios (total: ${allWpUsers.length})`);
-
-      if (usuarios.length < wpPerPage) {
-        wpHasMore = false;
-      } else {
-        wpPage++;
-      }
-    } catch (e) {
-      console.error(`Error en WP página ${wpPage}:`, e.message);
-      break;
-    }
-
-    if (wpPage > 10) break;
-  }
-
-  return allWpUsers;
-}
-
-/**
  * Obtener usuarios activos de Frapp (sin status moroso)
  */
 async function getFrappActivos() {
-  console.log('=== BLOQUEO PASO 2: Consultando usuarios activos en Frapp ===');
+  console.log('=== BLOQUEO PASO 1: Consultando usuarios activos en Frapp ===');
   const frappActivos = [];
   let frappPage = 1;
   const frappLimit = 500;
@@ -604,7 +451,7 @@ async function getFrappActivos() {
  * Obtener TODAS las cuotas en mora de Strapi
  */
 async function getStrapiCuotasEnMora() {
-  console.log('=== BLOQUEO PASO 3: Consultando TODAS las cuotas EN MORA desde Strapi ===');
+  console.log('=== BLOQUEO PASO 2: Consultando TODAS las cuotas EN MORA desde Strapi ===');
   const todasLasCuotasEnMora = [];
   let currentPage = 1;
   let totalPages = 1;
@@ -651,46 +498,7 @@ async function getStrapiCuotasEnMora() {
  * Criterio: cuotas con mora >= 6 días Y usuario NO bloqueado
  */
 async function obtenerCandidatosBloqueo() {
-  // Paso 1: Todos los usuarios de WordPress
-  const allWpUsers = await getAllWordPressUsers();
-
-  // Identificar cédulas que YA tienen rol moroso
-  const cedulasConMoroso = new Set();
-  allWpUsers.forEach(u => {
-    if (u.roles) {
-      const rolesStr = Array.isArray(u.roles) ? u.roles.join(',') : String(u.roles);
-      if (rolesStr.toLowerCase().includes('moroso')) {
-        cedulasConMoroso.add(String(u.user_login));
-      }
-    }
-  });
-  console.log(`Cédulas con rol moroso en WP: ${cedulasConMoroso.size}`);
-
-  // Filtrar usuarios SIN rol moroso
-  const wpActivos = allWpUsers.filter(u => {
-    const cedula = String(u.user_login);
-    return !cedulasConMoroso.has(cedula);
-  });
-  console.log(`Usuarios SIN rol moroso en WP: ${wpActivos.length}`);
-
-  // Mapear por cédula
-  const wpByCedula = {};
-  wpActivos.forEach(u => {
-    const cedula = String(u.user_login);
-    if (cedula) {
-      wpByCedula[cedula] = {
-        wpId: u.id,
-        nombres: u.first_name || '',
-        apellidos: u.last_name || '',
-        email: u.email,
-        roles: u.roles,
-        crmId: u.crmid,
-        telefono: u.billing_phone || null
-      };
-    }
-  });
-
-  // Paso 2: Usuarios activos en Frapp
+  // Paso 1: Usuarios activos en Frapp
   const frappActivos = await getFrappActivos();
   const frappByCedula = {};
   frappActivos.forEach(u => {
@@ -707,11 +515,11 @@ async function obtenerCandidatosBloqueo() {
   });
   console.log(`Total cédulas activas en Frapp: ${Object.keys(frappByCedula).length}`);
 
-  // Paso 3: Obtener cuotas en mora de Strapi
+  // Paso 2: Obtener cuotas en mora de Strapi
   const todasLasCuotasEnMora = await getStrapiCuotasEnMora();
 
-  // Paso 4: Filtrar cuotas con mora >= 6 días
-  console.log('=== BLOQUEO PASO 4: Filtrando cuotas con mora >= 6 días ===');
+  // Paso 3: Filtrar cuotas con mora >= 6 días
+  console.log('=== BLOQUEO PASO 3: Filtrando cuotas con mora >= 6 días ===');
   const cuotasMoraGraveByCedula = {};
 
   todasLasCuotasEnMora.forEach(cuota => {
@@ -732,16 +540,15 @@ async function obtenerCandidatosBloqueo() {
   const cedulasConMoraGrave = Object.keys(cuotasMoraGraveByCedula);
   console.log(`Cédulas con mora >= 6 días: ${cedulasConMoraGrave.length}`);
 
-  // Paso 5: Cruzar mora grave con usuarios activos
-  console.log('=== BLOQUEO PASO 5: Evaluando candidatos a bloqueo ===');
+  // Paso 4: Cruzar mora grave con usuarios activos en Frapp
+  console.log('=== BLOQUEO PASO 4: Evaluando candidatos a bloqueo ===');
   const candidatos = [];
 
   cedulasConMoraGrave.forEach(cedula => {
-    const enWP = wpByCedula[cedula];
     const enFrapp = frappByCedula[cedula];
 
-    // Solo si existe en WP (sin rol moroso) o en Frapp (sin status moroso)
-    if (!enWP && !enFrapp) {
+    // Solo si existe en Frapp (sin status moroso)
+    if (!enFrapp) {
       return; // Ya está bloqueado o no existe
     }
 
@@ -750,10 +557,10 @@ async function obtenerCandidatosBloqueo() {
 
     // Obtener datos de la primera cuota
     const primeraQuota = cuotas[0];
-    const celular = primeraQuota.celular || enFrapp?.telefono || enWP?.telefono || null;
-    const nombres = primeraQuota.nombres || enFrapp?.nombres || enWP?.nombres || '';
-    const apellidos = primeraQuota.apellidos || enFrapp?.apellidos || enWP?.apellidos || '';
-    const email = primeraQuota.correo || enFrapp?.email || enWP?.email || null;
+    const celular = primeraQuota.celular || enFrapp?.telefono || null;
+    const nombres = primeraQuota.nombres || enFrapp?.nombres || '';
+    const apellidos = primeraQuota.apellidos || enFrapp?.apellidos || '';
+    const email = primeraQuota.correo || enFrapp?.email || null;
 
     candidatos.push({
       cedula: cedula,
@@ -764,14 +571,11 @@ async function obtenerCandidatosBloqueo() {
         diasMora: c.diasMora
       })),
       maxDiasMora: maxDiasMora,
-      wpId: enWP?.wpId,
       frappId: enFrapp?.frappId,
       nombres: nombres,
       apellidos: apellidos,
       telefono: celular,
       email: email,
-      crmId: enWP?.crmId,
-      activoEnWP: !!enWP,
       activoEnFrapp: !!enFrapp
     });
   });
@@ -782,9 +586,6 @@ async function obtenerCandidatosBloqueo() {
     success: true,
     candidatos,
     stats: {
-      totalWP: allWpUsers.length,
-      wpConMoroso: cedulasConMoroso.size,
-      wpActivos: wpActivos.length,
       frappActivos: Object.keys(frappByCedula).length,
       cuotasEnMora: todasLasCuotasEnMora.length,
       cuotasMoraGrave: cedulasConMoraGrave.length
@@ -797,7 +598,6 @@ async function obtenerCandidatosBloqueo() {
  */
 async function bloquearUsuario(usuario) {
   const resultados = {
-    wpOk: false,
     frappOk: false,
     strapiOk: false,
     chatOk: false,
@@ -808,61 +608,7 @@ async function bloquearUsuario(usuario) {
 
   const cedula = usuario.cedula;
 
-  // 1. WordPress - Asignar rol moroso
-  let wpIdToUse = usuario.wpId;
-
-  // Si no tenemos wpId, intentar obtenerlo
-  if (!wpIdToUse) {
-    console.log(`Buscando usuario en WordPress por cédula: ${cedula}`);
-    try {
-      const wpUserUrl = `${WP_BASE_URL}/wp-json/almus/v1/user?user_id=${cedula}&type=login`;
-      const response = await axios.get(wpUserUrl, {
-        headers: { 'AUTH': WP_AUTH },
-        timeout: 15000
-      });
-
-      if (response.status === 200 && response.data?.user_login) {
-        wpIdToUse = cedula;
-        const rolesStr = String(response.data.roles || '').toLowerCase();
-        if (rolesStr.includes('moroso')) {
-          console.log(`ℹ️ Usuario ya tiene rol moroso en WP`);
-          resultados.wpOk = true;
-          wpIdToUse = null;
-        }
-      }
-    } catch (e) {
-      console.log(`⚠️ Usuario no encontrado en WP: ${e.message}`);
-    }
-  }
-
-  if (wpIdToUse) {
-    console.log(`Bloqueando en WordPress: ${cedula}`);
-    try {
-      const wpUrl = `${WP_BASE_URL}/wp-json/almus/v1/assign_role`;
-      const response = await axios.post(wpUrl,
-        `user_id=${wpIdToUse}&roles=moroso`,
-        {
-          headers: {
-            'AUTH': WP_AUTH,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          timeout: 15000
-        }
-      );
-      if (response.status === 200) {
-        resultados.wpOk = true;
-        console.log(`✅ WordPress: rol moroso asignado`);
-      }
-    } catch (e) {
-      resultados.errores.push(`WordPress: ${e.message}`);
-      console.error(`❌ WordPress error:`, e.message);
-    }
-  } else if (!resultados.wpOk) {
-    resultados.wpOk = true; // No existe en WP, se considera ok
-    console.log('⊗ WordPress: Sin wpId, omitido');
-  }
-
-  // 2. Frapp - Cambiar status a moroso
+  // 1. Frapp - Cambiar status a moroso
   if (usuario.frappId) {
     console.log(`Bloqueando en Frapp: ${usuario.frappId}`);
     try {
@@ -887,12 +633,12 @@ async function bloquearUsuario(usuario) {
     console.log('⊗ Frapp: Sin frappId, omitido');
   }
 
-  // Verificar si al menos uno fue exitoso
-  if (!resultados.wpOk && !resultados.frappOk) {
+  // Verificar si fue exitoso
+  if (!resultados.frappOk) {
     return resultados;
   }
 
-  // 3. Strapi - Registrar bloqueo en cobranzas
+  // 2. Strapi - Registrar bloqueo en cobranzas
   try {
     const strapiUrl = `${STRAPI_BASE_URL}/api/cobranzas`;
     const response = await axios.post(strapiUrl,
@@ -917,7 +663,7 @@ async function bloquearUsuario(usuario) {
     console.error(`❌ Strapi error:`, e.message);
   }
 
-  // 4. Google Chat - Notificar bloqueo
+  // 3. Google Chat - Notificar bloqueo
   if (GOOGLE_CHAT_WEBHOOK) {
     try {
       let chatMessage = 'El siguiente estudiante ha sido ✖️ *bloqueado* en la plataforma por FR360:\n\n';
@@ -944,7 +690,7 @@ async function bloquearUsuario(usuario) {
     }
   }
 
-  // 5. CRM - Actualizar estado a "Dado de baja por mora"
+  // 4. CRM - Actualizar estado a "Dado de baja por mora"
   if (usuario.crmId && ACTIVECAMPAIGN_API_TOKEN) {
     try {
       const getUrl = `${CRM_API_URL}/api/3/contacts/${usuario.crmId}/fieldValues`;
@@ -978,7 +724,7 @@ async function bloquearUsuario(usuario) {
     }
   }
 
-  // 6. Callbell - Enviar mensaje WhatsApp
+  // 5. Callbell - Enviar mensaje WhatsApp
   if (usuario.telefono && CALLBELL_API_KEY) {
     try {
       const callbellUrl = 'https://api.callbell.eu/v1/messages/send';

@@ -40,7 +40,7 @@
     buscarBtn.disabled = true;
     buscarBtn.innerHTML = '<span class="spinner"></span> Buscando...';
     resultsContainer.innerHTML = '';
-    showStatus('Consultando WordPress, Frapp y Strapi... (esto puede tomar varios minutos)');
+    showStatus('Consultando Frapp y Strapi... (esto puede tomar varios minutos)');
 
     try {
       const response = await fetch('/api/obtenerCandidatosBloqueo', {
@@ -93,7 +93,6 @@
     const html = `
       <div style="margin-bottom: 16px; padding: 12px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3; color: #0d47a1;">
         <strong>📊 Estadísticas:</strong>
-        Total WP: ${stats.totalWP || 0} | WP con moroso: ${stats.wpConMoroso || 0} | WP activos: ${stats.wpActivos || 0} |
         Frapp activos: ${stats.frappActivos || 0} | Cuotas en mora: ${stats.cuotasEnMora || 0} | Mora grave (>=6d): ${stats.cuotasMoraGrave || 0}
       </div>
       <div style="margin-bottom: 16px; padding: 12px; background: #f8d7da; border-radius: 8px; border-left: 4px solid #dc3545; color: #721c24;">
@@ -168,7 +167,6 @@
 
     // Build actions info
     let accionesInfo = '\n\nAcciones a ejecutar:\n';
-    if (candidato.activoEnWP) accionesInfo += '• WordPress: Asignar rol "moroso"\n';
     if (candidato.activoEnFrapp) accionesInfo += '• Frapp: Cambiar status a "moroso"\n';
     accionesInfo += '• Strapi: Registrar bloqueo\n';
     accionesInfo += '• Google Chat: Notificar bloqueo\n';
@@ -221,7 +219,6 @@
 
       // Build result message
       let resultMsg = `Resultados para ${nombreCompleto}:\n\n`;
-      resultMsg += `WordPress: ${result.wpOk ? '✅' : '❌'}\n`;
       resultMsg += `Frapp: ${result.frappOk ? '✅' : '❌'}\n`;
       resultMsg += `Strapi: ${result.strapiOk ? '✅' : '❌'}\n`;
       resultMsg += `Google Chat: ${result.chatOk ? '✅' : '❌'}\n`;
@@ -237,7 +234,7 @@
       }
 
       // Success - update UI
-      const allOk = result.wpOk || result.frappOk;
+      const allOk = result.frappOk;
       row.style.background = allOk ? '#f8d7da' : '#fff3cd';
       btn.innerHTML = allOk ? '🔒 Bloqueado' : '⚠️ Parcial';
       btn.style.background = allOk ? '#dc3545' : '#ffc107';

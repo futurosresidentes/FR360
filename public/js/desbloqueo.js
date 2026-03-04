@@ -46,7 +46,7 @@
     buscarBtn.disabled = true;
     buscarBtn.innerHTML = '<span class="spinner"></span> Buscando...';
     resultsContainer.innerHTML = '';
-    showStatus('Consultando WordPress, Frapp y Strapi... (esto puede tomar varios minutos)');
+    showStatus('Consultando Frapp y Strapi... (esto puede tomar varios minutos)');
 
     try {
       const response = await fetch('/api/obtenerCandidatosDesbloqueo', {
@@ -69,7 +69,7 @@
         resultsContainer.innerHTML = `
           <div style="padding: 20px; background: #d4edda; border-radius: 8px; border-left: 4px solid #28a745; color: #155724;">
             <strong>✅ Sin candidatos para desbloqueo</strong><br>
-            Se revisaron ${stats.totalCedulas || 0} usuarios morosos (WP: ${stats.wpMorosos || 0}, Frapp: ${stats.frappMorosos || 0}).<br>
+            Se revisaron ${stats.totalCedulas || 0} usuarios morosos en Frapp.<br>
             Ninguno cumple los criterios (mora ≤5 días en todas las cuotas).
           </div>
         `;
@@ -99,7 +99,7 @@
     const html = `
       <div style="margin-bottom: 16px; padding: 12px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3; color: #0d47a1;">
         <strong>📊 Estadísticas:</strong>
-        WP morosos: ${stats.wpMorosos || 0} | Frapp morosos: ${stats.frappMorosos || 0} | Total cédulas: ${stats.totalCedulas || 0}
+        Morosos en Frapp: ${stats.frappMorosos || 0} | Total cédulas: ${stats.totalCedulas || 0}
       </div>
       <div style="margin-bottom: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107; color: #856404;">
         <strong>⚠️ Encontrados ${candidatos.length} candidato(s) para desbloqueo</strong><br>
@@ -179,7 +179,6 @@
       `📝 Razón: ${candidato.razon}` +
       cuotasInfo +
       `\n\nEsta acción:\n` +
-      `• Quitará rol "moroso" en WordPress\n` +
       `• Cambiará status a "active" en Frapp\n` +
       `• Registrará desbloqueo en Strapi\n` +
       `• Enviará notificación al chat de Cobranza`
@@ -218,7 +217,6 @@
 
       // Build result message
       let resultMsg = `Resultados para ${nombreCompleto}:\n\n`;
-      resultMsg += `WordPress: ${result.wpOk ? '✅' : '❌'}\n`;
       resultMsg += `Frapp: ${result.frappOk ? '✅' : '❌'}\n`;
       resultMsg += `Strapi: ${result.strapiOk ? '✅' : '❌'}\n`;
       resultMsg += `Google Chat: ${result.chatOk ? '✅' : '❌'}\n`;
@@ -231,7 +229,7 @@
       }
 
       // Success - update UI
-      const allOk = result.wpOk || result.frappOk; // At least one platform worked
+      const allOk = result.frappOk;
       row.style.background = allOk ? '#d4edda' : '#fff3cd';
       btn.innerHTML = allOk ? '✅ Desbloqueado' : '⚠️ Parcial';
       btn.style.background = allOk ? '#28a745' : '#ffc107';
