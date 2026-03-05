@@ -2307,7 +2307,27 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
 
       case 'registrarOtrosi': {
         const otrosiData = args[0];
-        otrosiData.userAccessToken = req.user?.accessToken || null;
+
+        // Refrescar accessToken usando refreshToken si está disponible
+        let freshAccessToken = req.user?.accessToken || null;
+        if (req.user?.refreshToken) {
+          try {
+            const { OAuth2Client } = require('google-auth-library');
+            const oauth2Client = new OAuth2Client(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET
+            );
+            oauth2Client.setCredentials({ refresh_token: req.user.refreshToken });
+            const { credentials } = await oauth2Client.refreshAccessToken();
+            freshAccessToken = credentials.access_token;
+            req.user.accessToken = freshAccessToken;
+            console.log('[registrarOtrosi] AccessToken refrescado con refreshToken');
+          } catch (refreshError) {
+            console.error('[registrarOtrosi] Error refrescando token:', refreshError.message);
+          }
+        }
+
+        otrosiData.userAccessToken = freshAccessToken;
         result = await fr360Service.registrarOtrosi(otrosiData);
         break;
       }
