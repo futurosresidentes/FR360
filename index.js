@@ -2540,13 +2540,33 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
           // No fallar por AUCO - los registros en Strapi ya se crearon
         }
 
+        // 3. Enviar notificación WhatsApp vía Callbell
+        let callbellSent = false;
+        try {
+          if (celular && linksNormales[0]) {
+            console.log('[crearAcuerdo] === PASO 3: Notificación Callbell ===');
+            const primeraFechaObj = new Date(planPagos[0].fecha);
+            const primeraFechaStr = `${primeraFechaObj.getDate()}/${primeraFechaObj.getMonth() + 1}/${primeraFechaObj.getFullYear()}`;
+
+            const callbellResult = await callbellService.sendAcuerdoNotification(
+              celular, correo, planPagos[0].valor, primeraFechaStr, linksNormales[0]
+            );
+            callbellSent = callbellResult.success;
+            console.log('[crearAcuerdo] Callbell resultado:', callbellResult);
+          }
+        } catch (callbellError) {
+          console.error('[crearAcuerdo] Error en Callbell:', callbellError.message);
+          // No fallar por Callbell - el acuerdo ya fue creado
+        }
+
         result = {
           success: true,
           nroAcuerdo: strapiResult.nroAcuerdo,
           nombreArchivo: `Acuerdo de pago nro. ${strapiResult.nroAcuerdo}. Membresía ${productoNombre}`,
           aucoDocumentId: aucoResult?.documentId || null,
           htmlPreview: aucoResult?.htmlPreview || '',
-          carterasCreadas: strapiResult.carterasCreadas
+          carterasCreadas: strapiResult.carterasCreadas,
+          callbellSent: callbellSent
         };
         break;
       }

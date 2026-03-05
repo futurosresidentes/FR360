@@ -266,9 +266,68 @@ async function checkMessageStatus(messageUuid) {
   }
 }
 
+/**
+ * Send acuerdo (agreement) notification via Callbell WhatsApp
+ * Template values: [correo, primeraCuota, primeraFecha, primerLink]
+ * @param {string} phoneNumber - Phone number
+ * @param {string} correo - Email
+ * @param {number} primeraCuota - First payment amount
+ * @param {string} primeraFecha - First payment date (dd/mm/yyyy)
+ * @param {string} primerLink - First payment link URL
+ * @returns {Promise<Object>} Message result
+ */
+async function sendAcuerdoNotification(phoneNumber, correo, primeraCuota, primeraFecha, primerLink) {
+  const templateUuid = process.env.CALLBELL_ACUERDO_TEMPLATE_UUID;
+  if (!templateUuid) {
+    console.error('❌ CALLBELL_ACUERDO_TEMPLATE_UUID no configurada');
+    return { success: false, error: 'MISSING_CONFIG', message: 'Template UUID de acuerdos no configurado' };
+  }
+
+  const normalizedPhone = normalizeColombianPhone(phoneNumber);
+  if (!normalizedPhone) {
+    return { success: false, error: 'INVALID_PHONE', message: 'Número de teléfono inválido' };
+  }
+
+  // Formatear cuota con puntos de miles (ej: 1.250.000)
+  const cuotaFormateada = Number(primeraCuota).toLocaleString('en-US').replace(/,/g, '.');
+
+  const url = `${CALLBELL_BASE_URL}/messages/send`;
+  const payload = {
+    to: normalizedPhone,
+    from: 'whatsapp',
+    type: 'text',
+    content: { text: 'Pago' },
+    template_values: [correo, cuotaFormateada, primeraFecha, primerLink],
+    template_uuid: templateUuid,
+    optin_contact: true
+  };
+
+  console.log('📤 [Acuerdo] Enviando notificación Callbell a:', normalizedPhone);
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${CALLBELL_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200 || response.status === 201) {
+      console.log('✅ [Acuerdo] Notificación Callbell enviada:', response.data.message?.uuid);
+      return { success: true, messageUuid: response.data.message?.uuid };
+    }
+    console.error('❌ [Acuerdo] Callbell status inesperado:', response.status);
+    return { success: false, error: 'UNEXPECTED_STATUS', message: `HTTP ${response.status}` };
+  } catch (error) {
+    console.error('❌ [Acuerdo] Error Callbell:', error.response?.data || error.message);
+    return { success: false, error: 'SEND_FAILED', message: error.response?.data?.message || error.message };
+  }
+}
+
 module.exports = {
   normalizeColombianPhone,
   getCallbellContact,
   sendWhatsAppMessage,
-  checkMessageStatus
+  checkMessageStatus,
+  sendAcuerdoNotification
 };
