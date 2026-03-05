@@ -4110,25 +4110,22 @@
     }
 
     function validatePhone(phone) {
-      // Usuarios que pueden ingresar cualquier número de celular
-      const celularBypassUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
-      if (celularBypassUsers.includes(USER_EMAIL)) {
-        return phone.trim().length > 0;
+      const cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
+      if (!cleanPhone) return false;
+
+      // Si parece colombiano (empieza con 3, 57 o +57) → validar estrictamente 10 dígitos
+      if (cleanPhone.startsWith('+573') && cleanPhone.length === 13) return true;
+      if (cleanPhone.startsWith('573') && cleanPhone.length === 12) return true;
+      if (cleanPhone.startsWith('3') && !cleanPhone.startsWith('+')) {
+        return cleanPhone.length === 10;
       }
 
-      const cleanPhone = phone.replace(/\s/g, '');
-      // 10 characters starting with 3
-      if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) {
-        return true;
+      // Si tiene prefijo internacional (+ pero no +57) → aceptar entre 8 y 15 dígitos (E.164)
+      if (cleanPhone.startsWith('+')) {
+        const digits = cleanPhone.slice(1);
+        return /^\d+$/.test(digits) && digits.length >= 8 && digits.length <= 15;
       }
-      // 12 characters starting with 573
-      if (cleanPhone.length === 12 && cleanPhone.startsWith('573')) {
-        return true;
-      }
-      // 13 characters starting with +57
-      if (cleanPhone.length === 13 && cleanPhone.startsWith('+57')) {
-        return true;
-      }
+
       return false;
     }
 
@@ -4233,7 +4230,7 @@
       // Validate phone
       const phone = celular.value.trim();
       if (!validatePhone(phone)) {
-        alert('Por favor revise el celular ingresado. Formatos válidos:\n- 10 dígitos comenzando con 3\n- 12 dígitos comenzando con 573\n- 13 dígitos comenzando con +57');
+        alert('Por favor revise el celular ingresado. Formatos válidos:\n- Colombia: 10 dígitos comenzando con 3 (ej: 3001234567)\n- Colombia: con prefijo +57 (ej: +573001234567)\n- Internacional: con prefijo + del país (ej: +5215512345678)');
         return false;
       }
 
@@ -4872,7 +4869,8 @@
           duracion = `${dias}d (${meses}m)`;
         }
 
-        html += '<tr><td>' + e.id + '</td>'
+        html += '<tr data-plan-id="' + (e.plan?.id || '') + '" data-version-id="' + (e.planVersion?.id || '') + '">'
+              +  '<td>' + e.id + '</td>'
               +  '<td>' + planName + '</td>'
               +  '<td>' + versionLabel + '</td>'
               +  '<td>' + origin + '</td>'
@@ -5017,11 +5015,40 @@
     function enterEditMode(tr, options) {
       var cells = tr.querySelectorAll('td');
       // Columnas: 0=Id, 1=Plan, 2=Versión, 3=Origen, 4=Inicio, 5=Fin, 6=Duración, 7=Estado, 8=Acciones
-      var idxInicio = 4, idxFin = 5, idxEstado = 7, idxAcc = 8;
+      var idxVersion = 2, idxInicio = 4, idxFin = 5, idxEstado = 7, idxAcc = 8;
 
-      var origInicio = cells[idxInicio].textContent.trim();
-      var origFin    = cells[idxFin].textContent.trim();
-      var origEstado = cells[idxEstado].textContent.trim();
+      var origVersion = cells[idxVersion].textContent.trim();
+      var origInicio  = cells[idxInicio].textContent.trim();
+      var origFin     = cells[idxFin].textContent.trim();
+      var origEstado  = cells[idxEstado].textContent.trim();
+
+      // Leer IDs de plan y versión desde data-attributes de la fila
+      var currentPlanId    = Number(tr.getAttribute('data-plan-id')) || 0;
+      var currentVersionId = Number(tr.getAttribute('data-version-id')) || 0;
+
+      // Cargar versiones del plan actual en un dropdown
+      cells[idxVersion].innerHTML = '<select class="edit-version"><option value="' + currentVersionId + '" selected>' + origVersion + ' (cargando…)</option></select>';
+      var versionSelect = cells[idxVersion].querySelector('select.edit-version');
+
+      api.getActiveMembershipPlans().then(function(allVersions) {
+        // Filtrar solo versiones del mismo plan
+        var planVersions = allVersions.filter(function(v) { return v.planId === currentPlanId; });
+        versionSelect.innerHTML = '';
+        if (planVersions.length === 0) {
+          versionSelect.innerHTML = '<option value="' + currentVersionId + '" selected>' + origVersion + '</option>';
+        } else {
+          planVersions.forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v.id;
+            opt.textContent = v.versionLabel;
+            if (v.id === currentVersionId) opt.selected = true;
+            versionSelect.appendChild(opt);
+          });
+        }
+      }).catch(function(err) {
+        console.error('Error cargando versiones:', err);
+        versionSelect.innerHTML = '<option value="' + currentVersionId + '" selected>' + origVersion + '</option>';
+      });
 
       cells[idxInicio].innerHTML = '<input type="date" class="edit-date" value="' + toISODate(origInicio) + '">';
       cells[idxFin].innerHTML    = '<input type="date" class="edit-date" value="' + toISODate(origFin) + '">';
@@ -5056,6 +5083,9 @@
         if (!statusSelect) return alert('No encontré el campo de estado.');
         var newStatus = statusSelect.value;
 
+        var versionSel = tr.querySelector('select.edit-version');
+        var newVersionId = versionSel ? Number(versionSel.value) : currentVersionId;
+
         // Pedir motivo
         var reason;
         do {
@@ -5068,9 +5098,13 @@
         if (newStatus !== origEstado) body.status = newStatus;
         if (newStart !== toISODate(origInicio)) body.startDate = newStart;
         if (newExpiry !== toISODate(origFin)) body.expiryDate = newExpiry;
+        if (newVersionId !== currentVersionId) {
+          body.planId = currentPlanId;
+          body.planVersionId = newVersionId;
+        }
 
         // Verificar que al menos un campo cambió
-        if (!body.status && !body.startDate && !body.expiryDate) {
+        if (!body.status && !body.startDate && !body.expiryDate && !body.planVersionId) {
           return alert('No se detectaron cambios.');
         }
 
