@@ -7033,11 +7033,20 @@
         return;
       }
 
-      const nuevoCelular = normalizarCelular(inputValue);
+      // Usuarios autorizados pueden ingresar celulares internacionales
+      const celularBypassUsers = ['daniel.cardona@sentiretaller.com', 'alex.lopez@sentiretaller.com', 'eliana.montilla@sentiretaller.com'];
+      const isBypassUser = celularBypassUsers.includes(USER_EMAIL);
 
-      if (!nuevoCelular) {
-        alert('❌ El número ingresado no es un celular colombiano válido.\nFormatos aceptados: 3XXXXXXXXX, 573XXXXXXXXX o +573XXXXXXXXX');
-        return;
+      let nuevoCelular;
+      if (isBypassUser) {
+        // Intentar normalizar como colombiano, si no, aceptar tal cual
+        nuevoCelular = normalizarCelular(inputValue) || inputValue;
+      } else {
+        nuevoCelular = normalizarCelular(inputValue);
+        if (!nuevoCelular) {
+          alert('❌ El número ingresado no es un celular colombiano válido.\nFormatos aceptados: 3XXXXXXXXX, 573XXXXXXXXX o +573XXXXXXXXX');
+          return;
+        }
       }
 
       // Confirmación final
