@@ -36,7 +36,10 @@
   }
 
   // Search for candidates to block
+  let buscandoCandidatos = false;
   async function buscarCandidatos() {
+    if (buscandoCandidatos) return;
+    buscandoCandidatos = true;
     buscarBtn.disabled = true;
     buscarBtn.innerHTML = '<span class="spinner"></span> Buscando...';
     resultsContainer.innerHTML = '';
@@ -83,6 +86,7 @@
         </div>
       `;
     } finally {
+      buscandoCandidatos = false;
       buscarBtn.disabled = false;
       buscarBtn.innerHTML = '🔍 Buscar Candidatos a Bloqueo';
     }
