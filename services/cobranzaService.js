@@ -387,65 +387,60 @@ async function desbloquearUsuario(usuario) {
  */
 async function getFrappActivos() {
   console.log('=== BLOQUEO PASO 1: Consultando usuarios activos en Frapp ===');
+  const frappActivos = [];
+  let frappPage = 1;
   const frappLimit = 500;
+  let frappHasMore = true;
 
-  function mapUsuarios(usuarios) {
-    return usuarios
-      .filter(u => {
-        const status = (u.status || '').toString().toLowerCase();
-        return status !== 'moroso';
-      })
-      .map(u => ({
-        _id: u.id,
-        numero_documento: u.identityDocument,
-        nombres: u.givenName,
-        apellidos: u.familyName,
-        telefono: u.phoneNumber || u.phone || null,
-        email: u.email
-      }));
-  }
+  while (frappHasMore) {
+    const url = `${FRAPP_BASE_URL}/api/users-memberships?page=${frappPage}&limit=${frappLimit}`;
 
-  async function fetchPage(page) {
-    const url = `${FRAPP_BASE_URL}/api/users-memberships?page=${page}&limit=${frappLimit}`;
-    const response = await axios.get(url, {
-      headers: { 'x-api-key': FRAPP_API_KEY_ADMIN_READ },
-      timeout: 30000
-    });
-    return response.data;
-  }
+    try {
+      const response = await axios.get(url, {
+        headers: { 'x-api-key': FRAPP_API_KEY_ADMIN_READ },
+        timeout: 30000
+      });
 
-  // Primera página para saber el total
-  const firstData = await fetchPage(1);
-  const firstUsers = firstData?.users || [];
-  if (firstUsers.length === 0) return [];
+      if (response.status === 403) {
+        console.error('Error 403 en Frapp - Sin permisos');
+        break;
+      }
 
-  const frappActivos = mapUsuarios(firstUsers);
-  console.log(`Frapp página 1: ${frappActivos.length} usuarios activos (de ${firstUsers.length} totales)`);
+      const usuarios = response.data?.users || [];
+      if (usuarios.length === 0) {
+        frappHasMore = false;
+        break;
+      }
 
-  // Estimar total de páginas y consultar el resto en paralelo
-  const totalPages = firstData?.pagination?.totalPages || Math.ceil((firstData?.pagination?.total || firstUsers.length) / frappLimit);
-  if (totalPages > 1) {
-    const pageNumbers = [];
-    for (let p = 2; p <= Math.min(totalPages, 50); p++) pageNumbers.push(p);
+      // Filtrar solo los que NO tienen status moroso
+      const usuariosMapeados = usuarios
+        .filter(u => {
+          const status = (u.status || '').toString().toLowerCase();
+          return status !== 'moroso';
+        })
+        .map(u => ({
+          _id: u.id,
+          numero_documento: u.identityDocument,
+          nombres: u.givenName,
+          apellidos: u.familyName,
+          telefono: u.phoneNumber || u.phone || null,
+          email: u.email
+        }));
 
-    // Lanzar en lotes de 5 para no saturar
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < pageNumbers.length; i += BATCH_SIZE) {
-      const batch = pageNumbers.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(batch.map(async (page) => {
-        try {
-          const data = await fetchPage(page);
-          const usuarios = data?.users || [];
-          const mapped = mapUsuarios(usuarios);
-          console.log(`Frapp página ${page}: ${mapped.length} usuarios activos (de ${usuarios.length} totales)`);
-          return mapped;
-        } catch (e) {
-          console.error(`Error en Frapp página ${page}:`, e.message);
-          return [];
-        }
-      }));
-      results.forEach(r => frappActivos.push(...r));
+      frappActivos.push(...usuariosMapeados);
+      console.log(`Frapp página ${frappPage}: ${usuariosMapeados.length} usuarios activos (de ${usuarios.length} totales)`);
+
+      if (response.data?.pagination?.hasNextPage === false || usuarios.length < frappLimit) {
+        frappHasMore = false;
+      } else {
+        frappPage++;
+      }
+    } catch (e) {
+      console.error(`Error en Frapp página ${frappPage}:`, e.message);
+      break;
     }
+
+    if (frappPage > 50) break;
   }
 
   console.log(`Total usuarios activos en Frapp: ${frappActivos.length}`);
@@ -457,48 +452,41 @@ async function getFrappActivos() {
  */
 async function getStrapiCuotasEnMora() {
   console.log('=== BLOQUEO PASO 2: Consultando TODAS las cuotas EN MORA desde Strapi ===');
+  const todasLasCuotasEnMora = [];
+  let currentPage = 1;
+  let totalPages = 1;
 
-  async function fetchPage(page) {
+  while (currentPage <= totalPages) {
     const queryParts = [
       'filters[estado_pago][$eq]=en_mora',
       'filters[estado_firma][$eq]=firmado',
       'pagination[pageSize]=100',
-      `pagination[page]=${page}`
+      `pagination[page]=${currentPage}`
     ];
+
     const url = `${STRAPI_BASE_URL}/api/carteras?${queryParts.join('&')}`;
-    return axios.get(url, {
-      headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` },
-      timeout: 30000
-    });
-  }
 
-  // Primera página para saber el total
-  const firstResp = await fetchPage(1);
-  const todasLasCuotasEnMora = [...(firstResp.data?.data || [])];
-  const totalPages = firstResp.data?.meta?.pagination?.pageCount || 1;
-  console.log(`Página 1/${totalPages}: ${todasLasCuotasEnMora.length} cuotas en mora`);
+    try {
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${STRAPI_TOKEN}` },
+        timeout: 30000
+      });
 
-  if (totalPages > 1) {
-    const pageNumbers = [];
-    for (let p = 2; p <= totalPages; p++) pageNumbers.push(p);
+      if (response.data?.data) {
+        todasLasCuotasEnMora.push(...response.data.data);
 
-    // Lanzar en lotes de 5
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < pageNumbers.length; i += BATCH_SIZE) {
-      const batch = pageNumbers.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(batch.map(async (page) => {
-        try {
-          const resp = await fetchPage(page);
-          const data = resp.data?.data || [];
-          console.log(`Página ${page}/${totalPages}: ${data.length} cuotas en mora`);
-          return data;
-        } catch (e) {
-          console.error(`Error en página ${page}:`, e.message);
-          return [];
+        if (response.data.meta?.pagination) {
+          totalPages = response.data.meta.pagination.pageCount;
+          console.log(`Página ${currentPage}/${totalPages}: ${response.data.data.length} cuotas en mora`);
         }
-      }));
-      results.forEach(r => todasLasCuotasEnMora.push(...r));
+      }
+    } catch (e) {
+      console.error(`Error en página ${currentPage}:`, e.message);
+      break;
     }
+
+    currentPage++;
+    await new Promise(r => setTimeout(r, 300));
   }
 
   console.log(`Total cuotas en mora obtenidas: ${todasLasCuotasEnMora.length}`);
