@@ -7151,5 +7151,24 @@
       }, 1000);
     });
 
+    // Cargar comerciales dinámicamente desde Strapi
+    async function loadComerciales() {
+      const comercialSelect = document.getElementById('comercial');
+      try {
+        const comerciales = await api.getComerciales();
+        comercialSelect.innerHTML = '<option value="" disabled selected>Selecciona tu nombre</option>';
+        comerciales.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.nombre;
+          opt.textContent = c.nombre;
+          comercialSelect.appendChild(opt);
+        });
+      } catch (error) {
+        console.error('Error cargando comerciales:', error);
+        comercialSelect.innerHTML = '<option value="" disabled selected>Error al cargar comerciales</option>';
+      }
+    }
+
     // Inicializar
     loadProductos();
+    loadComerciales();

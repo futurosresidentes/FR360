@@ -1152,7 +1152,7 @@ async function fetchCarteraByAcuerdo(nroAcuerdo) {
  * @returns {Promise<Array>} Array of comerciales with id and nombre
  */
 async function getComerciales() {
-  const url = `${STRAPI_BASE_URL}/api/comerciales?pagination[pageSize]=200&sort=nombre:asc`;
+  const url = `${STRAPI_BASE_URL}/api/comerciales?pagination[pageSize]=200&sort=nombre:asc&filters[activo][$eq]=true&filters[es_comercial][$eq]=true`;
 
   try {
     const response = await axios.get(url, {
