@@ -2117,6 +2117,30 @@ app.post('/api/paz-y-salvo', ensureAuthenticated, ensureDomain, async (req, res)
   }
 });
 
+// Dedicated route for obtenerCandidatosBloqueo (long-running, needs keep-alive)
+app.post('/api/obtenerCandidatosBloqueo', ensureAuthenticated, ensureDomain, async (req, res) => {
+  console.log('📞 API Call: obtenerCandidatosBloqueo (dedicated route)');
+
+  // Keep connection alive by sending spaces periodically
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const keepAlive = setInterval(() => {
+    try { res.write(' '); } catch (e) { /* connection closed */ }
+  }, 5000);
+
+  try {
+    const result = await cobranzaService.obtenerCandidatosBloqueo();
+    clearInterval(keepAlive);
+    res.end(JSON.stringify({ success: true, result }));
+  } catch (error) {
+    clearInterval(keepAlive);
+    console.error('❌ Error in obtenerCandidatosBloqueo:', error);
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+});
+
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
 app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
@@ -2661,9 +2685,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         break;
 
       // === COBRANZA / BLOQUEO ===
-      case 'obtenerCandidatosBloqueo':
-        result = await cobranzaService.obtenerCandidatosBloqueo();
-        break;
+      // obtenerCandidatosBloqueo moved to dedicated route (long-running)
 
       case 'bloquearUsuario':
         // args[0] = objeto usuario con: cedula, nombres, apellidos, cuotas, etc.
