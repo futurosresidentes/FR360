@@ -2117,6 +2117,15 @@ app.post('/api/paz-y-salvo', ensureAuthenticated, ensureDomain, async (req, res)
   }
 });
 
+// DEBUG: test endpoint sin auth para diagnóstico de timeout
+app.get('/api/test-timeout/:ms', async (req, res) => {
+  const ms = Number(req.params.ms) || 1000;
+  console.log(`⏱️ test-timeout: esperando ${ms}ms...`);
+  await new Promise(r => setTimeout(r, ms));
+  console.log(`⏱️ test-timeout: completado después de ${ms}ms`);
+  res.json({ ok: true, delay: ms });
+});
+
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
 app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
