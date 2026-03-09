@@ -385,7 +385,7 @@ async function desbloquearUsuario(usuario) {
 /**
  * Obtener usuarios activos de Frapp (sin status moroso)
  */
-async function getFrappActivos() {
+async function getFrappActivos(isAborted = () => false) {
   console.log('=== BLOQUEO PASO 1: Consultando usuarios activos en Frapp ===');
   const frappActivos = [];
   let frappPage = 1;
@@ -393,6 +393,10 @@ async function getFrappActivos() {
   let frappHasMore = true;
 
   while (frappHasMore) {
+    if (isAborted()) {
+      console.log('⛔ getFrappActivos abortado: cliente desconectado');
+      break;
+    }
     const url = `${FRAPP_BASE_URL}/api/users-memberships?page=${frappPage}&limit=${frappLimit}`;
 
     try {
@@ -450,13 +454,17 @@ async function getFrappActivos() {
 /**
  * Obtener TODAS las cuotas en mora de Strapi
  */
-async function getStrapiCuotasEnMora() {
+async function getStrapiCuotasEnMora(isAborted = () => false) {
   console.log('=== BLOQUEO PASO 2: Consultando TODAS las cuotas EN MORA desde Strapi ===');
   const todasLasCuotasEnMora = [];
   let currentPage = 1;
   let totalPages = 1;
 
   while (currentPage <= totalPages) {
+    if (isAborted()) {
+      console.log('⛔ getStrapiCuotasEnMora abortado: cliente desconectado');
+      break;
+    }
     const queryParts = [
       'filters[estado_pago][$eq]=en_mora',
       'filters[estado_firma][$eq]=firmado',
@@ -497,9 +505,10 @@ async function getStrapiCuotasEnMora() {
  * Obtener candidatos a bloqueo
  * Criterio: cuotas con mora >= 6 días Y usuario NO bloqueado
  */
-async function obtenerCandidatosBloqueo() {
+async function obtenerCandidatosBloqueo(isAborted = () => false) {
   // Paso 1: Usuarios activos en Frapp
-  const frappActivos = await getFrappActivos();
+  const frappActivos = await getFrappActivos(isAborted);
+  if (isAborted()) throw new Error('Operación cancelada: cliente desconectado');
   const frappByCedula = {};
   frappActivos.forEach(u => {
     const cedula = String(u.numero_documento);
@@ -516,7 +525,8 @@ async function obtenerCandidatosBloqueo() {
   console.log(`Total cédulas activas en Frapp: ${Object.keys(frappByCedula).length}`);
 
   // Paso 2: Obtener cuotas en mora de Strapi
-  const todasLasCuotasEnMora = await getStrapiCuotasEnMora();
+  const todasLasCuotasEnMora = await getStrapiCuotasEnMora(isAborted);
+  if (isAborted()) throw new Error('Operación cancelada: cliente desconectado');
 
   // Paso 3: Filtrar cuotas con mora >= 6 días
   console.log('=== BLOQUEO PASO 3: Filtrando cuotas con mora >= 6 días ===');

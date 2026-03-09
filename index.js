@@ -2117,15 +2117,6 @@ app.post('/api/paz-y-salvo', ensureAuthenticated, ensureDomain, async (req, res)
   }
 });
 
-// DEBUG: test endpoint sin auth para diagnóstico de timeout
-app.get('/api/test-timeout/:ms', async (req, res) => {
-  const ms = Number(req.params.ms) || 1000;
-  console.log(`⏱️ test-timeout: esperando ${ms}ms...`);
-  await new Promise(r => setTimeout(r, ms));
-  console.log(`⏱️ test-timeout: completado después de ${ms}ms`);
-  res.json({ ok: true, delay: ms });
-});
-
 // Universal POST handler for API client compatibility
 // Mapea las llamadas POST del cliente a las funciones de servicio correctas
 app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, res) => {
@@ -2134,21 +2125,20 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
 
   console.log(`📞 API Call: ${functionName}`, args);
 
+  // Detectar si el cliente se desconecta para abortar operaciones largas
+  let clientDisconnected = false;
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+      console.log(`⚠️ Cliente desconectado durante ${functionName}`);
+    }
+  });
+
   try {
     let result;
 
     // Mapear nombres de funciones a sus implementaciones
     switch (functionName) {
-      // === TEST: diagnóstico de timeout ===
-      case 'testSlow': {
-        const delay = Number(args[0]) || 3000;
-        console.log(`⏱️ testSlow: esperando ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
-        console.log(`⏱️ testSlow: completado`);
-        result = { ok: true, delay };
-        break;
-      }
-
       // === CITIZEN & CRM ===
       case 'getCitizenServer':
         result = await fr360Service.getCitizen(args[0]);
@@ -2681,7 +2671,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
 
       // === COBRANZA / BLOQUEO ===
       case 'obtenerCandidatosBloqueo':
-        result = await cobranzaService.obtenerCandidatosBloqueo();
+        result = await cobranzaService.obtenerCandidatosBloqueo(() => clientDisconnected);
         break;
 
       case 'bloquearUsuario':
