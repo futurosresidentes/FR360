@@ -2130,6 +2130,16 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
 
     // Mapear nombres de funciones a sus implementaciones
     switch (functionName) {
+      // === TEST: diagnóstico de timeout ===
+      case 'testSlow': {
+        const delay = Number(args[0]) || 3000;
+        console.log(`⏱️ testSlow: esperando ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        console.log(`⏱️ testSlow: completado`);
+        result = { ok: true, delay };
+        break;
+      }
+
       // === CITIZEN & CRM ===
       case 'getCitizenServer':
         result = await fr360Service.getCitizen(args[0]);
