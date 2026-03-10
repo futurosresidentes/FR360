@@ -3339,6 +3339,83 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ===== CRON: Verificar transacciones ePayco no procesadas cada 2 horas =====
+const EPAYCO_CHECK_INTERVAL = 2 * 60 * 60 * 1000; // 2 horas
+const GOOGLE_CHAT_WEBHOOK_EPAYCO = 'https://chat.googleapis.com/v1/spaces/AAQAdd9Y5To/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=t7hCuCfAlZdNCoUe7LC9Xby_oy0OaNL_rXfm2Q2m3HM';
+
+async function checkUnprocessedEpaycoTransactions() {
+  console.log('[CronEpayco] Iniciando verificación de transacciones no procesadas...');
+
+  try {
+    // 1. Obtener transacciones de ePayco
+    const token = await getEpaycoToken();
+    const epaycoResponse = await fetch('https://apify.epayco.co/transaction', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ pagination: { page: 1, limit: 80 } })
+    });
+
+    if (!epaycoResponse.ok) throw new Error(`ePayco API error: ${epaycoResponse.status}`);
+    const epaycoData = await epaycoResponse.json();
+    const transactions = (epaycoData.data?.data || []).filter(tx => tx.status === 'Aceptada');
+    console.log(`[CronEpayco] ${transactions.length} transacciones aceptadas`);
+
+    if (transactions.length === 0) return;
+
+    // 2. Obtener webhooks procesados de Web Pig
+    const webhooksResponse = await fetch(`${process.env.FACTURADOR_WEBHOOK_BASE_URL}/api/webhooks/recent?limit=200`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.FACTURADOR_WEBHOOK_BEARER_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const webhooksData = await webhooksResponse.json();
+    const webhooks = webhooksData.data || webhooksData || [];
+
+    // 3. Cruzar: encontrar transacciones no procesadas
+    const processedRefs = new Set();
+    (Array.isArray(webhooks) ? webhooks : []).forEach(wh => {
+      const ref = String(wh.ref_payco || wh.reference_payco || wh.referencePayco || '');
+      if (ref) processedRefs.add(ref);
+    });
+
+    const unprocessed = transactions.filter(tx => !processedRefs.has(String(tx.referencePayco)));
+    console.log(`[CronEpayco] ${unprocessed.length} transacciones NO procesadas`);
+
+    if (unprocessed.length === 0) return;
+
+    // 4. Enviar alerta a Google Chat
+    const lines = unprocessed.map(tx => {
+      const valor = Number(tx.amount || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+      return `• *Ref ${tx.referencePayco}* — ${valor} — ${tx.description || 'Sin descripción'}`;
+    });
+
+    const message = {
+      text: `🚨 *${unprocessed.length} transacción(es) ePayco sin procesar*\n\n${lines.join('\n')}\n\n👉 Procesar manualmente: https://dashboard.epayco.com/transacciones`
+    };
+
+    await fetch(GOOGLE_CHAT_WEBHOOK_EPAYCO, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message)
+    });
+
+    console.log(`[CronEpayco] Alerta enviada a Google Chat (${unprocessed.length} transacciones)`);
+
+  } catch (error) {
+    console.error('[CronEpayco] Error:', error.message);
+  }
+}
+
+// Ejecutar al iniciar y luego cada 2 horas
+setTimeout(() => checkUnprocessedEpaycoTransactions(), 30000); // 30s después del inicio
+setInterval(checkUnprocessedEpaycoTransactions, EPAYCO_CHECK_INTERVAL);
+
 // Iniciar servidor
 app.listen(PORT, () => {
   console.log(`
