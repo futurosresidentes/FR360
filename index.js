@@ -3375,7 +3375,8 @@ async function checkUnprocessedEpaycoTransactions() {
     });
 
     const webhooksData = await webhooksResponse.json();
-    const webhooks = webhooksData.data || webhooksData || [];
+    const webhooks = webhooksData.webhooks || webhooksData.data || webhooksData || [];
+    console.log(`[CronEpayco] ${Array.isArray(webhooks) ? webhooks.length : 0} webhooks obtenidos`);
 
     // 3. Cruzar: encontrar transacciones no procesadas
     const processedRefs = new Set();
