@@ -173,9 +173,11 @@ function checkIfProcessed(epaycoTx) {
   }
 
   // Buscar en Web Pig si existe un webhook con este referencePayco
+  // El facturador guarda x_transaction_id completo (ej: "344331739177324289")
+  // pero ePayco devuelve solo x_ref_payco corto (ej: "344331739")
   const found = webpigTransactions.some(webhook => {
     const webpigRef = String(webhook.ref_payco || webhook.reference_payco || webhook.referencePayco || '');
-    return webpigRef === referencia;
+    return webpigRef === referencia || webpigRef.startsWith(referencia);
   });
 
   return found;

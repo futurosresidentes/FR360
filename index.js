@@ -3385,7 +3385,10 @@ async function checkUnprocessedEpaycoTransactions() {
       if (ref) processedRefs.add(ref);
     });
 
-    const unprocessed = transactions.filter(tx => !processedRefs.has(String(tx.referencePayco)));
+    const unprocessed = transactions.filter(tx => {
+      const ref = String(tx.referencePayco);
+      return !processedRefs.has(ref) && ![...processedRefs].some(r => r.startsWith(ref));
+    });
     console.log(`[CronEpayco] ${unprocessed.length} transacciones NO procesadas`);
 
     if (unprocessed.length === 0) return;
