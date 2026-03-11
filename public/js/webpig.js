@@ -1046,7 +1046,7 @@ function renderWebhooks(webhooks) {
         </span>
       </td>
       <td class="actions-col">
-        ${(webhook.status === 'error' || webhook.status === 'requires_manual_intervention') && RETRY_PERMISSIONS.includes(window.userEmail)
+        ${(webhook.status === 'error' || webhook.status === 'requires_manual_intervention' || webhook.failed_stage) && RETRY_PERMISSIONS.includes(window.userEmail)
           ? `<button onclick="retryWebhook(${webhook.id})" class="btn-retry">🔄 Reintentar</button>`
           : ''
         }
