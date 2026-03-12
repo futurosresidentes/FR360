@@ -113,8 +113,11 @@
               </select>
             </div>
             <div class="form-row" id="row-valor">
-              <span class="label">Valor:</span>
-              <input id="valor" class="input" />
+              <span class="label" id="label-valor">Valor:</span>
+              <div style="flex:1; display:flex; align-items:center; gap:6px;">
+                <input id="valor" class="input" style="flex:1;" />
+                <span id="badge-usd" style="display:none; background:#7c3aed; color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:12px; white-space:nowrap; letter-spacing:0.5px;">USD</span>
+              </div>
             </div>
             <div class="form-row hidden" id="row-inicio">
               <span class="label">Inicio plataforma:</span>

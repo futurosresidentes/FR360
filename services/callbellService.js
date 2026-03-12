@@ -324,10 +324,94 @@ async function sendAcuerdoNotification(phoneNumber, correo, primeraCuota, primer
   }
 }
 
+/**
+ * Envía un mensaje de texto plano por el canal exclusivo de FR Mastery
+ * @param {string} phoneNumber - Número de teléfono
+ * @param {string} message - Texto del mensaje
+ * @returns {Promise<Object>} Resultado
+ */
+async function sendFRMasteryMessage(phoneNumber, message) {
+  const channelId = process.env.CALLBELL_CHANNEL_ID;
+  if (!channelId) {
+    console.error('❌ CALLBELL_CHANNEL_ID no configurado');
+    return { success: false, error: 'MISSING_CONFIG', message: 'Channel ID de FR Mastery no configurado' };
+  }
+
+  const normalizedPhone = normalizeColombianPhone(phoneNumber);
+  if (!normalizedPhone) {
+    return { success: false, error: 'INVALID_PHONE', message: 'Número de teléfono inválido' };
+  }
+
+  const url = `${CALLBELL_BASE_URL}/messages/send`;
+  const payload = {
+    to: normalizedPhone,
+    from: channelId,
+    type: 'text',
+    content: { text: message },
+    optin_contact: true
+  };
+
+  console.log('📤 [FRMastery] Enviando mensaje WhatsApp a:', normalizedPhone);
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${CALLBELL_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200 || response.status === 201) {
+      console.log('✅ [FRMastery] Mensaje enviado, UUID:', response.data.message?.uuid);
+      return { success: true, messageUuid: response.data.message?.uuid };
+    }
+
+    console.error('❌ [FRMastery] Callbell status inesperado:', response.status);
+    return { success: false, error: 'SEND_FAILED', message: `HTTP ${response.status}` };
+  } catch (error) {
+    console.error('❌ [FRMastery] Error Callbell:', error.response?.data || error.message);
+    return { success: false, error: 'SEND_FAILED', message: error.response?.data?.message || error.message };
+  }
+}
+
+/**
+ * Envía notificación del contrato FR Mastery al cliente
+ * @param {string} phone - Número de teléfono
+ * @param {string} email - Correo del cliente
+ * @returns {Promise<Object>}
+ */
+async function sendFRMasteryDocNotification(phone, email) {
+  const texto =
+`Te acabo de enviar un correo electrónico a ${email} con nuestro contrato. Por fa léelo y fírmalo; el proceso es muy fácil e intuitivo, sin descargar ni imprimir, el mismo documento te permite firmar. 📨 Si no ves el mensaje en tu bandeja de entrada, ve a Spam, a veces llega a esa bandeja.`;
+  return sendFRMasteryMessage(phone, texto);
+}
+
+/**
+ * Envía el link de pago de FR Mastery (pago de contado)
+ * @param {string} phone - Número de teléfono
+ * @param {number} nCuotas - Número de cuotas
+ * @param {number} vCuota - Valor de la cuota en USD
+ * @param {string} lkCuotas - Link de pago
+ * @returns {Promise<Object>}
+ */
+async function sendFRMasteryPaymentLink(phone, nCuotas, vCuota, lkCuotas) {
+  const texto =
+`Luego de que revises y firmes nuestro contrato, podrás realizar tus pagos a través del siguiente link:
+
+*(${nCuotas}) Cuota(s):* Valor: USD $${vCuota}
+${lkCuotas}
+
+Cualquier duda me cuentas. ☺️`;
+  return sendFRMasteryMessage(phone, texto);
+}
+
 module.exports = {
   normalizeColombianPhone,
   getCallbellContact,
   sendWhatsAppMessage,
   checkMessageStatus,
-  sendAcuerdoNotification
+  sendAcuerdoNotification,
+  sendFRMasteryMessage,
+  sendFRMasteryDocNotification,
+  sendFRMasteryPaymentLink
 };

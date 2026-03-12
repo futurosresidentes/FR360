@@ -2949,3 +2949,30 @@ button[onclick*="openWhatsApp"]:disabled:hover:before {
     padding: 8px 4px;
   }
 }
+
+/* ── FR Mastery mode: solo aplica a .venta-normal ────────────────────────── */
+.venta-normal.frmastery-mode .label {
+  background: #7c3aed;
+}
+
+.venta-normal.frmastery-mode .input,
+.venta-normal.frmastery-mode select.input {
+  border-color: #7c3aed;
+}
+
+.venta-normal.frmastery-mode .input:focus,
+.venta-normal.frmastery-mode select.input:focus {
+  border-color: #6d28d9 !important;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2) !important;
+  outline: none;
+}
+.venta-normal.frmastery-mode #createLinkBtn {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+}
+
+.venta-normal.frmastery-mode #createLinkBtn:hover:not(:disabled):not(.loading) {
+  background: #6d28d9 !important;
+  border-color: #6d28d9 !important;
+}
+/* ────────────────────────────────────────────────────────────────────────── */

@@ -20,6 +20,7 @@ const cobranzaService = require('./services/cobranzaService');
 const cobrancioWebService = require('./services/cobrancioWebService');
 const worldOfficeService = require('./services/worldOfficeService');
 const aucoService = require('./services/aucoService');
+const stripeService = require('./services/stripeService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -2357,6 +2358,56 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
         result = await fr360Service.processSinglePayment(args[0]);
         break;
 
+      case 'processFRMasteryPayment': {
+        const frmResult = await stripeService.processFRMasteryPayment(args[0]);
+        if (!frmResult.success) {
+          result = frmResult;
+          break;
+        }
+
+        // Intentar generar contrato Auco + enviar WhatsApp (no bloquean el flujo)
+        const { clientData, paymentLink: frmLink } = frmResult;
+        const nombreCompleto = `${clientData.nombres} ${clientData.apellidos}`.trim();
+
+        try {
+          const contratoResult = await aucoService.generarYSubirContratoFRMastery({
+            nombres: clientData.nombres,
+            apellidos: clientData.apellidos,
+            cedula: clientData.cedula,
+            correo: clientData.correo,
+            celular: clientData.celular
+          });
+
+          if (contratoResult.success) {
+            console.log('[FRMastery] ✅ Contrato Auco generado:', contratoResult.documentId);
+
+            // Enviar mensaje de contrato por WhatsApp
+            await callbellService.sendFRMasteryDocNotification(clientData.celular, clientData.correo)
+              .catch(e => console.warn('[FRMastery] WhatsApp contrato falló:', e.message));
+
+            // Enviar mensaje con link de pago
+            await callbellService.sendFRMasteryPaymentLink(
+              clientData.celular,
+              1,
+              clientData.valor,
+              frmLink.url
+            ).catch(e => console.warn('[FRMastery] WhatsApp link falló:', e.message));
+          }
+        } catch (aucoErr) {
+          // Template no disponible aún o error de Auco — no bloquear
+          console.warn('[FRMastery] ⚠️ Contrato Auco omitido:', aucoErr.message);
+        }
+
+        result = frmResult;
+        break;
+      }
+
+      case 'sendFRMasteryWhatsApp': {
+        const [frmCelular, frmValor, frmLinkUrl] = args;
+        result = await callbellService.sendFRMasteryPaymentLink(frmCelular, 1, frmValor, frmLinkUrl);
+        break;
+      }
+
       case 'resolvePagoYActualizarCartera':
         result = await fr360Service.resolvePagoYActualizarCartera(args[0]);
         break;
@@ -2735,7 +2786,7 @@ app.post('/api/:functionName', ensureAuthenticated, ensureDomain, async (req, re
             'getProductosServer', 'getProductosCatalog', 'getActiveMembershipPlans', 'getProductHandleFromFRAPP',
             'getCallbellContact', 'sendWhatsAppMessage', 'checkMessageStatus',
             'traerMembresiasServer', 'fetchMembresiasFRAPP', 'registerMembFRAPP', 'updateMembershipFRAPP', 'updateUserFRAPP',
-            'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'crearAcuerdo', 'consultarAcuerdo',
+            'fetchVentas', 'fetchFacturaciones', 'fetchAcuerdos', 'getComerciales', 'updateVentaComercial', 'updateFacturacion', 'processSinglePayment', 'processFRMasteryPayment', 'sendFRMasteryWhatsApp', 'crearAcuerdo', 'consultarAcuerdo',
             'fetchCarteraByAcuerdo', 'fetchAnticipadosPendientes', 'getFacturacionComparison', 'getCarteraResumen',
             'obtenerCandidatosDesbloqueo', 'desbloquearUsuario',
             'obtenerCandidatosBloqueo', 'bloquearUsuario',
@@ -3419,6 +3470,31 @@ async function checkUnprocessedEpaycoTransactions() {
 // Ejecutar al iniciar y luego cada 2 horas
 setTimeout(() => checkUnprocessedEpaycoTransactions(), 30000); // 30s después del inicio
 setInterval(checkUnprocessedEpaycoTransactions, EPAYCO_CHECK_INTERVAL);
+
+// ─── Cron: desactivar links Stripe FR Mastery expirados ───────────────────────
+// Se ejecuta diariamente a las 6:00 AM hora Colombia
+const cron = require('node-cron');
+cron.schedule('0 6 * * *', async () => {
+  console.log('[Cron] 🕕 Revisando links Stripe FR Mastery expirados...');
+  try {
+    const expiredLinks = await stripeService.getFRMasteryExpiredLinks();
+    if (expiredLinks.length === 0) {
+      console.log('[Cron] ✅ No hay links expirados');
+      return;
+    }
+    console.log(`[Cron] Desactivando ${expiredLinks.length} links expirados`);
+    for (const link of expiredLinks) {
+      const paymentLinkId = link.externalId || link.invoiceId;
+      if (paymentLinkId) {
+        await stripeService.deactivateStripePaymentLink(paymentLinkId);
+      }
+    }
+    console.log('[Cron] ✅ Links expirados desactivados');
+  } catch (error) {
+    console.error('[Cron] ❌ Error revisando links expirados:', error.message);
+  }
+}, { timezone: 'America/Bogota' });
+// ──────────────────────────────────────────────────────────────────────────────
 
 // Iniciar servidor
 app.listen(PORT, () => {

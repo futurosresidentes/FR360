@@ -48,15 +48,14 @@ function getLogoBase64() {
   }
 }
 
-// Logo FR Mastery en base64
-let logoMasteryBase64Cache = null;
-function getLogoMasteryBase64() {
-  if (logoMasteryBase64Cache) return logoMasteryBase64Cache;
+let logoFRMasteryCache = null;
+function getFRMasteryLogoBase64() {
+  if (logoFRMasteryCache) return logoFRMasteryCache;
   try {
-    const logoPath = path.join(__dirname, '..', 'public', 'images', 'logo-fr-mastery.png');
+    const logoPath = path.join(__dirname, '..', 'public', 'images', 'logo-frmastery.png');
     const buffer = fs.readFileSync(logoPath);
-    logoMasteryBase64Cache = `data:image/png;base64,${buffer.toString('base64')}`;
-    return logoMasteryBase64Cache;
+    logoFRMasteryCache = `data:image/png;base64,${buffer.toString('base64')}`;
+    return logoFRMasteryCache;
   } catch (error) {
     console.error('[AUCO] Error cargando logo FR Mastery:', error.message);
     return '';
@@ -246,9 +245,9 @@ async function uploadToAuco(data, pdfBuffer) {
   const primeraFecha = data.primeraFecha || '';
 
   const payload = {
-    name: `Acuerdo de pago nro. ${data.nroAcuerdo}. Membresía ${data.producto}`,
+    name: data.documentName || `Acuerdo de pago nro. ${data.nroAcuerdo}. Membresía ${data.producto}`,
     subject: '💙 Aquí comienza a materializarse tu sueño',
-    message: `Te invitamos a leer y aceptar mediante tu firma el siguiente acuerdo de pago.<br><br>Recuerda también que podrás realizar el pago de tu primera cuota por valor de $${primeraCuotaFormateada} hasta el ${primeraFecha} en el link: ${data.primerLink || ''}`,
+    message: data.message || `Te invitamos a leer y aceptar mediante tu firma el siguiente acuerdo de pago.<br><br>Recuerda también que podrás realizar el pago de tu primera cuota por valor de $${primeraCuotaFormateada} hasta el ${primeraFecha} en el link: ${data.primerLink || ''}`,
     remember: 24,
     signProfile: [
       {
@@ -416,7 +415,7 @@ async function generarYSubirAcuerdo(data) {
 }
 
 /**
- * Reemplaza placeholders para templates FR Mastery (usa logo FR Mastery)
+ * Reemplaza placeholders para templates FR Mastery
  */
 function reemplazarPlaceholdersMastery(html, data) {
   const now = new Date();
@@ -446,24 +445,19 @@ function reemplazarPlaceholdersMastery(html, data) {
 
 /**
  * Flujo completo FR Mastery: Acuerdo + Contrato de Garantía → PDF → AUCO
- * @param {Object} data - Datos del acuerdo (mismos que generarYSubirAcuerdo, sin inicioPlataforma/membresia)
- * @returns {Promise<Object>} { success, documentId, htmlPreview }
  */
 async function generarYSubirAcuerdoMastery(data) {
   console.log(`[AUCO] 📄 Generando Acuerdo+Contrato FR Mastery para ${data.nombres} ${data.apellidos} - Acuerdo ${data.nroAcuerdo}`);
 
   try {
-    // 1. Obtener template
     const templateHtml = await getTemplate('acuerdo-frmastery');
 
-    // 2. Reemplazar placeholders (usa logo FR Mastery)
     let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
       ...data,
       consecutivo: data.nroAcuerdo,
       ccestudiante: data.cedula
     });
 
-    // 3. Inyectar fuente Montserrat y estilos globales
     const montserratStyles = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
@@ -483,22 +477,18 @@ async function generarYSubirAcuerdoMastery(data) {
       htmlFinal = htmlFinal + montserratStyles;
     }
 
-    // 4. Envolver placeholders de firma
     htmlFinal = htmlFinal.split('{{signature:0}}').join(
       '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>'
     );
 
-    // 5. Preview sin firma
     const htmlPreview = htmlFinal.replace(
       /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/g,
       '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
     );
 
-    // 6. Convertir a PDF
     const pdfBuffer = await htmlToPDF(htmlFinal);
     console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    // 7. Subir a AUCO
     const resultado = await uploadToAuco(data, pdfBuffer);
 
     console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
@@ -512,19 +502,30 @@ async function generarYSubirAcuerdoMastery(data) {
 
 /**
  * Flujo completo FR Mastery: Solo Contrato de Garantía → PDF → AUCO
- * @param {Object} data - Datos del contrato
- * @returns {Promise<Object>} { success, documentId, htmlPreview }
  */
-async function generarYSubirContratoMastery(data) {
-  console.log(`[AUCO] 📄 Generando Contrato FR Mastery para ${data.nombres} ${data.apellidos}`);
+async function generarYSubirContratoFRMastery(data) {
+  const nombreCompleto = `${data.nombres} ${data.apellidos}`.trim();
+  console.log(`[AUCO] 📄 Generando Contrato FR Mastery para ${nombreCompleto}`);
 
   try {
     const templateHtml = await getTemplate('contrato-frmastery');
 
-    let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
-      ...data,
-      ccestudiante: data.cedula
-    });
+    const now = new Date();
+    const nowColombia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+    const replacements = {
+      '{{dia}}': String(nowColombia.getDate()),
+      '{{mes}}': MESES[nowColombia.getMonth()],
+      '{{ano}}': String(nowColombia.getFullYear()),
+      '{{estudiante}}': nombreCompleto,
+      '{{ccestudiante}}': data.cedula || '',
+      '{{logo}}': getFRMasteryLogoBase64()
+    };
+
+    let htmlFinal = templateHtml;
+    for (const [placeholder, valor] of Object.entries(replacements)) {
+      htmlFinal = htmlFinal.split(placeholder).join(valor);
+    }
 
     const montserratStyles = `
       <style>
@@ -534,7 +535,7 @@ async function generarYSubirContratoMastery(data) {
         html, body { margin: 0 !important; padding: 0 !important; line-height: 1.6; font-size: 12px; color: #333; }
         body > div, body > section, .container, .content, main { margin: 0 !important; padding: 0 !important; }
         p { margin-bottom: 12px; text-align: justify; }
-        table { page-break-inside: avoid; margin: 20px 0; }
+        h1, h2, h3, h4 { margin-top: 20px; margin-bottom: 12px; }
         .signature-container { min-height: 120px; padding: 10px 0; font-size: 28px; width: 100% !important; display: block; }
       </style>
     `;
@@ -548,17 +549,40 @@ async function generarYSubirContratoMastery(data) {
       '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>'
     );
 
+    if (!htmlFinal.includes('{{signature:0}}')) {
+      const signatureBlock = `
+      <div style="margin-top: 50px; padding: 20px 0; border-top: 1px solid #ccc;">
+        <p style="margin-bottom: 8px; font-size: 11px;"><strong>Firma del estudiante:</strong></p>
+        <div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>
+      </div>`;
+      if (htmlFinal.includes('</body>')) {
+        htmlFinal = htmlFinal.replace('</body>', signatureBlock + '</body>');
+      } else {
+        htmlFinal += signatureBlock;
+      }
+      console.log('[AUCO] {{signature:0}} inyectado al final del template');
+    }
+
     const htmlPreview = htmlFinal.replace(
       /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/g,
-      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+      '<div class="signature-container" style="min-height: 100px; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
     );
 
     const pdfBuffer = await htmlToPDF(htmlFinal);
-    console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
+    console.log(`[AUCO] Contrato FR Mastery PDF: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
 
-    const resultado = await uploadToAuco(data, pdfBuffer);
+    const resultado = await uploadToAuco({
+      documentName: `Contrato FR Mastery - ${data.cedula} - ${nombreCompleto}`,
+      message: 'Te invitamos a leer y aceptar mediante tu firma el siguiente contrato.',
+      nombres: data.nombres,
+      apellidos: data.apellidos,
+      correo: data.correo,
+      celular: data.celular,
+      primeraCuota: 0,
+      primeraFecha: '',
+      primerLink: ''
+    }, pdfBuffer);
 
-    console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
     return { ...resultado, htmlPreview };
 
   } catch (error) {
@@ -577,5 +601,6 @@ module.exports = {
   uploadToAuco,
   generarYSubirAcuerdo,
   generarYSubirAcuerdoMastery,
-  generarYSubirContratoMastery
+  generarYSubirContratoMastery,
+  generarYSubirContratoFRMastery
 };

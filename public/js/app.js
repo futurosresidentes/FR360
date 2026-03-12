@@ -1148,6 +1148,19 @@
       linkResult.innerHTML = '';
       valorInput.value = '';
       valorInput.readOnly = false;  // desbloquear por si el anterior quedó bloqueado
+
+      // ── FR Mastery: cambiar colores y mostrar badge USD ──────────────────
+      const isFRMastery = name === 'FR Mastery';
+      const ventaNormal = document.querySelector('.venta-normal');
+      const badgeUsd = document.getElementById('badge-usd');
+      if (isFRMastery) {
+        ventaNormal?.classList.add('frmastery-mode');
+        if (badgeUsd) badgeUsd.style.display = 'inline-block';
+      } else {
+        ventaNormal?.classList.remove('frmastery-mode');
+        if (badgeUsd) badgeUsd.style.display = 'none';
+      }
+      // ────────────────────────────────────────────────────────────────────
       // Si no hay metadatos del producto → ocultamos secciones dependientes
       if (!meta) {
         valorInput.placeholder = '';
@@ -4349,23 +4362,27 @@
         createLinkBtn.classList.add('loading');
         createLinkBtn.innerHTML = '<span class="spinner"></span>Procesando...';
 
-        // Llamar a la función del backend
-        const result = await api.processSinglePayment(formData);
+        // ── Enrutar según producto ───────────────────────────────────────
+        const isFRMastery = formData.producto === 'FR Mastery';
+        const result = isFRMastery
+          ? await api.processFRMasteryPayment(formData)
+          : await api.processSinglePayment(formData);
+        // ────────────────────────────────────────────────────────────────
 
         console.log('✅ Resultado del backend:', result);
 
         if (result.success) {
-          console.log('🔗 Link de pago generado:', result.paymentLink);
+          // Extraer URL según el servicio
+          const linkUrl = isFRMastery
+            ? result.paymentLink?.url
+            : result.paymentLink?.data?.data?.data?.routeLink;
 
-          // Mostrar el link en la UI
-          const linkUrl = result.paymentLink.data?.data?.data?.routeLink;
           if (linkUrl) {
             showPaymentLinkSuccess(linkUrl);
-            // Mostrar mensaje de éxito sin alert (ya se muestra en el cuadro)
             console.log('✅ Link mostrado en UI:', linkUrl);
           } else {
             console.log('⚠️ No se pudo extraer el link URL de la respuesta');
-            console.log('📝 Estructura recibida:', result.paymentLink);
+            console.log('📝 Estructura recibida:', result);
             alert('✅ Link de pago creado pero no se pudo mostrar en la UI');
           }
 
@@ -4388,6 +4405,23 @@
     // Función para mostrar el link de pago exitoso
     function showPaymentLinkSuccess(linkUrl) {
       const linkResult = document.getElementById('linkResult');
+      const isFRMastery = document.getElementById('producto')?.value?.trim() === 'FR Mastery';
+
+      const waButtons = isFRMastery ? '' : `
+          <div style="display: flex; gap: 8px;">
+            <button
+              onclick="sendToWhatsApp('${linkUrl}')"
+              style="background: #25D366; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
+            >
+              📲 Enviar al WhatsApp
+            </button>
+            <button
+              onclick="openWhatsApp('${linkUrl}')"
+              style="background: #128C7E; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
+            >
+              📱 Abrir WhatsApp
+            </button>
+          </div>`;
 
       linkResult.innerHTML = `
         <div style="background: #f0f8f0; border: 2px solid #13bf81; border-radius: 8px; padding: 16px; margin-top: 16px;">
@@ -4408,21 +4442,7 @@
               title="Click para copiar al portapapeles"
             />
           </div>
-
-          <div style="display: flex; gap: 8px;">
-            <button
-              onclick="sendToWhatsApp('${linkUrl}')"
-              style="background: #25D366; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
-            >
-              📲 Enviar al WhatsApp
-            </button>
-            <button
-              onclick="openWhatsApp('${linkUrl}')"
-              style="background: #128C7E; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
-            >
-              📱 Abrir WhatsApp
-            </button>
-          </div>
+          ${waButtons}
         </div>
       `;
     }
@@ -4484,8 +4504,12 @@
         // Mostrar estado de enviando
         feedbackArea.innerHTML = '<div style="color: #ff9800;">📤 Enviando mensaje por WhatsApp...</div>';
 
-        // Llamar al backend para enviar el mensaje
-        const result = await api.sendWhatsAppMessage(celular, producto, linkUrl);
+        // Llamar al backend para enviar el mensaje (FR Mastery usa su propio canal y texto plano)
+        const isFRMasteryWA = producto === 'FR Mastery';
+        const valorUSD = document.getElementById('valor')?.value?.replace(/\D/g, '') || '';
+        const result = isFRMasteryWA
+          ? await api.sendFRMasteryWhatsApp(celular, valorUSD, linkUrl)
+          : await api.sendWhatsAppMessage(celular, producto, linkUrl);
 
         console.log('📤 Resultado envío WhatsApp:', result);
 

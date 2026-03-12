@@ -235,6 +235,14 @@ class FR360ApiClient {
     return this._call('processSinglePayment', formData);
   }
 
+  async processFRMasteryPayment(formData) {
+    return this._call('processFRMasteryPayment', formData);
+  }
+
+  async sendFRMasteryWhatsApp(celular, valor, linkUrl) {
+    return this._call('sendFRMasteryWhatsApp', celular, valor, linkUrl);
+  }
+
   async resolvePagoYActualizarCartera(payload) {
     return this._call('resolvePagoYActualizarCartera', payload);
   }
