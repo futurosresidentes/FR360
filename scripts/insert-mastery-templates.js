@@ -15,12 +15,12 @@ const supabase = createClient(
 async function insertTemplates() {
   const templates = [
     {
-      slug: 'acuerdo-contrato-fr-mastery',
+      slug: 'acuerdo-frmastery',
       name: 'Acuerdo + Contrato FR Mastery',
       file: path.join(__dirname, '..', 'templates', 'acuerdo-contrato-fr-mastery.html')
     },
     {
-      slug: 'contrato-fr-mastery',
+      slug: 'contrato-frmastery',
       name: 'Contrato FR Mastery',
       file: path.join(__dirname, '..', 'templates', 'contrato-fr-mastery.html')
     }

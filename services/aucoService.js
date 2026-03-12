@@ -455,7 +455,7 @@ async function generarYSubirAcuerdoMastery(data) {
 
   try {
     // 1. Obtener template
-    const templateHtml = await getTemplate('acuerdo-contrato-fr-mastery');
+    const templateHtml = await getTemplate('acuerdo-frmastery');
 
     // 2. Reemplazar placeholders (usa logo FR Mastery)
     let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
@@ -520,7 +520,7 @@ async function generarYSubirContratoMastery(data) {
   console.log(`[AUCO] 📄 Generando Contrato FR Mastery para ${data.nombres} ${data.apellidos}`);
 
   try {
-    const templateHtml = await getTemplate('contrato-fr-mastery');
+    const templateHtml = await getTemplate('contrato-frmastery');
 
     let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
       ...data,
