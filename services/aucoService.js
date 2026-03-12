@@ -601,6 +601,5 @@ module.exports = {
   uploadToAuco,
   generarYSubirAcuerdo,
   generarYSubirAcuerdoMastery,
-  generarYSubirContratoMastery,
   generarYSubirContratoFRMastery
 };
