@@ -246,7 +246,7 @@ async function uploadToAuco(data, pdfBuffer) {
 
   const payload = {
     name: data.documentName || `Acuerdo de pago nro. ${data.nroAcuerdo}. Membresía ${data.producto}`,
-    subject: '💙 Aquí comienza a materializarse tu sueño',
+    subject: data.subject || '💙 Aquí comienza a materializarse tu sueño',
     message: data.message || `Te invitamos a leer y aceptar mediante tu firma el siguiente acuerdo de pago.<br><br>Recuerda también que podrás realizar el pago de tu primera cuota por valor de $${primeraCuotaFormateada} hasta el ${primeraFecha} en el link: ${data.primerLink || ''}`,
     remember: 24,
     signProfile: [
@@ -573,7 +573,8 @@ async function generarYSubirContratoFRMastery(data) {
 
     const resultado = await uploadToAuco({
       documentName: `Contrato FR Mastery - ${data.cedula} - ${nombreCompleto}`,
-      message: 'Te invitamos a leer y aceptar mediante tu firma el siguiente contrato.',
+      subject: '💜 FR Mastery, tu programa para ser especialista',
+      message: '¡Estamos listos para sacar tu máximo potencial! Te invitamos a leer y firmar nuestro contrato.',
       nombres: data.nombres,
       apellidos: data.apellidos,
       correo: data.correo,
