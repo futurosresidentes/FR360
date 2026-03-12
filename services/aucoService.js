@@ -48,6 +48,21 @@ function getLogoBase64() {
   }
 }
 
+// Logo FR Mastery en base64
+let logoMasteryBase64Cache = null;
+function getLogoMasteryBase64() {
+  if (logoMasteryBase64Cache) return logoMasteryBase64Cache;
+  try {
+    const logoPath = path.join(__dirname, '..', 'public', 'images', 'logo-fr-mastery.png');
+    const buffer = fs.readFileSync(logoPath);
+    logoMasteryBase64Cache = `data:image/png;base64,${buffer.toString('base64')}`;
+    return logoMasteryBase64Cache;
+  } catch (error) {
+    console.error('[AUCO] Error cargando logo FR Mastery:', error.message);
+    return '';
+  }
+}
+
 // Meses en español
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -400,12 +415,168 @@ async function generarYSubirAcuerdo(data) {
   }
 }
 
+/**
+ * Reemplaza placeholders para templates FR Mastery (usa logo FR Mastery)
+ */
+function reemplazarPlaceholdersMastery(html, data) {
+  const now = new Date();
+  const nowColombia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+
+  const montoFormateado = Number(data.monto || 0).toLocaleString('es-CO');
+
+  const replacements = {
+    '{{consecutivo}}': data.consecutivo || data.nroAcuerdo || '',
+    '{{estudiante}}': `${data.nombres || ''} ${data.apellidos || ''}`.trim(),
+    '{{ccestudiante}}': data.ccestudiante || data.cedula || '',
+    '{{monto}}': montoFormateado,
+    '{{plandepagos}}': generarTablaPlanPagos(data.cuotas),
+    '{{dia}}': String(nowColombia.getDate()),
+    '{{mes}}': MESES[nowColombia.getMonth()],
+    '{{ano}}': String(nowColombia.getFullYear()),
+    '{{comercial}}': data.comercial || '',
+    '{{logo}}': getLogoMasteryBase64()
+  };
+
+  let resultado = html;
+  for (const [placeholder, valor] of Object.entries(replacements)) {
+    resultado = resultado.split(placeholder).join(valor);
+  }
+
+  return resultado;
+}
+
+/**
+ * Flujo completo FR Mastery: Acuerdo + Contrato de Garantía → PDF → AUCO
+ * @param {Object} data - Datos del acuerdo (mismos que generarYSubirAcuerdo, sin inicioPlataforma/membresia)
+ * @returns {Promise<Object>} { success, documentId, htmlPreview }
+ */
+async function generarYSubirAcuerdoMastery(data) {
+  console.log(`[AUCO] 📄 Generando Acuerdo+Contrato FR Mastery para ${data.nombres} ${data.apellidos} - Acuerdo ${data.nroAcuerdo}`);
+
+  try {
+    // 1. Obtener template
+    const templateHtml = await getTemplate('acuerdo-contrato-fr-mastery');
+
+    // 2. Reemplazar placeholders (usa logo FR Mastery)
+    let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
+      ...data,
+      consecutivo: data.nroAcuerdo,
+      ccestudiante: data.cedula
+    });
+
+    // 3. Inyectar fuente Montserrat y estilos globales
+    const montserratStyles = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+        @page { margin: 14mm 15mm 14mm 15mm !important; }
+        * { font-family: 'Montserrat', sans-serif !important; box-sizing: border-box; }
+        html, body { margin: 0 !important; padding: 0 !important; line-height: 1.6; font-size: 12px; color: #333; }
+        body > div, body > section, .container, .content, main { margin: 0 !important; padding: 0 !important; }
+        p { margin-bottom: 12px; text-align: justify; }
+        h1, h2, h3, h4 { margin-top: 20px; margin-bottom: 12px; }
+        table { page-break-inside: avoid; margin: 20px 0; }
+        .signature-container { min-height: 120px; padding: 10px 0; font-size: 28px; width: 100% !important; display: block; }
+      </style>
+    `;
+    if (htmlFinal.includes('</body>')) {
+      htmlFinal = htmlFinal.replace('</body>', montserratStyles + '</body>');
+    } else {
+      htmlFinal = htmlFinal + montserratStyles;
+    }
+
+    // 4. Envolver placeholders de firma
+    htmlFinal = htmlFinal.split('{{signature:0}}').join(
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>'
+    );
+
+    // 5. Preview sin firma
+    const htmlPreview = htmlFinal.replace(
+      /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/g,
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+    );
+
+    // 6. Convertir a PDF
+    const pdfBuffer = await htmlToPDF(htmlFinal);
+    console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
+
+    // 7. Subir a AUCO
+    const resultado = await uploadToAuco(data, pdfBuffer);
+
+    console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
+    return { ...resultado, htmlPreview };
+
+  } catch (error) {
+    console.error(`[AUCO] ❌ Error:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Flujo completo FR Mastery: Solo Contrato de Garantía → PDF → AUCO
+ * @param {Object} data - Datos del contrato
+ * @returns {Promise<Object>} { success, documentId, htmlPreview }
+ */
+async function generarYSubirContratoMastery(data) {
+  console.log(`[AUCO] 📄 Generando Contrato FR Mastery para ${data.nombres} ${data.apellidos}`);
+
+  try {
+    const templateHtml = await getTemplate('contrato-fr-mastery');
+
+    let htmlFinal = reemplazarPlaceholdersMastery(templateHtml, {
+      ...data,
+      ccestudiante: data.cedula
+    });
+
+    const montserratStyles = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+        @page { margin: 14mm 15mm 14mm 15mm !important; }
+        * { font-family: 'Montserrat', sans-serif !important; box-sizing: border-box; }
+        html, body { margin: 0 !important; padding: 0 !important; line-height: 1.6; font-size: 12px; color: #333; }
+        body > div, body > section, .container, .content, main { margin: 0 !important; padding: 0 !important; }
+        p { margin-bottom: 12px; text-align: justify; }
+        table { page-break-inside: avoid; margin: 20px 0; }
+        .signature-container { min-height: 120px; padding: 10px 0; font-size: 28px; width: 100% !important; display: block; }
+      </style>
+    `;
+    if (htmlFinal.includes('</body>')) {
+      htmlFinal = htmlFinal.replace('</body>', montserratStyles + '</body>');
+    } else {
+      htmlFinal = htmlFinal + montserratStyles;
+    }
+
+    htmlFinal = htmlFinal.split('{{signature:0}}').join(
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block;">{{signature:0}}</div>'
+    );
+
+    const htmlPreview = htmlFinal.replace(
+      /<div class="signature-container"[^>]*>{{signature:0}}<\/div>/g,
+      '<div class="signature-container" style="min-height: 100px; padding: 5px 0; font-size: 28px; width: 100%; display: block; border-bottom: 1px solid #999;"><em style="color:#999;">[Firma electrónica pendiente]</em></div>'
+    );
+
+    const pdfBuffer = await htmlToPDF(htmlFinal);
+    console.log(`[AUCO] PDF generado: ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
+
+    const resultado = await uploadToAuco(data, pdfBuffer);
+
+    console.log(`[AUCO] ✅ Proceso completo. Document ID: ${resultado.documentId}`);
+    return { ...resultado, htmlPreview };
+
+  } catch (error) {
+    console.error(`[AUCO] ❌ Error:`, error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getTemplate,
   generarClausulaEjecucion,
   generarTablaPlanPagos,
   reemplazarPlaceholders,
+  reemplazarPlaceholdersMastery,
   htmlToPDF,
   uploadToAuco,
-  generarYSubirAcuerdo
+  generarYSubirAcuerdo,
+  generarYSubirAcuerdoMastery,
+  generarYSubirContratoMastery
 };
