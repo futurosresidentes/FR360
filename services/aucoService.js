@@ -433,8 +433,7 @@ function reemplazarPlaceholdersMastery(html, data) {
     '{{dia}}': String(nowColombia.getDate()),
     '{{mes}}': MESES[nowColombia.getMonth()],
     '{{ano}}': String(nowColombia.getFullYear()),
-    '{{comercial}}': data.comercial || '',
-    '{{logo}}': getLogoMasteryBase64()
+    '{{comercial}}': data.comercial || ''
   };
 
   let resultado = html;

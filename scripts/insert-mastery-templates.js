@@ -13,6 +13,11 @@ const supabase = createClient(
 );
 
 async function insertTemplates() {
+  // Pre-generar logo base64 para embeber en los templates
+  const logoPath = path.join(__dirname, '..', 'public', 'images', 'logo-fr-mastery.png');
+  const logoBase64 = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`;
+  console.log(`Logo base64 generado (${logoBase64.length} chars)`);
+
   const templates = [
     {
       slug: 'acuerdo-frmastery',
@@ -27,7 +32,9 @@ async function insertTemplates() {
   ];
 
   for (const tpl of templates) {
-    const html = fs.readFileSync(tpl.file, 'utf-8');
+    // Embeber logo directamente en el HTML del template
+    const rawHtml = fs.readFileSync(tpl.file, 'utf-8');
+    const html = rawHtml.split('{{logo}}').join(logoBase64);
     console.log(`Insertando "${tpl.name}" (${tpl.slug})... (${html.length} chars)`);
 
     const { data, error } = await supabase
