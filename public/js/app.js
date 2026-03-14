@@ -1638,8 +1638,8 @@
         let canEditDate = canEditDateForInstallment(idx);
         let canEditValue = true;
         
-        if (planIsMaxFin) {
-          // Máximo financiamiento: cuota 1 no puede editar fecha
+        if (planIsMaxFin && !isNoRestrict) {
+          // Máximo financiamiento: cuota 1 no puede editar fecha (excepto usuarios sin restricción)
           if (idx === 0) {
             canEditDate = false;
           }
