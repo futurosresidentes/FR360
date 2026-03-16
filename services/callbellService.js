@@ -345,9 +345,10 @@ async function sendFRMasteryMessage(phoneNumber, message) {
   const url = `${CALLBELL_BASE_URL}/messages/send`;
   const payload = {
     to: normalizedPhone,
-    from: channelId,
+    from: 'whatsapp',
     type: 'text',
     content: { text: message },
+    channel_uuid: channelId,
     optin_contact: true
   };
 
