@@ -14,7 +14,7 @@ const axios = require('axios');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const STRIPE_PRODUCT_ID = process.env.STRIPE_PRODUCT_ID;
 const FR360_BASE_URL = process.env.FR360_BASE_URL;
-const FR360_TOKEN = process.env.FR360_TOKEN;
+const FR360_TOKEN = process.env.FR360_BEARER_TOKEN;
 
 /**
  * Crea un precio dinámico y un Payment Link de un solo uso en Stripe
