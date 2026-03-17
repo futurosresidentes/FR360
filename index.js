@@ -21,6 +21,7 @@ const cobrancioWebService = require('./services/cobrancioWebService');
 const worldOfficeService = require('./services/worldOfficeService');
 const aucoService = require('./services/aucoService');
 const stripeService = require('./services/stripeService');
+const descuentosService = require('./services/descuentosService');
 
 // Importar middleware de autenticación
 const { ensureAuthenticated, ensureDomain, ensureSpecialUser } = require('./middleware/auth');
@@ -3357,6 +3358,29 @@ app.get('/api/whatsapp/status/:uuid', async (req, res) => {
     res.json({ success: true, data: status });
   } catch (error) {
     console.error('Error checking message status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== DESCUENTOS ====================
+app.get('/api/descuentos/vigentes', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const descuentos = await descuentosService.getDescuentosVigentes();
+    res.json({ success: true, data: descuentos });
+  } catch (error) {
+    console.error('[DESCUENTOS] Error obteniendo vigentes:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/descuentos/generar', ensureAuthenticated, ensureDomain, async (req, res) => {
+  try {
+    const limite = req.body.limite || (req.body.soloUno !== false ? 1 : 0);
+    const campana = req.body.campana || 'Marzo2026';
+    const resultado = await descuentosService.generarDescuentos(limite, campana);
+    res.json(resultado);
+  } catch (error) {
+    console.error('[DESCUENTOS] Error generando descuentos:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
