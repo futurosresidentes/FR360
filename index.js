@@ -3366,7 +3366,12 @@ app.get('/api/whatsapp/status/:uuid', async (req, res) => {
 app.get('/api/descuentos/vigentes', ensureAuthenticated, ensureDomain, async (req, res) => {
   try {
     const descuentos = await descuentosService.getDescuentosVigentes();
-    res.json({ success: true, data: descuentos });
+
+    // Verificar estado de pagos en lotes contra facturaciones
+    const idFacturas = descuentos.map(d => d.id_factura).filter(Boolean);
+    const pagados = await descuentosService.verificarPagosDescuentos(idFacturas);
+
+    res.json({ success: true, data: descuentos, pagados: Array.from(pagados) });
   } catch (error) {
     console.error('[DESCUENTOS] Error obteniendo vigentes:', error.message);
     res.status(500).json({ success: false, error: error.message });

@@ -23,7 +23,7 @@ async function getCarterasPendientes() {
   const pageSize = 100;
 
   while (true) {
-    const url = `${STRAPI_BASE_URL}/api/carteras?filters[$and][0][$or][0][estado_pago][$eq]=al_dia&filters[$and][0][$or][1][estado_pago][$eq]=en_mora&filters[$and][1][estado_firma][$eq]=firmado&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=numero_documento:asc`;
+    const url = `${STRAPI_BASE_URL}/api/carteras?filters[$and][0][$or][0][estado_pago][$eq]=al_dia&filters[$and][0][$or][1][estado_pago][$eq]=en_mora&filters[$and][1][estado_firma][$eq]=firmado&populate[producto][fields][0]=nombre&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=numero_documento:asc`;
 
     const response = await axios.get(url, { headers: strapiHeaders });
     const data = response.data.data || [];
@@ -106,14 +106,16 @@ function calcularDiasMora(fechaLimite) {
 async function crearLinkDescuento(data) {
   const expirationDate = data.fecha_fin.replace(/-/g, '/') + ' 23:59:59';
 
+  const productoLabel = data.producto_nombre ? `${data.producto_nombre} - Pago anticipado` : `Descuento ${data.campana}`;
+
   const paymentData = {
     identityDocument: data.numero_documento,
     givenName: data.nombres || '',
     familyName: data.apellidos || '',
     email: data.correo || '',
     phone: data.celular || '',
-    product: `Descuento ${data.campana}`,
-    description: `Pago con descuento - ${data.campana}`,
+    product: productoLabel,
+    description: productoLabel,
     title: 'Futuros Residentes',
     amount: data.valor_con_descuento,
     numberOfPayments: 1,
@@ -136,14 +138,16 @@ async function crearLinkDescuento(data) {
     // El link viene anidado en result.data.data.data.routeLink
     const responseData = result.data?.data?.data || result.data?.data || result.data || {};
     const link = responseData.routeLink || responseData.url || responseData.link || '';
+    const invoiceId = (responseData.invoceNumber || '').toString();
+    const externalId = (responseData.id || '').toString();
     if (link) {
-      console.log(`[DESCUENTOS] ✅ Link creado: ${link}`);
+      console.log(`[DESCUENTOS] ✅ Link creado: ${link} | invoiceId: ${invoiceId}`);
     }
-    return link;
+    return { link, invoiceId, externalId };
   }
 
   console.log('[DESCUENTOS] ⚠️ No se pudo crear link:', result.message || 'Error desconocido');
-  return '';
+  return { link: '', invoiceId: '', externalId: '' };
 }
 
 /**
@@ -151,9 +155,9 @@ async function crearLinkDescuento(data) {
  */
 async function crearDescuento(data) {
   // Crear link de pago
-  let link = '';
+  let linkResult = { link: '', invoiceId: '', externalId: '' };
   try {
-    link = await crearLinkDescuento(data);
+    linkResult = await crearLinkDescuento(data);
   } catch (error) {
     console.log(`[DESCUENTOS] ⚠️ Error creando link para ${data.numero_documento}: ${error.message}`);
   }
@@ -169,7 +173,8 @@ async function crearDescuento(data) {
       valor_con_descuento: data.valor_con_descuento,
       dias_acceso_extras: data.dias_acceso_extras,
       campana: data.campana || '',
-      link: link,
+      link: linkResult.link,
+      id_factura: linkResult.invoiceId,
       observaciones: data.observaciones || ''
     }
   };
@@ -178,7 +183,40 @@ async function crearDescuento(data) {
     headers: strapiHeaders
   });
 
-  return { ...response.data, link };
+  // Guardar en base de datos FR360
+  if (linkResult.link) {
+    const linkDataToSave = {
+      salesRep: 'Daniel Mauricio Cardona Alzate',
+      identityType: 'CC',
+      identityDocument: data.numero_documento,
+      givenName: data.nombres || '',
+      familyName: data.apellidos || '',
+      email: data.correo || '',
+      phone: data.celular || '',
+      product: data.producto_nombre ? `${data.producto_nombre} - Pago anticipado` : `${data.numero_documento} - Pago anticipado`,
+      amount: data.valor_con_descuento,
+      expiryDate: `${data.fecha_fin}T23:59:00Z`,
+      linkURL: linkResult.link,
+      invoiceId: linkResult.invoiceId,
+      externalId: linkResult.externalId,
+      agreementId: data.nro_acuerdo || null,
+      service: 'epayco',
+      accessDate: data.inicio_plataforma ? `${data.inicio_plataforma}T05:00:00Z` : null
+    };
+
+    try {
+      const saveResult = await fr360Service.savePaymentLinkToDatabase(linkDataToSave);
+      if (saveResult.success) {
+        console.log(`[DESCUENTOS] ✅ Link guardado en FR360 DB para ${data.numero_documento}`);
+      } else {
+        console.log(`[DESCUENTOS] ⚠️ No se pudo guardar link en FR360 DB: ${saveResult.message || 'Error'}`);
+      }
+    } catch (error) {
+      console.log(`[DESCUENTOS] ⚠️ Error guardando link en FR360 DB: ${error.message}`);
+    }
+  }
+
+  return { ...response.data, link: linkResult.link };
 }
 
 /**
@@ -247,6 +285,9 @@ async function generarDescuentos(limite = 1, campana = 'Marzo2026') {
         apellidos: c.apellidos || '',
         celular: c.celular || '',
         correo: c.correo || '',
+        nro_acuerdo: c.nro_acuerdo || '',
+        inicio_plataforma: c.inicio_plataforma || '',
+        producto_nombre: '',
         cuotas: []
       };
     }
@@ -255,6 +296,9 @@ async function generarDescuentos(limite = 1, campana = 'Marzo2026') {
     if (c.correo) porCliente[cedula].correo = c.correo;
     if (c.nombres) porCliente[cedula].nombres = c.nombres;
     if (c.apellidos) porCliente[cedula].apellidos = c.apellidos;
+    if (c.nro_acuerdo) porCliente[cedula].nro_acuerdo = c.nro_acuerdo;
+    if (c.inicio_plataforma) porCliente[cedula].inicio_plataforma = c.inicio_plataforma;
+    if (c.producto?.nombre) porCliente[cedula].producto_nombre = c.producto.nombre;
   }
 
   console.log(`[DESCUENTOS] Clientes únicos con cuotas pendientes: ${Object.keys(porCliente).length}`);
@@ -338,6 +382,9 @@ async function generarDescuentos(limite = 1, campana = 'Marzo2026') {
       apellidos: cliente.apellidos,
       celular: cliente.celular,
       correo: cliente.correo,
+      nro_acuerdo: cliente.nro_acuerdo,
+      inicio_plataforma: cliente.inicio_plataforma,
+      producto_nombre: cliente.producto_nombre,
       campana,
       fecha_inicio: hoy.toISOString().split('T')[0],
       fecha_fin: '2026-03-31',
@@ -368,6 +415,37 @@ async function generarDescuentos(limite = 1, campana = 'Marzo2026') {
   };
 }
 
+/**
+ * Verifica qué id_factura ya están pagados consultando facturaciones en lotes de 30
+ * @param {string[]} idFacturas - Array de id_factura a verificar
+ * @returns {Promise<Set<string>>} Set con los id_factura que están pagados
+ */
+async function verificarPagosDescuentos(idFacturas) {
+  const pagados = new Set();
+  const facturas = idFacturas.filter(id => id && id.trim());
+
+  if (facturas.length === 0) return pagados;
+
+  const BATCH_SIZE = 30;
+  for (let i = 0; i < facturas.length; i += BATCH_SIZE) {
+    const batch = facturas.slice(i, i + BATCH_SIZE);
+    const filters = batch.map((id, idx) => `filters[transaccion][$in][${idx}]=${encodeURIComponent(id.trim())}`).join('&');
+    const url = `${STRAPI_BASE_URL}/api/facturaciones?${filters}&fields[0]=transaccion&pagination[pageSize]=100`;
+
+    try {
+      const response = await axios.get(url, { headers: strapiHeaders });
+      const data = response.data.data || [];
+      for (const f of data) {
+        if (f.transaccion) pagados.add(f.transaccion.trim());
+      }
+    } catch (error) {
+      console.log(`[DESCUENTOS] ⚠️ Error verificando lote de facturaciones: ${error.message}`);
+    }
+  }
+
+  return pagados;
+}
+
 module.exports = {
   generarDescuentos,
   getDescuentosVigentes,
@@ -376,5 +454,6 @@ module.exports = {
   getCobranzasPorCedula,
   getCedulasEnCampana,
   calcularDiasBloqueado,
-  calcularDiasMora
+  calcularDiasMora,
+  verificarPagosDescuentos
 };
