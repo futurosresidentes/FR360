@@ -20,7 +20,7 @@
     container.innerHTML = `
       <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center;">
         <h3 style="margin: 0;">Descuentos Vigentes</h3>
-        <button id="btnGenerarDescuento" class="btn-primary" style="background: #e17055;">Generar descuentos (10 clientes)</button>
+        ${window.userEmail === 'daniel.cardona@sentiretaller.com' ? '<button id="btnGenerarDescuento" class="btn-primary" style="background: #e17055;">Generar descuentos (10 clientes)</button>' : ''}
         <span id="descuentosStatus" style="color: #666;"></span>
       </div>
       <div id="descuentosTableContainer">
@@ -28,7 +28,8 @@
       </div>
     `;
 
-    document.getElementById('btnGenerarDescuento').addEventListener('click', generarDescuento);
+    const btnGenerar = document.getElementById('btnGenerarDescuento');
+    if (btnGenerar) btnGenerar.addEventListener('click', generarDescuento);
 
     await cargarDescuentos();
   }
