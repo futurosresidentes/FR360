@@ -894,7 +894,6 @@
   <script>
   document.addEventListener('click', function(e) {
     var btn = e.target;
-    // Si clickeó dentro del botón (ej: en el emoji), subir al botón padre
     while (btn && btn !== document && !btn.classList.contains('btn-copiar-link-activacion')) {
       btn = btn.parentElement;
     }
