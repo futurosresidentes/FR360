@@ -3500,29 +3500,35 @@ async function checkUnprocessedEpaycoTransactions() {
 setTimeout(() => checkUnprocessedEpaycoTransactions(), 30000); // 30s después del inicio
 setInterval(checkUnprocessedEpaycoTransactions, EPAYCO_CHECK_INTERVAL);
 
-// ─── Cron: desactivar links Stripe FR Mastery expirados ───────────────────────
-// Se ejecuta diariamente a las 6:00 AM hora Colombia
-const cron = require('node-cron');
-cron.schedule('0 6 * * *', async () => {
-  console.log('[Cron] 🕕 Revisando links Stripe FR Mastery expirados...');
+// ─── Desactivar links Stripe FR Mastery expirados ─────────────────────────────
+async function checkExpiredStripeLinks() {
+  console.log('[Stripe] 🕕 Revisando links FR Mastery expirados...');
   try {
     const expiredLinks = await stripeService.getFRMasteryExpiredLinks();
     if (expiredLinks.length === 0) {
-      console.log('[Cron] ✅ No hay links expirados');
+      console.log('[Stripe] ✅ No hay links expirados');
       return;
     }
-    console.log(`[Cron] Desactivando ${expiredLinks.length} links expirados`);
+    console.log(`[Stripe] Desactivando ${expiredLinks.length} links expirados`);
     for (const link of expiredLinks) {
       const paymentLinkId = link.externalId || link.invoiceId;
       if (paymentLinkId) {
         await stripeService.deactivateStripePaymentLink(paymentLinkId);
       }
     }
-    console.log('[Cron] ✅ Links expirados desactivados');
+    console.log('[Stripe] ✅ Links expirados desactivados');
   } catch (error) {
-    console.error('[Cron] ❌ Error revisando links expirados:', error.message);
+    console.error('[Stripe] ❌ Error revisando links expirados:', error.message);
   }
-}, { timezone: 'America/Bogota' });
+}
+
+// Ejecutar al iniciar (45s después para que el servidor esté listo) y luego cada 6 horas
+setTimeout(() => checkExpiredStripeLinks(), 45000);
+setInterval(checkExpiredStripeLinks, 6 * 60 * 60 * 1000);
+
+// Cron diario a las 6:00 AM hora Colombia (respaldo)
+const cron = require('node-cron');
+cron.schedule('0 6 * * *', () => checkExpiredStripeLinks(), { timezone: 'America/Bogota' });
 // ──────────────────────────────────────────────────────────────────────────────
 
 // Iniciar servidor
