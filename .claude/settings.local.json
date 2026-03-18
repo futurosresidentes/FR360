@@ -40,7 +40,11 @@
       "Bash(npm install)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd CRM page with black screen layout\n\n- Add /crm route protected with authentication\n- Create views/crm.ejs with minimal black screen design\n- Ready for future CRM development\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git remote set-url:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(npx puppeteer:*)",
+      "Bash(dir /b \"c:\\\\Sitios\\\\FR360\")"
     ],
     "deny": [],
     "ask": []

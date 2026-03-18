@@ -51,6 +51,7 @@
     }
 
     // === OBTENER LINK DE ACTIVACIÓN FRAPP ===
+    window.obtenerLinkActivacion = obtenerLinkActivacion;
     async function obtenerLinkActivacion(cedula) {
       try {
         const btn = event?.target;
