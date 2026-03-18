@@ -121,30 +121,40 @@ async function saveStripePaymentLink(linkData) {
  * @returns {Promise<Array>} Lista de links a desactivar
  */
 async function getFRMasteryExpiredLinks() {
-  const url = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=500&page=1&service=stripe`;
+  const PAGE_SIZE = 500;
+  const now = new Date();
+  const expiredLinks = [];
+  let page = 1;
+  let hasMore = true;
 
   try {
-    const response = await axios.get(url, {
-      headers: { 'Authorization': `Bearer ${FR360_TOKEN}` }
-    });
-
-    if (response.status === 200 && Array.isArray(response.data.data)) {
-      const now = new Date();
-      const stripeLinks = response.data.data.filter(link => link.service === 'stripe');
-      console.log(`[Stripe] Total links en BD: ${response.data.data.length}, links Stripe: ${stripeLinks.length}`);
-      if (stripeLinks.length > 0) {
-        console.log('[Stripe] Ejemplo link:', JSON.stringify(stripeLinks[0], null, 2));
-      }
-      return stripeLinks.filter(link => {
-        if (!link.expiryDate) return false;
-        if (link.status === 'paid') return false;
-        const expired = new Date(link.expiryDate) < now;
-        if (expired) console.log(`[Stripe] Link expirado encontrado: ${link.externalId}, expiryDate: ${link.expiryDate}, status: ${link.status}`);
-        return expired;
+    while (hasMore) {
+      const url = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=${PAGE_SIZE}&page=${page}`;
+      const response = await axios.get(url, {
+        headers: { 'Authorization': `Bearer ${FR360_TOKEN}` }
       });
+
+      if (response.status !== 200 || !Array.isArray(response.data.data)) break;
+
+      const links = response.data.data;
+      console.log(`[Stripe] Página ${page}: ${links.length} links`);
+
+      for (const link of links) {
+        if (link.service !== 'stripe') continue;
+        if (!link.expiryDate) continue;
+        if (link.status === 'paid') continue;
+        if (new Date(link.expiryDate) < now) {
+          console.log(`[Stripe] Link expirado: ${link.externalId}, expiryDate: ${link.expiryDate}`);
+          expiredLinks.push(link);
+        }
+      }
+
+      hasMore = links.length === PAGE_SIZE;
+      page++;
     }
-    console.log('[Stripe] ⚠️ Respuesta inesperada:', response.status, JSON.stringify(response.data).substring(0, 200));
-    return [];
+
+    console.log(`[Stripe] Total links expirados encontrados: ${expiredLinks.length}`);
+    return expiredLinks;
   } catch (error) {
     console.error('[Stripe] ❌ Error obteniendo links expirados:', error.message);
     return [];
