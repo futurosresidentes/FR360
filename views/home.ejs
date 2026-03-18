@@ -893,9 +893,14 @@
   <!-- Link activación FRAPP -->
   <script>
   document.addEventListener('click', function(e) {
-    console.log('[linkActivacion] click en:', e.target.tagName, e.target.className);
-    var btn = e.target.closest('.btn-copiar-link-activacion');
-    if (!btn) return;
+    var btn = e.target;
+    // Si clickeó dentro del botón (ej: en el emoji), subir al botón padre
+    while (btn && btn !== document && !btn.classList.contains('btn-copiar-link-activacion')) {
+      btn = btn.parentElement;
+    }
+    if (!btn || btn === document) return;
+    e.preventDefault();
+    e.stopPropagation();
     var cedula = btn.getAttribute('data-cedula');
     console.log('[linkActivacion] click detectado, cedula:', cedula);
     btn.textContent = '⏳';
