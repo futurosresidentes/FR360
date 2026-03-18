@@ -51,10 +51,8 @@
     }
 
     // === OBTENER LINK DE ACTIVACIÓN FRAPP ===
-    window.obtenerLinkActivacion = obtenerLinkActivacion;
-    async function obtenerLinkActivacion(cedula) {
+    window.obtenerLinkActivacion = async function(cedula, btn) {
       try {
-        const btn = event?.target;
         if (btn) {
           btn.textContent = '⏳';
           btn.disabled = true;
@@ -67,13 +65,25 @@
         });
 
         const data = await response.json();
+        console.log('[activationLink] respuesta:', JSON.stringify(data));
         const result = data.result || data;
 
         if (result.success && result.data?.activationLink) {
-          await navigator.clipboard.writeText(result.data.activationLink);
+          const link = result.data.activationLink;
+          // Fallback para clipboard en HTTP
+          try {
+            await navigator.clipboard.writeText(link);
+          } catch (clipErr) {
+            // Fallback: crear textarea temporal
+            const ta = document.createElement('textarea');
+            ta.value = link;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
           alert(`✅ Link de activación copiado al portapapeles!\n\nExpira: ${new Date(result.data.expiresAt).toLocaleString('es-CO')}\n${result.data.isNewLink ? '(Link nuevo generado)' : '(Link existente)'}`);
         } else {
-          // Manejar errores específicos
           const errorMsg = result.error || 'Error desconocido';
           if (result.data?.currentStatus === 'active') {
             alert(`⚠️ ${errorMsg}\n\nEl usuario ya activó su cuenta.`);
@@ -89,12 +99,12 @@
       } catch (error) {
         console.error('Error obteniendo link de activación:', error);
         alert(`❌ Error: ${error.message}`);
-        if (event?.target) {
-          event.target.textContent = '🔗';
-          event.target.disabled = false;
+        if (btn) {
+          btn.textContent = '🔗';
+          btn.disabled = false;
         }
       }
-    }
+    };
 
     // Sidebar tabs
     document
@@ -4830,7 +4840,7 @@
       const fullName = u ? [u.givenName || '', u.familyName || ''].filter(Boolean).join(' ').trim() : '';
       const emailTxt = u?.email ? `<div>${u.email}</div>` : '';
       const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
-      const pendingBtn = u?.status === 'pending' ? ` <button onclick=”obtenerLinkActivacion('${userCedula}')” style=”background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;” title=”Copia el link de activación al portapapeles”>🔗 (Copiar link activación)</button>` : '';
+      const pendingBtn = u?.status === 'pending' ? ` <button onclick=”obtenerLinkActivacion('${userCedula}', this)” style=”background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;” title=”Copia el link de activación al portapapeles”>🔗 (Copiar link activación)</button>` : '';
       const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
 
       // Planes únicos del usuario (mostrar nombre del plan, no la versión)
