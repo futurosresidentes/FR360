@@ -140,9 +140,11 @@ async function getFRMasteryExpiredLinks() {
     console.log(`[Stripe] Links últimos 15 días: ${links.length}`);
 
     const expired = links.filter(link => {
-      if (link.service !== 'stripe') return false;
+      if (!link.product || !link.product.toLowerCase().includes('fr mastery')) return false;
       if (!link.expiryDate) return false;
       if (link.status === 'paid') return false;
+      const paymentLinkId = link.externalId || link.invoiceId;
+      if (!paymentLinkId || !paymentLinkId.startsWith('plink_')) return false;
       return new Date(link.expiryDate) < now;
     });
 
