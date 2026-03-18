@@ -121,7 +121,7 @@ async function saveStripePaymentLink(linkData) {
  * @returns {Promise<Array>} Lista de links a desactivar
  */
 async function getFRMasteryExpiredLinks() {
-  const url = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=500&page=1`;
+  const url = `${FR360_BASE_URL}/api/v1/payment-links/list?pageSize=500&page=1&service=stripe`;
 
   try {
     const response = await axios.get(url, {
