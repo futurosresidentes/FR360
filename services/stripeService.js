@@ -130,13 +130,20 @@ async function getFRMasteryExpiredLinks() {
 
     if (response.status === 200 && Array.isArray(response.data.data)) {
       const now = new Date();
-      return response.data.data.filter(link => {
-        if (link.service !== 'stripe') return false;
+      const stripeLinks = response.data.data.filter(link => link.service === 'stripe');
+      console.log(`[Stripe] Total links en BD: ${response.data.data.length}, links Stripe: ${stripeLinks.length}`);
+      if (stripeLinks.length > 0) {
+        console.log('[Stripe] Ejemplo link:', JSON.stringify(stripeLinks[0], null, 2));
+      }
+      return stripeLinks.filter(link => {
         if (!link.expiryDate) return false;
         if (link.status === 'paid') return false;
-        return new Date(link.expiryDate) < now;
+        const expired = new Date(link.expiryDate) < now;
+        if (expired) console.log(`[Stripe] Link expirado encontrado: ${link.externalId}, expiryDate: ${link.expiryDate}, status: ${link.status}`);
+        return expired;
       });
     }
+    console.log('[Stripe] ⚠️ Respuesta inesperada:', response.status, JSON.stringify(response.data).substring(0, 200));
     return [];
   } catch (error) {
     console.error('[Stripe] ❌ Error obteniendo links expirados:', error.message);
