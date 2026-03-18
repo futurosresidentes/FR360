@@ -893,6 +893,7 @@
   <!-- Link activación FRAPP -->
   <script>
   document.addEventListener('click', function(e) {
+    console.log('[linkActivacion] click en:', e.target.tagName, e.target.className);
     var btn = e.target.closest('.btn-copiar-link-activacion');
     if (!btn) return;
     var cedula = btn.getAttribute('data-cedula');
