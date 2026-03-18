@@ -890,6 +890,49 @@
   <script src="/js/desbloqueo.js"></script>
   <!-- Bloqueo de morosos module -->
   <script src="/js/bloqueo.js"></script>
+  <!-- Link activación FRAPP -->
+  <script>
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.btn-copiar-link-activacion');
+    if (!btn) return;
+    var cedula = btn.getAttribute('data-cedula');
+    console.log('[linkActivacion] click detectado, cedula:', cedula);
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    fetch('/api/getActivationLink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args: [cedula] })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      console.log('[linkActivacion] respuesta:', data);
+      var result = data.result || data;
+      if (result.success && result.data && result.data.activationLink) {
+        var link = result.data.activationLink;
+        var ta = document.createElement('textarea');
+        ta.value = link;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert('✅ Link copiado!\n\n' + link);
+      } else {
+        alert('❌ ' + (result.error || 'Error desconocido'));
+      }
+      btn.textContent = '🔗 (Copiar link activación)';
+      btn.disabled = false;
+    })
+    .catch(function(err) {
+      console.error('[linkActivacion] error:', err);
+      alert('❌ Error: ' + err.message);
+      btn.textContent = '🔗 (Copiar link activación)';
+      btn.disabled = false;
+    });
+  });
+  </script>
   <!-- Cobrancio Web module -->
   <script src="/js/cobrancio.js"></script>
   <!-- Ticket system module -->
