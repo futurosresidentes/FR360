@@ -106,6 +106,15 @@
       }
     };
 
+    // Event delegation para botón copiar link activación
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn-copiar-link-activacion');
+      if (btn) {
+        const cedula = btn.getAttribute('data-cedula');
+        window.obtenerLinkActivacion(cedula, btn);
+      }
+    });
+
     // Sidebar tabs
     document
       .querySelectorAll('#sidebar nav li')
@@ -4840,7 +4849,7 @@
       const fullName = u ? [u.givenName || '', u.familyName || ''].filter(Boolean).join(' ').trim() : '';
       const emailTxt = u?.email ? `<div>${u.email}</div>` : '';
       const userCedula = u?.identityDocument || searchId.value.replace(/\D/g,'');
-      const pendingBtn = u?.status === 'pending' ? ` <button onclick=”obtenerLinkActivacion('${userCedula}', this)” style=”background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;” title=”Copia el link de activación al portapapeles”>🔗 (Copiar link activación)</button>` : '';
+      const pendingBtn = u?.status === 'pending' ? ` <button class=”btn-copiar-link-activacion” data-cedula=”${userCedula}” style=”background:none;border:none;cursor:pointer;font-size:0.85em;padding:0;margin-left:4px;color:#6f42c1;” title=”Copia el link de activación al portapapeles”>🔗 (Copiar link activación)</button>` : '';
       const statusLine = u?.status ? `<div>Estado: ${u.status}${pendingBtn}</div>` : '';
 
       // Planes únicos del usuario (mostrar nombre del plan, no la versión)
