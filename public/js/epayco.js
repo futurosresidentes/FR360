@@ -161,23 +161,19 @@ function renderEpaycoTable() {
 // ===== HELPER FUNCTIONS =====
 
 function checkIfProcessed(epaycoTx) {
-  const referencia = String(epaycoTx.referencePayco); // Convertir a string
-  if (!referencia) return false;
+  const referencia = String(epaycoTx.referencePayco || '');
+  const clientRef = String(epaycoTx.referenceClient || '');
+  if (!referencia && !clientRef) return false;
 
-  // Debug: Ver el primer webhook para conocer la estructura
-  if (webpigTransactions.length > 0 && !window.debugWebPigLogged) {
-    console.log('🔍 [Debug] Primer webhook keys:', Object.keys(webpigTransactions[0]));
-    console.log('🔍 [Debug] Primer webhook ref_payco:', webpigTransactions[0].ref_payco);
-    console.log('🔍 [Debug] Buscando referencia:', referencia);
-    window.debugWebPigLogged = true;
-  }
-
-  // Buscar en Web Pig si existe un webhook con este referencePayco
-  // El facturador guarda x_transaction_id completo (ej: "344331739177324289")
-  // pero ePayco devuelve solo x_ref_payco corto (ej: "344331739")
+  // Buscar en Web Pig si existe un webhook con este referencePayco o referenceClient
+  // Para pagos por cuota: ref_payco coincide con referencePayco
+  // Para pagos de contado: ref_payco coincide con referenceClient (invoice ID)
   const found = webpigTransactions.some(webhook => {
     const webpigRef = String(webhook.ref_payco || webhook.reference_payco || webhook.referencePayco || '');
-    return webpigRef === referencia || webpigRef.startsWith(referencia);
+    const webpigInvoice = String(webhook.invoice_id || '');
+    const webpigTxId = String(webhook.transaction_id || '');
+    return webpigRef === referencia || webpigRef.startsWith(referencia)
+      || (clientRef && (webpigRef === clientRef || webpigInvoice === clientRef || webpigTxId === clientRef));
   });
 
   return found;
