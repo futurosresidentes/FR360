@@ -3467,7 +3467,11 @@ async function checkUnprocessedEpaycoTransactions() {
 
     const unprocessed = transactions.filter(tx => {
       const ref = String(tx.referencePayco);
-      return !processedRefs.has(ref) && ![...processedRefs].some(r => r.startsWith(ref));
+      const receipt = String(tx.receipt || '');
+      // Match por referencePayco O por receipt (pagos de contado usan receipt como ref_payco en WebPig)
+      const matchByRef = processedRefs.has(ref) || [...processedRefs].some(r => r.startsWith(ref));
+      const matchByReceipt = receipt && processedRefs.has(receipt);
+      return !matchByRef && !matchByReceipt;
     });
     console.log(`[CronEpayco] ${unprocessed.length} transacciones NO procesadas`);
 
