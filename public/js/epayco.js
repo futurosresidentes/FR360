@@ -162,18 +162,16 @@ function renderEpaycoTable() {
 
 function checkIfProcessed(epaycoTx) {
   const referencia = String(epaycoTx.referencePayco || '');
-  const clientRef = String(epaycoTx.referenceClient || '');
-  if (!referencia && !clientRef) return false;
+  const receipt = String(epaycoTx.receipt || '');
+  if (!referencia && !receipt) return false;
 
-  // Buscar en Web Pig si existe un webhook con este referencePayco o referenceClient
+  // Buscar en Web Pig si existe un webhook con este referencePayco o receipt
   // Para pagos por cuota: ref_payco coincide con referencePayco
-  // Para pagos de contado: ref_payco coincide con referenceClient (invoice ID)
+  // Para pagos de contado: ref_payco coincide con receipt (x_transaction_id)
   const found = webpigTransactions.some(webhook => {
-    const webpigRef = String(webhook.ref_payco || webhook.reference_payco || webhook.referencePayco || '');
-    const webpigInvoice = String(webhook.invoice_id || '');
-    const webpigTxId = String(webhook.transaction_id || '');
+    const webpigRef = String(webhook.ref_payco || '');
     return webpigRef === referencia || webpigRef.startsWith(referencia)
-      || (clientRef && (webpigRef === clientRef || webpigInvoice === clientRef || webpigTxId === clientRef));
+      || (receipt && webpigRef === receipt);
   });
 
   return found;
