@@ -20,7 +20,7 @@
     container.innerHTML = `
       <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <h3 style="margin: 0;">Descuentos Vigentes</h3>
-        ${window.userEmail === 'daniel.cardona@sentiretaller.com' ? '<button id="btnGenerarDescuento" class="btn-primary" style="background: #e17055;">Generar descuento (1 cliente)</button>' : ''}
+        ${window.userEmail === 'daniel.cardona@sentiretaller.com' ? '<button id="btnGenerarDescuento" class="btn-primary" style="background: #e17055;">Generar descuentos (100 clientes)</button>' : ''}
         <span id="descuentosStatus" style="color: #666;"></span>
       </div>
       <div id="descuentosResumen"></div>
@@ -182,7 +182,7 @@
       const resp = await fetch('/api/descuentos/generar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soloUno: false, limite: 1 })
+        body: JSON.stringify({ soloUno: false, limite: 100 })
       });
       const data = await resp.json();
 

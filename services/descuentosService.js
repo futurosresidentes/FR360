@@ -5,6 +5,7 @@
  */
 const axios = require('axios');
 const fr360Service = require('./fr360Service');
+const callbellService = require('./callbellService');
 
 const STRAPI_BASE_URL = process.env.STRAPI_BASE_URL;
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN;
@@ -224,10 +225,21 @@ async function crearDescuento(data) {
  */
 async function getDescuentosVigentes() {
   const hoy = new Date().toISOString().split('T')[0];
-  const url = `${STRAPI_BASE_URL}/api/descuentos?filters[fecha_fin][$gte]=${hoy}&pagination[pageSize]=200&sort=createdAt:desc`;
+  const allDescuentos = [];
+  let page = 1;
 
-  const response = await axios.get(url, { headers: strapiHeaders });
-  return response.data.data || [];
+  while (true) {
+    const url = `${STRAPI_BASE_URL}/api/descuentos?filters[fecha_fin][$gte]=${hoy}&pagination[page]=${page}&pagination[pageSize]=100&sort=createdAt:desc`;
+    const response = await axios.get(url, { headers: strapiHeaders });
+    const data = response.data.data || [];
+    allDescuentos.push(...data);
+
+    const { pageCount } = response.data.meta?.pagination || {};
+    if (page >= pageCount) break;
+    page++;
+  }
+
+  return allDescuentos;
 }
 
 /**
@@ -398,6 +410,30 @@ async function generarDescuentos(limite = 1, campana = 'Marzo2026') {
     console.log(`[DESCUENTOS] Creando descuento para ${cedula}: $${valorNormal.toLocaleString()} → $${valorConDescuento.toLocaleString()} (${diasBloqueado} días bloqueado)`);
     const created = await crearDescuento(descuento);
     resultados.push({ ...descuento, strapiId: created.data?.id || created.data?.documentId });
+
+    // Enviar WhatsApp con plantilla de descuento
+    if (cliente.celular && created.link) {
+      try {
+        const primerNombre = (cliente.nombres || '').split(' ')[0];
+        const whatsappResult = await callbellService.sendDescuentoNotification(cliente.celular, {
+          primerNombre,
+          producto: cliente.producto_nombre || 'programa',
+          fechaLimite: '31 de marzo del 2026',
+          porcentaje: '20%',
+          saldoActual: valorNormal,
+          valorDescuento: valorConDescuento,
+          diasExtras: diasAccesoExtras,
+          linkPago: created.link
+        });
+        if (whatsappResult.success) {
+          console.log(`[DESCUENTOS] ✅ WhatsApp enviado a ${cliente.celular}`);
+        } else {
+          console.log(`[DESCUENTOS] ⚠️ WhatsApp no enviado a ${cliente.celular}: ${whatsappResult.message}`);
+        }
+      } catch (error) {
+        console.log(`[DESCUENTOS] ⚠️ Error enviando WhatsApp a ${cliente.celular}: ${error.message}`);
+      }
+    }
 
     if (limite > 0 && resultados.length >= limite) {
       console.log(`[DESCUENTOS] Límite alcanzado: ${limite} cliente(s).`);

@@ -11,7 +11,7 @@
 const Stripe = require('stripe');
 const axios = require('axios');
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const STRIPE_PRODUCT_ID = process.env.STRIPE_PRODUCT_ID;
 const FR360_BASE_URL = process.env.FR360_BASE_URL;
 const FR360_TOKEN = process.env.FR360_BEARER_TOKEN;
@@ -28,6 +28,7 @@ const FR360_TOKEN = process.env.FR360_BEARER_TOKEN;
  * @returns {Promise<{paymentLinkId, url}>}
  */
 async function createStripePaymentLink(data) {
+  if (!stripe) throw new Error('Stripe no configurado: falta STRIPE_SECRET_KEY');
   console.log('[Stripe] Creando link para:', data.customerName, '- USD', data.amount);
 
   // 1. Crear precio dinámico (amount en centavos)

@@ -406,6 +406,72 @@ Cualquier duda me cuentas. ☺️`;
   return sendFRMasteryMessage(phone, texto);
 }
 
+/**
+ * Envía notificación de descuento vía Callbell WhatsApp
+ * Template: 83020438c5d34f44887135b644b3e686
+ * Values: [nombre, producto, fechaLimite, porcentaje, saldoActual, valorDescuento, textoExtra, linkPago]
+ */
+async function sendDescuentoNotification(phoneNumber, data) {
+  const DESCUENTO_TEMPLATE_UUID = '6f4aef636e4543e4b916de1821aefb92';
+
+  const normalizedPhone = normalizeColombianPhone(phoneNumber);
+  if (!normalizedPhone) {
+    return { success: false, error: 'INVALID_PHONE', message: 'Número de teléfono inválido' };
+  }
+
+  // Formatear valores con $ y separador de miles con punto
+  const formatPesos = (n) => '$' + Number(n || 0).toLocaleString('en-US').replace(/,/g, '.');
+
+  // Campo 7: texto variable según días extras
+  let textoExtra = '👇🏼';
+  if (data.diasExtras && data.diasExtras > 0) {
+    textoExtra = `Además, te repondremos ${data.diasExtras} días de acceso a la plataforma para que puedas aprovechar al máximo tu preparación. 🚀`;
+  }
+
+  const templateValues = [
+    data.primerNombre || '',           // 1. Primer nombre
+    data.producto || '',               // 2. Nombre del producto
+    data.fechaLimite || '31 de marzo del 2026', // 3. Fecha límite
+    data.porcentaje || '20%',          // 4. Porcentaje descuento
+    formatPesos(data.saldoActual),     // 5. Saldo actual
+    formatPesos(data.valorDescuento),  // 6. Valor con descuento
+    textoExtra,                        // 7. Texto días extras o emoji
+    data.linkPago || ''                // 8. Link de pago
+  ];
+
+  const url = `${CALLBELL_BASE_URL}/messages/send`;
+  const payload = {
+    to: normalizedPhone,
+    from: 'whatsapp',
+    type: 'text',
+    content: { text: 'Descuento' },
+    template_values: templateValues,
+    template_uuid: DESCUENTO_TEMPLATE_UUID,
+    optin_contact: true
+  };
+
+  console.log('📤 [Descuento] Enviando notificación Callbell a:', normalizedPhone);
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${CALLBELL_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 200 || response.status === 201) {
+      console.log('✅ [Descuento] Notificación enviada:', response.data.message?.uuid);
+      return { success: true, messageUuid: response.data.message?.uuid };
+    }
+    console.error('❌ [Descuento] Callbell status inesperado:', response.status);
+    return { success: false, error: 'UNEXPECTED_STATUS', message: `Status: ${response.status}` };
+  } catch (error) {
+    console.error('❌ [Descuento] Error enviando Callbell:', error.response?.data || error.message);
+    return { success: false, error: 'SEND_ERROR', message: error.response?.data?.message || error.message };
+  }
+}
+
 module.exports = {
   normalizeColombianPhone,
   getCallbellContact,
@@ -414,5 +480,6 @@ module.exports = {
   sendAcuerdoNotification,
   sendFRMasteryMessage,
   sendFRMasteryDocNotification,
-  sendFRMasteryPaymentLink
+  sendFRMasteryPaymentLink,
+  sendDescuentoNotification
 };
